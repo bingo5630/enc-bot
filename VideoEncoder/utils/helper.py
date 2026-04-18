@@ -23,7 +23,8 @@ start_but = InlineKeyboardMarkup([
     [InlineKeyboardButton("sᴇᴛᴛɪɴɢs", callback_data="OpenSettings")],
     [InlineKeyboardButton("sᴛᴀᴛs", callback_data="stats"), InlineKeyboardButton("ᴅᴇᴠᴇʟᴏᴘᴇʀ", url="https://t.me/akaza7902")],
     [InlineKeyboardButton("[ • ᴏᴜʀ ᴄᴏᴍᴍᴜɴɪᴛʏ • ]", url="https://t.me/cantarellabots")],
-    [InlineKeyboardButton("[ • ᴍᴜɢɪᴡᴀʀᴀs ɴᴇᴛᴡᴏʀᴋ • ]", url="https://t.me/Mugiwaras_Network")]
+    [InlineKeyboardButton("[ • ᴍᴜɢɪᴡᴀʀᴀs ɴᴇᴛᴡᴏʀᴋ • ]", url="https://t.me/Mugiwaras_Network")],
+    [InlineKeyboardButton("ʜᴇʟᴘ", callback_data="help_callback")]
 ])
 
 

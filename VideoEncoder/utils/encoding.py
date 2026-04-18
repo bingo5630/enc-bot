@@ -5,6 +5,7 @@ import json
 import math
 import os
 import re
+import shutil
 import subprocess
 import time
 
@@ -174,10 +175,6 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
 
     output_filepath = output_filepathh
     subtitles_path = os.path.join(encode_dir, str(msg.id) + '.ass')
-
-    progress = os.path.join(download_dir, "process.txt")
-    with open(progress, 'w') as f:
-        pass
 
     assert(output_filepath != filepath)
 
@@ -476,8 +473,13 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
         thumb_path = None
 
     # Finally
-    command = ['ffmpeg', '-hide_banner', '-loglevel', 'error',
-               '-progress', progress, '-hwaccel', 'auto', '-y', '-i', filepath]
+    ffmpeg_path = shutil.which("ffmpeg")
+    if not ffmpeg_path:
+        return await message.reply("❌ FFmpeg not found on VPS. Please install it.")
+    print(f"DEBUG: Input: {filepath}, Output: {output_filepath}")
+
+    command = ['ffmpeg', '-hide_banner',
+               '-hwaccel', 'auto', '-y', '-i', filepath]
 
     input_count = 1
     watermark_input_index = -1
@@ -556,10 +558,6 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     else:
         output_filepath = os.path.join(encode_dir, name + '.mkv')
 
-    progress = os.path.join(download_dir, "process.txt")
-    with open(progress, 'w') as f:
-        pass
-
     adv_metadata = await get_metadata_flags(message.from_user.id)
 
     # Quality logic for hard_sub
@@ -593,9 +591,14 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
 
     # Hardcode subtitles - requires re-encoding video
     # Using libx264 for speed
+    ffmpeg_path = shutil.which("ffmpeg")
+    if not ffmpeg_path:
+        return await message.reply("❌ FFmpeg not found on VPS. Please install it.")
+    print(f"DEBUG: Input: {filepath}, Output: {output_filepath}")
+
     command = [
-        'ffmpeg', '-hide_banner', '-loglevel', 'error',
-        '-progress', progress, '-hwaccel', 'auto', '-y',
+        'ffmpeg', '-hide_banner',
+        '-hwaccel', 'auto', '-y',
         '-i', filepath
     ]
 
@@ -665,6 +668,11 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
 
     # Merge subtitle and video - no re-encoding (mostly)
     # However, if quality is set or watermark exists, we HAVE to re-encode to scale/overlay.
+    ffmpeg_path = shutil.which("ffmpeg")
+    if not ffmpeg_path:
+        return await message.reply("❌ FFmpeg not found on VPS. Please install it.")
+    print(f"DEBUG: Input: {filepath}, Output: {output_filepath}")
+
     if quality or has_watermark:
         vf_list = []
         crf = '22'
@@ -683,7 +691,7 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
             v_bitrate = ['-b:v', '3M']
 
         command = [
-            'ffmpeg', '-hide_banner', '-loglevel', 'error',
+            'ffmpeg', '-hide_banner',
             '-y', '-i', filepath, '-i', subtitles_path
         ]
 
@@ -721,7 +729,7 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
             command.extend(['-map', f'{thumb_input_index}:v', '-c:v:1', 'png', '-disposition:v:1', 'attached_pic'])
     else:
         command = [
-            'ffmpeg', '-hide_banner', '-loglevel', 'error',
+            'ffmpeg', '-hide_banner',
             '-y', '-i', filepath, '-i', subtitles_path
         ]
 
@@ -746,6 +754,7 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
     command.extend(adv_metadata)
 
     proc = await asyncio.create_subprocess_exec(*command, output_filepath, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    await handle_progress(proc, msg, message, filepath)
     stdout, stderr = await proc.communicate()
 
     if proc.returncode != 0:
@@ -834,77 +843,94 @@ async def media_info(saved_file_path):
 
 async def handle_progress(proc, msg, message, filepath):
     name = os.path.basename(filepath)
-    # Progress Bar
     COMPRESSION_START_TIME = time.time()
-    LOGGER.info("ffmpeg_process: "+str(proc.pid))
-    status = download_dir + "status.json"
-    with open(status, 'w') as f:
+    total_time = get_duration(filepath)
+    if not total_time:
+        total_time = 1
+
+    status_file = os.path.join(download_dir, "status.json")
+    with open(status_file, 'w') as f:
         statusMsg = {
             'running': True,
             'message': msg.id,
-            'user': message.from_user.id
+            'user': message.from_user.id,
+            'pid': proc.pid
         }
         json.dump(statusMsg, f, indent=2)
-    with open(status, 'r+') as f:
-        statusMsg = json.load(f)
-        statusMsg['pid'] = proc.pid
-        statusMsg['message'] = msg.id
-        statusMsg['user'] = message.from_user.id
-        f.seek(0)
-        json.dump(statusMsg, f, indent=2)
-    while proc.returncode == None:
-        await asyncio.sleep(5)
-        with open(download_dir + 'process.txt', 'r+') as file:
-            text = file.read()
-            frame = re.findall(r"frame=(\d+)", text)
-            time_in_us = re.findall(r"out_time_ms=(\d+)", text)
-            progress = re.findall(r"progress=(\w+)", text)
-            speed = re.findall(r"speed=(\d+\.?\d*)", text)
-            if len(frame):
-                frame = int(frame[-1])
-            else:
-                frame = 1
-            if len(speed):
-                speed = speed[-1]
-            else:
-                speed = 1
-            if len(time_in_us):
-                time_in_us = time_in_us[-1]
-            else:
-                time_in_us = 1
-            if len(progress):
-                if progress[-1] == "end":
-                    LOGGER.info(progress[-1])
-                    break
-            breakexecution_time = TimeFormatter(
-                (time.time() - COMPRESSION_START_TIME))
-            elapsed_time = int(time_in_us)/1000000
-            total_time, bitrate = await media_info(filepath)
-            difference = math.floor((total_time - elapsed_time) / float(speed))
-            ETA = "-"
-            if difference > 0:
-                ETA = TimeFormatter(difference)
-            percentage = math.floor(elapsed_time * 100 / total_time)
-            progress_str = "<b>Encoding Video:</b> {0}%\n{1}{2}".format(
-                round(percentage, 2),
-                ''.join(['█' for i in range(
-                    math.floor(percentage / 10))]),
-                ''.join(['░' for i in range(
-                    10 - math.floor(percentage / 10))])
-            )
-            stats = f'{progress_str} \n' \
-                    f'• ETA: {ETA}'
-            try:
-                await msg.edit(
-                    text=stats,
-                    reply_markup=InlineKeyboardMarkup(
-                        [
-                            [
-                                InlineKeyboardButton('ᴄᴀɴᴄᴇʟ', callback_data='cancel'), InlineKeyboardButton(
-                                    'sᴛᴀᴛs', callback_data='stats')
-                            ]
-                        ]
-                    )
+
+    last_update_time = 0
+    stderr_buffer = ""
+
+    while True:
+        try:
+            chunk = await asyncio.wait_for(proc.stderr.read(1024), timeout=1.0)
+            if chunk:
+                stderr_buffer += chunk.decode('utf-8', errors='replace')
+                if len(stderr_buffer) > 5000:
+                    stderr_buffer = stderr_buffer[-5000:]
+            elif proc.returncode is not None:
+                break
+        except asyncio.TimeoutError:
+            if proc.returncode is not None:
+                break
+        except Exception:
+            break
+
+        try:
+            with open(status_file, 'r') as f:
+                s_msg = json.load(f)
+                if not s_msg.get('running', True):
+                    proc.kill()
+                    return
+        except:
+            pass
+
+        now = time.time()
+        if now - last_update_time >= 3:
+            times = re.findall(r"time=(\d{2}:\d{2}:\d{2}.\d{2})", stderr_buffer)
+            sizes = re.findall(r"size=\s*(\d+)\s*(\w+)", stderr_buffer)
+
+            if times and sizes:
+                last_time_str = times[-1]
+                t_parts = last_time_str.split(':')
+                current_seconds = int(t_parts[0])*3600 + int(t_parts[1])*60 + float(t_parts[2])
+
+                last_size_val, unit = sizes[-1]
+                current_size_val = int(last_size_val)
+                unit = unit.lower()
+                if 'kb' in unit:
+                    current_size_mb = current_size_val / 1024
+                elif 'mb' in unit:
+                    current_size_mb = current_size_val
+                elif 'gb' in unit:
+                    current_size_mb = current_size_val * 1024
+                else:
+                    current_size_mb = current_size_val / (1024*1024)
+
+                percentage = min(100, (current_seconds / total_time) * 100)
+                est_total_size_mb = (current_size_mb / percentage * 100) if percentage > 0 else 0
+
+                elapsed = now - COMPRESSION_START_TIME
+                speed_mb_s = current_size_mb / elapsed if elapsed > 0 else 0
+
+                bar_count = math.floor(percentage / 10)
+                bar = '█' * bar_count + '░' * (10 - bar_count)
+
+                status_text = (
+                    f"‣ 𝐒𝐭𝐚𝐭𝐮𝐬 : 𝐄𝐧𝐜𝐨𝐝𝐢𝐧𝐠\n"
+                    f"   [{bar}] {round(percentage, 2)}%\n"
+                    f"   ‣ 𝐒𝐢𝐳𝐞 : {round(current_size_mb, 2)} MB ᴏᴜᴛ ᴏғ ~ {round(est_total_size_mb, 2)} MB\n"
+                    f"   ‣ 𝐒𝐩𝐞𝐞𝐝 : {round(speed_mb_s, 2)} MB/s"
                 )
-            except:
-                pass
+
+                try:
+                    await msg.edit(
+                        text=status_text,
+                        reply_markup=InlineKeyboardMarkup([[
+                            InlineKeyboardButton('ᴄᴀɴᴄᴇʟ', callback_data='cancel'),
+                            InlineKeyboardButton('sᴛᴀᴛs', callback_data='stats')
+                        ]])
+                    )
+                    last_update_time = now
+                except:
+                    pass
