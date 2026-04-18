@@ -12,7 +12,7 @@ from hachoir.metadata import extractMetadata
 from hachoir.parser import createParser
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from .. import LOGGER, download_dir, encode_dir
+from .. import LOGGER, download_dir, encode_dir, ASSETS_DIR
 from .database.access_db import db
 from .display_progress import TimeFormatter
 
@@ -160,7 +160,7 @@ async def get_metadata_flags(user_id):
     return flags
 
 async def encode(filepath, message, msg, audio_map=None, quality=None):
-
+    filepath = os.path.abspath(filepath)
     ex = await db.get_extensions(message.from_user.id)
     path, extension = os.path.splitext(filepath)
     name = os.path.basename(path)
@@ -333,7 +333,7 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
     r = await db.get_resolution(message.from_user.id)
     # Physical Watermark check
     user_id = message.from_user.id
-    watermark_file = os.path.join(os.getcwd(), 'Assets', f'watermark_{user_id}.png')
+    watermark_file = os.path.join(ASSETS_DIR, f'watermark_{user_id}.png')
     has_watermark = os.path.exists(watermark_file)
 
     vf_list = []
@@ -471,7 +471,7 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
 
     # Thumbnail injection
     user_id = message.from_user.id
-    thumb_path = os.path.join(os.getcwd(), 'Assets', f'thumb_{user_id}.jpg')
+    thumb_path = os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg')
     if not os.path.exists(thumb_path) or os.path.getsize(thumb_path) == 0:
         thumb_path = None
 
@@ -528,12 +528,12 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
     # Wait for the subprocess to finish
     stdout, stderr = await proc.communicate()
 
-    e_response = stderr.decode().strip()
-    t_response = stdout.decode().strip()
-    LOGGER.error(f"FFmpeg stderr: {e_response}")
-    if t_response:
-        LOGGER.info(f"FFmpeg stdout: {t_response}")
-    await proc.communicate()
+    if proc.returncode != 0:
+        e_response = stderr.decode().strip()
+        LOGGER.error(f"FFmpeg failed with exit code {proc.returncode}. Error: {e_response}")
+        if os.path.isfile(output_filepath):
+            os.remove(output_filepath)
+        return None
 
     if not os.path.isfile(output_filepath) or os.path.getsize(output_filepath) == 0:
         LOGGER.error(f"Encoding failed: {output_filepath} not created or is 0 bytes.")
@@ -545,6 +545,8 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
 
 
 async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
+    filepath = os.path.abspath(filepath)
+    subtitles_path = os.path.abspath(subtitles_path)
     ex = await db.get_extensions(message.from_user.id)
     path, extension = os.path.splitext(filepath)
     name = os.path.basename(path)
@@ -581,12 +583,12 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
 
     # Thumbnail injection
     user_id = message.from_user.id
-    thumb_path = os.path.join(os.getcwd(), 'Assets', f'thumb_{user_id}.jpg')
-    if not os.path.exists(thumb_path):
+    thumb_path = os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg')
+    if not (os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0):
         thumb_path = None
 
     # Watermark check
-    watermark_file = os.path.join(os.getcwd(), 'Assets', f'watermark_{user_id}.png')
+    watermark_file = os.path.join(ASSETS_DIR, f'watermark_{user_id}.png')
     has_watermark = os.path.exists(watermark_file)
 
     # Hardcode subtitles - requires re-encoding video
@@ -628,7 +630,11 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
 
     proc = await asyncio.create_subprocess_exec(*command, output_filepath, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     await handle_progress(proc, msg, message, filepath)
-    await proc.communicate()
+    stdout, stderr = await proc.communicate()
+
+    if proc.returncode != 0:
+        LOGGER.error(f"FFmpeg hard_sub failed with exit code {proc.returncode}. Error: {stderr.decode().strip()}")
+        return None
 
     if not os.path.isfile(output_filepath) or os.path.getsize(output_filepath) == 0:
         return None
@@ -636,6 +642,8 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
 
 
 async def soft_code(filepath, subtitles_path, message, msg, quality=None):
+    filepath = os.path.abspath(filepath)
+    subtitles_path = os.path.abspath(subtitles_path)
     ex = await db.get_extensions(message.from_user.id)
     path, extension = os.path.splitext(filepath)
     name = os.path.basename(path)
@@ -647,12 +655,12 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
 
     # Thumbnail injection
     user_id = message.from_user.id
-    thumb_path = os.path.join(os.getcwd(), 'Assets', f'thumb_{user_id}.jpg')
-    if not os.path.exists(thumb_path):
+    thumb_path = os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg')
+    if not (os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0):
         thumb_path = None
 
     # Watermark check
-    watermark_file = os.path.join(os.getcwd(), 'Assets', f'watermark_{user_id}.png')
+    watermark_file = os.path.join(ASSETS_DIR, f'watermark_{user_id}.png')
     has_watermark = os.path.exists(watermark_file)
 
     # Merge subtitle and video - no re-encoding (mostly)
@@ -738,7 +746,11 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
     command.extend(adv_metadata)
 
     proc = await asyncio.create_subprocess_exec(*command, output_filepath, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-    await proc.communicate()
+    stdout, stderr = await proc.communicate()
+
+    if proc.returncode != 0:
+        LOGGER.error(f"FFmpeg soft_code failed with exit code {proc.returncode}. Error: {stderr.decode().strip()}")
+        return None
 
     if not os.path.isfile(output_filepath) or os.path.getsize(output_filepath) == 0:
         return None

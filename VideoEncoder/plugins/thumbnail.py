@@ -1,5 +1,6 @@
 from pyrogram import Client, filters
 from pyrogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from .. import ASSETS_DIR
 from ..utils.database.access_db import db
 from ..utils.helper import check_chat
 from ..utils.database.add_user import AddUserToDatabase
@@ -22,8 +23,7 @@ async def thumb_command(client, message):
         user_id = message.from_user.id
         thumbnail = await db.get_thumbnail(user_id)
 
-        thumb_path = os.path.join(os.getcwd(), 'Assets', f'thumb_{user_id}.jpg')
-        os.makedirs('Assets', exist_ok=True)
+        thumb_path = os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg')
         has_thumb = os.path.exists(thumb_path)
 
         text = "> <b>\"ᴄʟɪᴄᴋ ʙᴇʟᴏᴡ ᴛᴏ ᴀᴅᴅ ʏᴏᴜʀ ᴛʜᴜᴍʙɴᴀɪʟ\"</b>\n\n✨ Let's make your files look amazing! Send me a high-quality image to set as your custom cover."
@@ -74,13 +74,12 @@ async def save_thumb(client, message):
             if current_time - start_time <= 30:
                 await message.reply_text("<b>⏳ ᴘʀᴏᴄᴇssɪɴɢ ʏᴏᴜʀ ᴛʜᴜᴍʙɴᴀɪʟ...</b>")
                 await db.set_thumbnail(user_id, file_id)
-                path = os.path.join(os.getcwd(), 'Assets', f'thumb_{user_id}.jpg')
-                os.makedirs('Assets', exist_ok=True)
-                await message.download(file_name=path)
-                if os.path.exists(path) and os.path.getsize(path) > 0:
-                    await message.reply_text("✅ Custom thumbnail saved!")
+                thumb_path = os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg')
+                await message.download(file_name=thumb_path)
+                if os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0:
+                    await message.reply("✅ Thumbnail saved successfully!")
                 else:
-                    await message.reply_text("❌ Failed to save thumbnail.")
+                    await message.reply("❌ Error: Thumbnail file is missing or empty.")
                 del thumbnail_sessions[user_id]
                 return
             else:
@@ -92,13 +91,12 @@ async def save_thumb(client, message):
         if message.caption and (message.caption == "/thumb" or message.caption == "/thumbnail"):
             await message.reply_text("<b>⏳ ᴘʀᴏᴄᴇssɪɴɢ ʏᴏᴜʀ ᴛʜᴜᴍʙɴᴀɪʟ...</b>")
             await db.set_thumbnail(user_id, file_id)
-            path = os.path.join(os.getcwd(), 'Assets', f'thumb_{user_id}.jpg')
-            os.makedirs('Assets', exist_ok=True)
-            await message.download(file_name=path)
-            if os.path.exists(path) and os.path.getsize(path) > 0:
-                await message.reply_text("✅ Custom thumbnail saved!")
+            thumb_path = os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg')
+            await message.download(file_name=thumb_path)
+            if os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0:
+                await message.reply("✅ Thumbnail saved successfully!")
             else:
-                await message.reply_text("❌ Failed to save thumbnail.")
+                await message.reply("❌ Error: Thumbnail file is missing or empty.")
             
     except Exception as e:
         logging.error(f"Error in save_thumb: {e}")

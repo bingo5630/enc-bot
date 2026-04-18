@@ -26,8 +26,11 @@ session = getenv("SESSION_NAME")
 drive_dir = getenv("DRIVE_DIR")
 index = getenv("INDEX_URL")
 
-download_dir = getenv("DOWNLOAD_DIR")
-encode_dir = getenv("ENCODE_DIR")
+BASE_DIR = os.getcwd()
+ASSETS_DIR = os.path.join(BASE_DIR, 'Assets')
+
+download_dir = os.path.abspath(getenv("DOWNLOAD_DIR", "downloads"))
+encode_dir = os.path.abspath(getenv("ENCODE_DIR", "encodes"))
 
 owner = list(set(int(x) for x in getenv("OWNER_ID").split()))
 sudo_users = list(set(int(x) for x in getenv("SUDO_USERS").split()))
@@ -77,13 +80,9 @@ def memory_file(name=None, contents=None, *, bytes=True):
     return file
 
 # Check Folder
-if not os.path.isdir(download_dir):
-    os.makedirs(download_dir)
-if not os.path.isdir(encode_dir):
-    os.makedirs(encode_dir)
-
-if not os.path.isdir('Assets'):
-    os.makedirs('Assets')
+os.makedirs(download_dir, exist_ok=True)
+os.makedirs(encode_dir, exist_ok=True)
+os.makedirs(ASSETS_DIR, exist_ok=True)
 
 if not os.path.isdir('VideoEncoder/utils/extras'):
     os.makedirs('VideoEncoder/utils/extras')

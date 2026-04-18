@@ -3,6 +3,7 @@ import os
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
 from pyrogram.enums import ParseMode
+from .. import ASSETS_DIR
 from ..utils.database.access_db import db
 from ..utils.database.add_user import AddUserToDatabase
 from ..utils.helper import check_chat
@@ -21,6 +22,11 @@ async def hard_code_cmd(bot: Client, message: Message):
 
     user_id = message.from_user.id
     user_name = message.from_user.first_name
+
+    thumb_path = os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg')
+    if not (os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0):
+        await message.reply_text("❌ <b>ᴇʀʀᴏʀ: ᴛʜᴜᴍʙɴᴀɪʟ ɴᴏᴛ ғᴏᴜɴᴅ!</b>\n\nPlease set a thumbnail first using /thumbnail command before using /hard_code.")
+        return
 
     interactive_sessions[user_id] = {'step': 'subtitle', 'mode': 'hard_sub'}
 
