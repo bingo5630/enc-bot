@@ -1,0 +1,51 @@
+18-Apr-26 23:41:08 - requests_cache.backends - DEBUG - Initializing backend: sqlite /home/jules/.lk21-requests-cache
+18-Apr-26 23:41:08 - requests_cache.backends.base - DEBUG - Initialized SQLiteDict with serializer: SerializerPipeline(name=pickle, n_stages=2)
+18-Apr-26 23:41:08 - requests_cache.backends.sqlite - DEBUG - Opening connection to /home/jules/.lk21-requests-cache.sqlite:responses
+18-Apr-26 23:41:09 - requests_cache.backends.base - DEBUG - Initialized SQLiteDict with serializer: None
+18-Apr-26 23:41:09 - requests_cache.backends.sqlite - DEBUG - Opening connection to /home/jules/.lk21-requests-cache.sqlite:redirects
+18-Apr-26 23:41:09 - requests_cache.patcher - DEBUG - Patching requests.Session with class: _ConfiguredCachedSession
+18-Apr-26 23:41:34 - requests_cache.backends - DEBUG - Initializing backend: sqlite /home/jules/.lk21-requests-cache
+18-Apr-26 23:41:34 - requests_cache.backends.base - DEBUG - Initialized SQLiteDict with serializer: SerializerPipeline(name=pickle, n_stages=2)
+18-Apr-26 23:41:34 - requests_cache.backends.sqlite - DEBUG - Opening connection to /home/jules/.lk21-requests-cache.sqlite:responses
+18-Apr-26 23:41:34 - requests_cache.backends.base - DEBUG - Initialized SQLiteDict with serializer: None
+18-Apr-26 23:41:34 - requests_cache.backends.sqlite - DEBUG - Opening connection to /home/jules/.lk21-requests-cache.sqlite:redirects
+18-Apr-26 23:41:34 - requests_cache.patcher - DEBUG - Patching requests.Session with class: _ConfiguredCachedSession
+18-Apr-26 23:42:12 - requests_cache.backends - DEBUG - Initializing backend: sqlite /home/jules/.lk21-requests-cache
+18-Apr-26 23:42:12 - requests_cache.backends.base - DEBUG - Initialized SQLiteDict with serializer: SerializerPipeline(name=pickle, n_stages=2)
+18-Apr-26 23:42:12 - requests_cache.backends.sqlite - DEBUG - Opening connection to /home/jules/.lk21-requests-cache.sqlite:responses
+18-Apr-26 23:42:12 - requests_cache.backends.base - DEBUG - Initialized SQLiteDict with serializer: None
+18-Apr-26 23:42:12 - requests_cache.backends.sqlite - DEBUG - Opening connection to /home/jules/.lk21-requests-cache.sqlite:redirects
+18-Apr-26 23:42:12 - requests_cache.patcher - DEBUG - Patching requests.Session with class: _ConfiguredCachedSession
+18-Apr-26 23:42:39 - requests_cache.backends - DEBUG - Initializing backend: sqlite /home/jules/.lk21-requests-cache
+18-Apr-26 23:42:39 - requests_cache.backends.base - DEBUG - Initialized SQLiteDict with serializer: SerializerPipeline(name=pickle, n_stages=2)
+18-Apr-26 23:42:39 - requests_cache.backends.sqlite - DEBUG - Opening connection to /home/jules/.lk21-requests-cache.sqlite:responses
+18-Apr-26 23:42:39 - requests_cache.backends.base - DEBUG - Initialized SQLiteDict with serializer: None
+18-Apr-26 23:42:39 - requests_cache.backends.sqlite - DEBUG - Opening connection to /home/jules/.lk21-requests-cache.sqlite:redirects
+18-Apr-26 23:42:39 - requests_cache.patcher - DEBUG - Patching requests.Session with class: _ConfiguredCachedSession
+18-Apr-26 23:42:39 - requests_cache.backends - DEBUG - Initializing backend: <SQLiteCache(name=/home/jules/.lk21-requests-cache)> http_cache
+18-Apr-26 23:42:40 - VideoEncoder - INFO - Imported Utils!
+18-Apr-26 23:43:20 - requests_cache.backends - DEBUG - Initializing backend: sqlite /home/jules/.lk21-requests-cache
+18-Apr-26 23:43:20 - requests_cache.backends.base - DEBUG - Initialized SQLiteDict with serializer: SerializerPipeline(name=pickle, n_stages=2)
+18-Apr-26 23:43:20 - requests_cache.backends.sqlite - DEBUG - Opening connection to /home/jules/.lk21-requests-cache.sqlite:responses
+18-Apr-26 23:43:20 - requests_cache.backends.base - DEBUG - Initialized SQLiteDict with serializer: None
+18-Apr-26 23:43:20 - requests_cache.backends.sqlite - DEBUG - Opening connection to /home/jules/.lk21-requests-cache.sqlite:redirects
+18-Apr-26 23:43:20 - requests_cache.patcher - DEBUG - Patching requests.Session with class: _ConfiguredCachedSession
+18-Apr-26 23:43:21 - requests_cache.backends - DEBUG - Initializing backend: <SQLiteCache(name=/home/jules/.lk21-requests-cache)> http_cache
+18-Apr-26 23:44:34 - requests_cache.backends - DEBUG - Initializing backend: sqlite /home/jules/.lk21-requests-cache
+18-Apr-26 23:44:34 - requests_cache.backends.base - DEBUG - Initialized SQLiteDict with serializer: SerializerPipeline(name=pickle, n_stages=2)
+18-Apr-26 23:44:34 - requests_cache.backends.sqlite - DEBUG - Opening connection to /home/jules/.lk21-requests-cache.sqlite:responses
+18-Apr-26 23:44:34 - requests_cache.backends.base - DEBUG - Initialized SQLiteDict with serializer: None
+18-Apr-26 23:44:34 - requests_cache.backends.sqlite - DEBUG - Opening connection to /home/jules/.lk21-requests-cache.sqlite:redirects
+18-Apr-26 23:44:34 - requests_cache.patcher - DEBUG - Patching requests.Session with class: _ConfiguredCachedSession
+18-Apr-26 23:44:34 - requests_cache.backends - DEBUG - Initializing backend: <SQLiteCache(name=/home/jules/.lk21-requests-cache)> http_cache
+18-Apr-26 23:44:34 - VideoEncoder - INFO - Imported Utils!
+18-Apr-26 23:44:34 - VideoEncoder - ERROR - Error during translation: [Errno 9] Bad file descriptor
+18-Apr-26 23:47:54 - requests_cache.backends - DEBUG - Initializing backend: sqlite /home/jules/.lk21-requests-cache
+18-Apr-26 23:47:54 - requests_cache.backends.base - DEBUG - Initialized SQLiteDict with serializer: SerializerPipeline(name=pickle, n_stages=2)
+18-Apr-26 23:47:54 - requests_cache.backends.sqlite - DEBUG - Opening connection to /home/jules/.lk21-requests-cache.sqlite:responses
+18-Apr-26 23:47:54 - requests_cache.backends.base - DEBUG - Initialized SQLiteDict with serializer: None
+18-Apr-26 23:47:54 - requests_cache.backends.sqlite - DEBUG - Opening connection to /home/jules/.lk21-requests-cache.sqlite:redirects
+18-Apr-26 23:47:54 - requests_cache.patcher - DEBUG - Patching requests.Session with class: _ConfiguredCachedSession
+18-Apr-26 23:47:55 - requests_cache.backends - DEBUG - Initializing backend: <SQLiteCache(name=/home/jules/.lk21-requests-cache)> http_cache
+18-Apr-26 23:47:55 - VideoEncoder - INFO - Imported Utils!
+18-Apr-26 23:47:55 - VideoEncoder - ERROR - Error during translation: [Errno 9] Bad file descriptor

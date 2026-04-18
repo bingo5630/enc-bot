@@ -14,7 +14,7 @@ from ..utils.uploads.telegram import upload_doc
 class Config:
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# Setup Gemini
+# Setup Gemini - Strictly use gemini-1.5-flash
 GEMINI_API_KEY = Config.GEMINI_API_KEY
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
@@ -25,21 +25,28 @@ else:
 # user_id: True if waiting for subtitle file, "CANCELLED" if cancelled during process, "PROCESSING" when active
 translator_sessions = {}
 
-@Client.on_message(filters.document & filters.regex(r'.*\.(ass|srt|ASS|SRT)$'), group=-1)
+@Client.on_message(filters.document & filters.private, group=0)
 async def translator_file_handler(bot: Client, message: Message):
-    print(f"DEBUG: File detected from {message.from_user.id}")
+    # FORCE REPLY: The first line of the function MUST be this.
+    await message.reply_text('ꜰɪʟᴇ ʀᴇᴄᴇɪᴠᴇᴅ! ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ...')
+
+    # Check for valid subtitle file extension
+    file_name = message.document.file_name or ""
+    if not file_name.lower().endswith((".ass", ".srt")):
+        return
+
+    print(f"DEBUG: Valid Subtitle File detected from {message.from_user.id}")
     user_id = message.from_user.id
 
-    # Session Bypass: Respond to any valid document
-    if user_id not in translator_sessions or translator_sessions[user_id] == "CANCELLED":
-        translator_sessions[user_id] = True
-
+    # Stop propagation so other handlers don't catch this document
     message.stop_propagation()
+
+    # Session Bypass: Respond to any valid document regardless of state
     translator_sessions[user_id] = "PROCESSING"
 
     # Explicit API key check
     if not Config.GEMINI_API_KEY:
-        await message.reply_text("API KEY MISSING IN CONFIG")
+        await message.reply_text("❌ <b>Gemini API Key missing!</b> Please set <code>GEMINI_API_KEY</code> in config.")
         return
 
     global model
@@ -53,7 +60,7 @@ async def translator_file_handler(bot: Client, message: Message):
 
     try:
         if not model:
-            await msg.edit("❌ <b>Gemini API Key not found!</b> Please set <code>GEMINI_API_KEY</code> in config.")
+            await msg.edit("❌ <b>Gemini AI Model not initialized!</b>")
             return
 
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -136,7 +143,7 @@ async def translator_file_handler(bot: Client, message: Message):
             f.write(translated_content)
 
         caption = (
-            "> ✅ 𝖳𝖱𝖠𝖭𝖲𝖫𝖠𝖳𝖨𝖮𝖭 𝖢𝖮𝖬𝖯𝖫𝖤𝖳𝖤\n"
+            "> ✅ 𝖳𝖱𝖠𝖭𝖲𝖫𝖠𝖳𝖨𝖮𝖭 𝖢𝖮𝖬▰𝖫𝖤𝖳𝖤\n"
             "> ➤ ʏᴏᴜʀ sᴜʙᴛɪᴛʟᴇs ʜᴀᴠᴇ ʙᴇᴇɴ ʀᴇ-ᴍᴀsᴛᴇʀᴇᴅ ᴡɪᴛʜ ᴀɪ ᴘʀᴇᴄɪsɪᴏɴ. ᴇɴᴊᴏʏ ᴛʜᴇ ᴀᴜᴛʜᴇɴᴛɪᴄ ᴀɴɪᴍᴇ ᴠɪʙᴇ ɪɴ ʜɪɴɢʟɪsʜ!\n"
             "ᴍᴀᴅᴇ ᴡɪᴛʜ 💙 ʙʏ 𝐆𝐨𝐣𝐨."
         )
@@ -154,6 +161,12 @@ async def translator_file_handler(bot: Client, message: Message):
         if 'output_path' in locals() and os.path.exists(output_path):
             try: os.remove(output_path)
             except: pass
+
+@Client.on_message(filters.command("reset_translator") & filters.private)
+async def reset_translator_cmd(bot: Client, message: Message):
+    global translator_sessions
+    translator_sessions.clear()
+    await message.reply_text("🔄 <b>Translator Session Handler Reset!</b> All stuck states cleared.")
 
 def get_translator_menu():
     img_url = "https://graph.org/file/3b3e573290ea2f1ab272e-d0521dd8d5a1359e41.jpg"
