@@ -326,6 +326,31 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
 #        f'x=40:y=40'
 #    ])
 
+    # Font Selection
+    selected_font = await db.get_user_font(message.from_user.id)
+    if not selected_font:
+        selected_font = 'Arial'
+
+    # Font Size based on resolution
+    # 480p: FontSize=20, 720p: FontSize=30, 1080p: FontSize=45
+    if quality == '480p':
+        font_size = 20
+    elif quality == '720p':
+        font_size = 30
+    elif quality == '1080p':
+        font_size = 45
+    else:
+        # Check resolution setting
+        r_db = await db.get_resolution(message.from_user.id)
+        if r_db == '1080':
+            font_size = 45
+        elif r_db == '720':
+            font_size = 30
+        elif r_db == '480' or r_db == '576':
+            font_size = 20
+        else:
+            font_size = 30
+
     # Watermark and Resolution
     r = await db.get_resolution(message.from_user.id)
     # Physical Watermark check
@@ -358,7 +383,8 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
 
     # Hard Subs
     if h:
-        vf_list.append(f"subtitles='{subtitles_path}'")
+        # Ensure selected_font is used and fallback to system font if it fails (handled by FFmpeg usually, but we set it)
+        vf_list.append(f"subtitles='{subtitles_path}':force_style='FontName={selected_font},FontSize={font_size}'")
 
     if vf_list:
         watermark = "-vf " + ",".join(vf_list)
@@ -560,24 +586,33 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
 
     adv_metadata = await get_metadata_flags(message.from_user.id)
 
+    # Font Selection
+    selected_font = await db.get_user_font(message.from_user.id)
+    if not selected_font:
+        selected_font = 'Arial'
+
     # Quality logic for hard_sub
     vf_list = []
     crf = '22'
     v_bitrate = []
+    font_size = 30
     if quality == '480p':
         vf_list.append('scale=854:480')
         crf = '28'
         v_bitrate = ['-b:v', '800k']
+        font_size = 20
     elif quality == '720p':
         vf_list.append('scale=1280:720')
         crf = '24'
         v_bitrate = ['-b:v', '1.5M']
+        font_size = 30
     elif quality == '1080p':
         vf_list.append('scale=1920:1080')
         crf = '22'
         v_bitrate = ['-b:v', '3M']
+        font_size = 45
 
-    vf_list.append(f"subtitles='{subtitles_path}'")
+    vf_list.append(f"subtitles='{subtitles_path}':force_style='FontName={selected_font},FontSize={font_size}'")
 
     # Thumbnail injection
     user_id = message.from_user.id

@@ -510,6 +510,15 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
         elif "queue+" in cb.data:
             await queue_answer(app, cb)
 
+        # Font Selection Callbacks
+        elif cb.data.startswith("set_font_"):
+            font_name = cb.data.split("_")[-1]
+            await db.set_user_font(cb.from_user.id, font_name)
+            await cb.answer(f"Font set to {font_name}!", show_alert=True)
+
+        elif cb.data == "close_fonts":
+            await cb.message.delete()
+
         # Help Callback
         elif cb.data == "help_callback":
             help_text = "𝖧𝖤𝖫𝖯 𝖬𝖤𝖭𝖴\n" \

@@ -45,7 +45,8 @@ class Database:
             metadata_artist="By: @Anime_Fury",
             metadata_audio="By: @Anime_Fury",
             metadata_subtitle="By: @Anime_Fury",
-            metadata_video="By: @Anime_Fury"
+            metadata_video="By: @Anime_Fury",
+            user_font='Arial'
         )
 
     async def add_user(self, id):
@@ -341,3 +342,10 @@ class Database:
     async def get_metadata_video(self, id):
         user = await self._get_user(id)
         return user.get('metadata_video', "By: @Anime_Fury")
+
+    async def set_user_font(self, id, font):
+        await self.col.update_one({'id': id}, {'$set': {'user_font': font}}, upsert=True)
+
+    async def get_user_font(self, id):
+        user = await self._get_user(id)
+        return user.get('user_font', 'Arial')
