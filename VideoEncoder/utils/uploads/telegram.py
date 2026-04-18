@@ -17,13 +17,13 @@ async def upload_to_tg(new_file, message, msg):
 
     # Thumbnail Logic
     user_id = message.from_user.id
-    local_thumb = os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg')
+    local_thumb = os.path.abspath(os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg'))
     custom_thumb = await db.get_thumbnail(user_id)
 
     if os.path.exists(local_thumb) and os.path.getsize(local_thumb) > 0:
         thumb = local_thumb
     elif custom_thumb:
-        thumb_path = os.path.join(ASSETS_DIR, f"temp_thumb_{user_id}.jpg")
+        thumb_path = os.path.abspath(os.path.join(ASSETS_DIR, f"temp_thumb_{user_id}.jpg"))
         thumb = await app.download_media(custom_thumb, file_name=thumb_path)
         if thumb:
             thumb = os.path.abspath(thumb)

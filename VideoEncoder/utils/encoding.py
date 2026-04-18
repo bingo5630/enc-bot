@@ -471,7 +471,7 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
 
     # Thumbnail injection
     user_id = message.from_user.id
-    thumb_path = os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg')
+    thumb_path = os.path.abspath(os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg'))
     if not os.path.exists(thumb_path) or os.path.getsize(thumb_path) == 0:
         thumb_path = None
 
@@ -583,7 +583,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
 
     # Thumbnail injection
     user_id = message.from_user.id
-    thumb_path = os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg')
+    thumb_path = os.path.abspath(os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg'))
     if not (os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0):
         thumb_path = None
 
@@ -655,7 +655,7 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
 
     # Thumbnail injection
     user_id = message.from_user.id
-    thumb_path = os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg')
+    thumb_path = os.path.abspath(os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg'))
     if not (os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0):
         thumb_path = None
 

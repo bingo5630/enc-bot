@@ -2,9 +2,15 @@
 from os import getenv
 import logging
 import os
-ASSETS_DIR = os.path.join(os.getcwd(), 'Assets')
+
+# Silence the MongoDB heartbeat logs
+logging.getLogger("pymongo").setLevel(logging.WARNING)
+
+# Force Absolute Path for Assets
+BASE_DIR = os.getcwd()
+ASSETS_DIR = os.path.join(BASE_DIR, 'Assets')
 if not os.path.exists(ASSETS_DIR):
-    os.makedirs(ASSETS_DIR)
+    os.makedirs(ASSETS_DIR, exist_ok=True)
 
 import time
 from io import BytesIO, StringIO
