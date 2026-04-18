@@ -1,15 +1,15 @@
 
-
 import os
 import time
 
+from pyrogram.enums import ParseMode
 from ... import app, download_dir, log, LOGGER, ASSETS_DIR
 from ..database.access_db import db
 from ..display_progress import progress_for_pyrogram
 from ..encoding import get_duration, get_width_height
 
 
-async def upload_to_tg(new_file, message, msg):
+async def upload_to_tg(new_file, message, msg, caption=None):
     # Variables
     c_time = time.time()
     filename = os.path.basename(new_file)
@@ -30,15 +30,15 @@ async def upload_to_tg(new_file, message, msg):
     width, height = get_width_height(new_file)
     # Handle Upload
     if await db.get_upload_as_doc(message.from_user.id) is True:
-        link = await upload_doc(message, msg, c_time, filename, new_file, thumb)
+        link = await upload_doc(message, msg, c_time, filename, new_file, thumb, caption)
     else:
         link = await upload_video(message, msg, new_file, filename,
-                                  c_time, thumb, duration, width, height)
+                                  c_time, thumb, duration, width, height, caption)
 
     return link
 
 
-async def upload_video(message, msg, new_file, filename, c_time, thumb, duration, width, height):
+async def upload_video(message, msg, new_file, filename, c_time, thumb, duration, width, height, caption=None):
     try:
         if thumb:
             print(f"DEBUG: Does file exist? {os.path.exists(thumb)}")
@@ -46,8 +46,8 @@ async def upload_video(message, msg, new_file, filename, c_time, thumb, duration
         resp = await message.reply_video(
             new_file,
             supports_streaming=True,
-            parse_mode=None,
-            caption=filename,
+            parse_mode=ParseMode.HTML,
+            caption=caption or filename,
             thumb=thumb,
             duration=duration,
             width=width,
@@ -60,8 +60,8 @@ async def upload_video(message, msg, new_file, filename, c_time, thumb, duration
                 print(f"DEBUG: Does file exist? {os.path.exists(thumb)}")
                 print(f"DEBUG: Full path is: {thumb}")
             await app.send_video(log, resp.video.file_id, thumb=thumb,
-                                 caption=filename, duration=duration,
-                                 width=width, height=height, parse_mode=None)
+                                 caption=caption or filename, duration=duration,
+                                 width=width, height=height, parse_mode=ParseMode.HTML)
 
         return resp.link
     except Exception as e:
@@ -69,15 +69,16 @@ async def upload_video(message, msg, new_file, filename, c_time, thumb, duration
         return None
 
 
-async def upload_doc(message, msg, c_time, filename, new_file, thumb=None):
+async def upload_doc(message, msg, c_time, filename, new_file, thumb=None, caption=None):
     try:
         if thumb:
             print(f"DEBUG: Does file exist? {os.path.exists(thumb)}")
             print(f"DEBUG: Full path is: {thumb}")
         resp = await message.reply_document(
             new_file,
-            caption=filename,
+            caption=caption or filename,
             thumb=thumb,
+            parse_mode=ParseMode.HTML,
             progress=progress_for_pyrogram,
             progress_args=("Uploading ...", msg, c_time)
         )
@@ -86,7 +87,7 @@ async def upload_doc(message, msg, c_time, filename, new_file, thumb=None):
             if thumb:
                 print(f"DEBUG: Does file exist? {os.path.exists(thumb)}")
                 print(f"DEBUG: Full path is: {thumb}")
-            await app.send_document(log, resp.document.file_id, thumb=thumb, caption=filename, parse_mode=None)
+            await app.send_document(log, resp.document.file_id, thumb=thumb, caption=caption or filename, parse_mode=ParseMode.HTML)
 
         return resp.link
     except Exception as e:

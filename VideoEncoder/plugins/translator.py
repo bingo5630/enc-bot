@@ -21,13 +21,7 @@ else:
 # user_id: True if waiting for subtitle file
 translator_sessions = {}
 
-@Client.on_message(filters.command("translator") & filters.private)
-async def translator_cmd(bot: Client, message: Message):
-    c = await check_chat(message, chat='Both')
-    if not c:
-        return
-    await AddUserToDatabase(bot, message)
-
+def get_translator_menu():
     img_url = "https://graph.org/file/3b3e573290ea2f1ab272e-d0521dd8d5a1359e41.jpg"
     text = "🌐 𝖠𝖨 𝖲𝖴𝖳𝖨𝖳𝖫𝖤 𝖳𝖱𝖠𝖭𝖲𝖫𝖠𝖳𝖮𝖱\n<blockquote expandable>➤ ᴛʀᴀɴsʟᴀᴛᴇ ʏᴏᴜʀ ᴀɴɪᴍᴇ/ᴍᴀɴʜᴡᴀ sᴜʙᴛɪᴛʟᴇs ᴜsɪɴɢ ᴀᴅᴠᴀɴᴄᴇᴅ ɢᴇᴍɪɴɪ ᴀɪ. ᴄʟɪᴄᴋ ʙᴇʟᴏᴡ ᴛᴏ sᴛᴀʀᴛ.</blockquote>"
 
@@ -40,12 +34,22 @@ async def translator_cmd(bot: Client, message: Message):
             InlineKeyboardButton("ᴄʟᴏsᴇ", callback_data="closeMeh")
         ]
     ]
+    return img_url, text, InlineKeyboardMarkup(buttons)
+
+@Client.on_message(filters.command("translator") & filters.private)
+async def translator_cmd(bot: Client, message: Message):
+    c = await check_chat(message, chat='Both')
+    if not c:
+        return
+    await AddUserToDatabase(bot, message)
+
+    img_url, text, markup = get_translator_menu()
 
     await message.reply_photo(
         photo=img_url,
         caption=text,
         has_spoiler=True,
-        reply_markup=InlineKeyboardMarkup(buttons)
+        reply_markup=markup
     )
 
 @Client.on_message(filters.document & filters.private, group=-1)
@@ -54,7 +58,7 @@ async def translator_file_handler(bot: Client, message: Message):
     if user_id not in translator_sessions:
         return
 
-    if not message.document or not (message.document.file_name.endswith(".ass") or message.document.file_name.endswith(".srt")):
+    if not message.document or not (message.document.file_name.lower().endswith(".ass") or message.document.file_name.lower().endswith(".srt")):
         return
 
     message.stop_propagation()
@@ -74,15 +78,18 @@ async def translator_file_handler(bot: Client, message: Message):
 
         await msg.edit("<code>Translating content with Gemini AI... 🤖</code>")
 
-        is_srt = file_path.endswith(".srt")
+        is_srt = file_path.lower().endswith(".srt")
         fmt = "SRT" if is_srt else "ASS"
 
-        prompt = f"Translate the following {fmt} subtitle content to natural Hinglish for Anime/Manhwa fans. " \
-                 f"Keep it cool and contextual. DO NOT change timestamps or indices. " \
-                 f"Maintain the {fmt} format exactly. Return only the translated {fmt} content.\n\n" + content
+        prompt = "You are a professional Anime/Manhwa translator. Translate the text into natural Hinglish. Keep the formatting and timestamps identical. Output only the translated content.\n\n" + content
 
-        response = await asyncio.to_thread(model.generate_content, prompt)
-        translated_content = response.text.strip()
+        try:
+            response = await asyncio.to_thread(model.generate_content, prompt)
+            translated_content = response.text.strip()
+        except Exception as api_error:
+            print(f"GEMINI ERROR: {api_error}")
+            LOGGER.error(f"Gemini API Error: {api_error}")
+            raise api_error
 
         # Clean up Gemini markdown if present
         if translated_content.startswith("```"):
@@ -93,14 +100,17 @@ async def translator_file_handler(bot: Client, message: Message):
                 lines = lines[:-1]
             translated_content = "\n".join(lines)
 
-        output_filename = os.path.splitext(message.document.file_name)[0] + "_Hinglish.ass"
+        output_filename = os.path.splitext(message.document.file_name)[0] + "_Hinglish" + os.path.splitext(message.document.file_name)[1]
         output_path = os.path.join(download_dir, output_filename)
 
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(translated_content)
 
         await msg.edit("<code>Translation completed! Uploading... 🚀</code>")
-        await upload_doc(message, msg, 0, output_filename, output_path)
+        caption = "✅ 𝖳𝖱𝖠𝖭𝖲𝖫𝖠𝖳𝖨𝖮𝖭 𝖢𝖮𝖬𝖯𝖫𝖤𝖳𝖤\n" \
+                  "<blockquote expandable>➤ ʏᴏᴜʀ sᴜʙᴛɪᴛʟᴇs ʜᴀᴠᴇ ʙᴇᴇɴ ʀᴇ-ᴍᴀsᴛᴇʀᴇᴅ ᴡɪᴛʜ ᴀɪ ᴘʀᴇᴄɪsɪᴏɴ. ᴇɴᴊᴏʏ ᴛʜᴇ ᴀᴜᴛʜᴇɴᴛɪᴄ ᴀɴɪᴍᴇ ᴠɪʙᴇ ɪɴ ʜɪɴɢʟɪsʜ!</blockquote>\n" \
+                  "ᴍᴀᴅᴇ ᴡɪᴛʜ 💙 ʙʏ 𝐆𝐨𝐣𝐨."
+        await upload_doc(message, msg, 0, output_filename, output_path, caption=caption)
 
     except Exception as e:
         LOGGER.error(f"Error during translation: {e}")
