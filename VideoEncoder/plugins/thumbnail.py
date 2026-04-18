@@ -22,7 +22,8 @@ async def thumb_command(client, message):
         user_id = message.from_user.id
         thumbnail = await db.get_thumbnail(user_id)
 
-        thumb_path = f"Assets/thumb_{user_id}.jpg"
+        thumb_path = os.path.join(os.getcwd(), 'Assets', f'thumb_{user_id}.jpg')
+        os.makedirs('Assets', exist_ok=True)
         has_thumb = os.path.exists(thumb_path)
 
         text = "> <b>\"ᴄʟɪᴄᴋ ʙᴇʟᴏᴡ ᴛᴏ ᴀᴅᴅ ʏᴏᴜʀ ᴛʜᴜᴍʙɴᴀɪʟ\"</b>\n\n✨ Let's make your files look amazing! Send me a high-quality image to set as your custom cover."
@@ -73,9 +74,13 @@ async def save_thumb(client, message):
             if current_time - start_time <= 30:
                 await message.reply_text("<b>⏳ ᴘʀᴏᴄᴇssɪɴɢ ʏᴏᴜʀ ᴛʜᴜᴍʙɴᴀɪʟ...</b>")
                 await db.set_thumbnail(user_id, file_id)
-                path = f"Assets/thumb_{user_id}.jpg"
+                path = os.path.join(os.getcwd(), 'Assets', f'thumb_{user_id}.jpg')
+                os.makedirs('Assets', exist_ok=True)
                 await message.download(file_name=path)
-                await message.reply_text("✅ Custom thumbnail saved!")
+                if os.path.exists(path) and os.path.getsize(path) > 0:
+                    await message.reply_text("✅ Custom thumbnail saved!")
+                else:
+                    await message.reply_text("❌ Failed to save thumbnail.")
                 del thumbnail_sessions[user_id]
                 return
             else:
@@ -87,9 +92,13 @@ async def save_thumb(client, message):
         if message.caption and (message.caption == "/thumb" or message.caption == "/thumbnail"):
             await message.reply_text("<b>⏳ ᴘʀᴏᴄᴇssɪɴɢ ʏᴏᴜʀ ᴛʜᴜᴍʙɴᴀɪʟ...</b>")
             await db.set_thumbnail(user_id, file_id)
-            path = f"Assets/thumb_{user_id}.jpg"
+            path = os.path.join(os.getcwd(), 'Assets', f'thumb_{user_id}.jpg')
+            os.makedirs('Assets', exist_ok=True)
             await message.download(file_name=path)
-            await message.reply_text("✅ Custom thumbnail saved!")
+            if os.path.exists(path) and os.path.getsize(path) > 0:
+                await message.reply_text("✅ Custom thumbnail saved!")
+            else:
+                await message.reply_text("❌ Failed to save thumbnail.")
             
     except Exception as e:
         logging.error(f"Error in save_thumb: {e}")

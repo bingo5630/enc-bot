@@ -333,7 +333,7 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
     r = await db.get_resolution(message.from_user.id)
     # Physical Watermark check
     user_id = message.from_user.id
-    watermark_file = f"Assets/watermark_{user_id}.png"
+    watermark_file = os.path.join(os.getcwd(), 'Assets', f'watermark_{user_id}.png')
     has_watermark = os.path.exists(watermark_file)
 
     vf_list = []
@@ -471,8 +471,8 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
 
     # Thumbnail injection
     user_id = message.from_user.id
-    thumb_path = f"Assets/thumb_{user_id}.jpg"
-    if not os.path.exists(thumb_path):
+    thumb_path = os.path.join(os.getcwd(), 'Assets', f'thumb_{user_id}.jpg')
+    if not os.path.exists(thumb_path) or os.path.getsize(thumb_path) == 0:
         thumb_path = None
 
     # Finally
@@ -497,9 +497,11 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
         # Chain vf_list first
         if vf_list:
             filter_str = f"[0:v]{','.join(vf_list)}[vbase];"
-            filter_str += f"[vbase][{watermark_input_index}:v]overlay=main_w-overlay_w-10:10[v_out]"
+            filter_str += f"[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[wm];"
+            filter_str += f"[vbase][wm]overlay=W-w-10:10[v_out]"
         else:
-            filter_str = f"[0:v][{watermark_input_index}:v]overlay=main_w-overlay_w-10:10[v_out]"
+            filter_str = f"[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[wm];"
+            filter_str += f"[0:v][wm]overlay=W-w-10:10[v_out]"
         command.extend(['-filter_complex', filter_str])
         # When using filter_complex, we must map the output of the filter
         # And we need to ensure we don't map 0:v? later which would conflict
@@ -579,12 +581,12 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
 
     # Thumbnail injection
     user_id = message.from_user.id
-    thumb_path = f"Assets/thumb_{user_id}.jpg"
+    thumb_path = os.path.join(os.getcwd(), 'Assets', f'thumb_{user_id}.jpg')
     if not os.path.exists(thumb_path):
         thumb_path = None
 
     # Watermark check
-    watermark_file = f"Assets/watermark_{user_id}.png"
+    watermark_file = os.path.join(os.getcwd(), 'Assets', f'watermark_{user_id}.png')
     has_watermark = os.path.exists(watermark_file)
 
     # Hardcode subtitles - requires re-encoding video
@@ -608,7 +610,8 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
 
     if has_watermark:
         filter_str = f"[0:v]{','.join(vf_list)}[vbase];"
-        filter_str += f"[vbase][{watermark_input_index}:v]overlay=main_w-overlay_w-10:10[v_out]"
+        filter_str += f"[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[wm];"
+        filter_str += f"[vbase][wm]overlay=W-w-10:10[v_out]"
         command.extend(['-filter_complex', filter_str, '-map', '[v_out]', '-map', '0:a?'])
     else:
         command.extend(['-vf', ",".join(vf_list)])
@@ -644,12 +647,12 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
 
     # Thumbnail injection
     user_id = message.from_user.id
-    thumb_path = f"Assets/thumb_{user_id}.jpg"
+    thumb_path = os.path.join(os.getcwd(), 'Assets', f'thumb_{user_id}.jpg')
     if not os.path.exists(thumb_path):
         thumb_path = None
 
     # Watermark check
-    watermark_file = f"Assets/watermark_{user_id}.png"
+    watermark_file = os.path.join(os.getcwd(), 'Assets', f'watermark_{user_id}.png')
     has_watermark = os.path.exists(watermark_file)
 
     # Merge subtitle and video - no re-encoding (mostly)
@@ -691,9 +694,11 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
             filter_str = ""
             if vf_list:
                 filter_str += f"[0:v]{','.join(vf_list)}[vbase];"
-                filter_str += f"[vbase][{watermark_input_index}:v]overlay=main_w-overlay_w-10:10[v_out]"
+                filter_str += f"[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[wm];"
+                filter_str += f"[vbase][wm]overlay=W-w-10:10[v_out]"
             else:
-                filter_str += f"[0:v][{watermark_input_index}:v]overlay=main_w-overlay_w-10:10[v_out]"
+                filter_str += f"[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[wm];"
+                filter_str += f"[0:v][wm]overlay=W-w-10:10[v_out]"
             command.extend(['-filter_complex', filter_str, '-map', '[v_out]', '-map', '0:a?', '-map', '1:s'])
         else:
             command.extend(['-vf', ",".join(vf_list), '-map', '0:v', '-map', '0:a?', '-map', '1:s'])

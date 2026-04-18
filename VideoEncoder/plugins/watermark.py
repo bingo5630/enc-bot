@@ -21,7 +21,8 @@ async def watermark_command(client, message):
         await AddUserToDatabase(client, message)
         user_id = message.from_user.id
 
-        watermark_path = f"Assets/watermark_{user_id}.png"
+        watermark_path = os.path.join(os.getcwd(), 'Assets', f'watermark_{user_id}.png')
+        os.makedirs('Assets', exist_ok=True)
         has_watermark = os.path.exists(watermark_path)
 
         text = "> <b>\"ᴡᴀɴɴᴀ sᴛᴀᴍᴘ ʏᴏᴜʀ ᴀᴜᴛʜᴏʀɪᴛʏ? ᴀᴅᴅ ᴀ ᴡᴀᴛᴇʀᴍᴀʀᴋ ᴀɴᴅ ʟᴇᴛ ᴛʜᴇ ᴡᴏʀʟᴅ ᴋɴᴏᴡ ᴡʜᴏ ᴛʜᴇ ʙᴏss ɪs!\"</b>"
@@ -65,9 +66,13 @@ async def save_watermark(client, message):
 
             if current_time - start_time <= 30:
                 await message.reply_text("<b>⏳ ᴘʀᴏᴄᴇssɪɴɢ ʏᴏᴜʀ ᴡᴀᴛᴇʀᴍᴀʀᴋ...</b>")
-                path = f"Assets/watermark_{user_id}.png"
+                path = os.path.join(os.getcwd(), 'Assets', f'watermark_{user_id}.png')
+                os.makedirs('Assets', exist_ok=True)
                 await message.download(file_name=path)
-                await message.reply_text("<b>✅ ᴡᴀᴛᴇʀᴍᴀʀᴋ sᴀᴠᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>")
+                if os.path.exists(path) and os.path.getsize(path) > 0:
+                    await message.reply_text("<b>✅ ᴡᴀᴛᴇʀᴍᴀʀᴋ sᴀᴠᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!</b>")
+                else:
+                    await message.reply_text("<b>❌ Failed to save watermark!</b>")
                 del watermark_sessions[user_id]
                 return
             else:
