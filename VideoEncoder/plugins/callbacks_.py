@@ -509,6 +509,25 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
         # Queue
         elif "queue+" in cb.data:
             await queue_answer(app, cb)
+
+        # Help Callback
+        elif cb.data == "help_callback":
+            help_text = "𝖧𝖤𝖫𝖯 𝖬𝖤𝖭𝖴\n" \
+                        "● /sthumb : ʀᴇᴘʟʏ ᴛᴏ ᴘʜᴏᴛᴏ ᴛᴏ sᴇᴛ ᴄᴏᴠᴇʀ.\n" \
+                        "● /hard_code : ᴇɴᴄᴏᴅᴇ ᴠɪᴅᴇᴏ ᴡɪᴛʜ sᴜʙs.\n" \
+                        "● /soft_code : ᴀᴅᴅ sᴜʙs ᴀs ᴍᴇᴛᴀᴅᴀᴛᴀ.\n" \
+                        "● /sub_extraxt : to extract sub file ᴍᴀᴅᴇ ʙʏ 𝐆𝐨𝐣𝐨."
+            try:
+                await cb.message.edit_media(
+                    media=InputMediaPhoto(
+                        "CAACAgIAAxkBAAELkMxm3vVjAAH6y1k64jE1AAGH4AABAgACAAQBAAMiEwAB3y4eEwABAAQwBA",
+                        caption=help_text
+                    )
+                )
+            except Exception as e:
+                LOGGER.error(f"Error in help_callback: {e}")
+                await cb.message.edit_caption(caption=help_text)
+
     except Exception as e:
         LOGGER.error(f"Error in callback_handlers: {e}")
         try:
