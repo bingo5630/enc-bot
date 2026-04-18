@@ -384,7 +384,7 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
 
         elif cb.data == "del_thumb":
             await db.set_thumbnail(cb.from_user.id, None)
-            thumb_path = os.path.join(ASSETS_DIR, f"thumb_{cb.from_user.id}.jpg")
+            thumb_path = os.path.abspath(os.path.join(ASSETS_DIR, f"thumb_{cb.from_user.id}.jpg"))
             if os.path.exists(thumb_path):
                 os.remove(thumb_path)
             await cb.answer("ᴛʜᴜᴍʙɴᴀɪʟ ᴅᴇʟᴇᴛᴇᴅ!", show_alert=True)

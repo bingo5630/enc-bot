@@ -1,6 +1,6 @@
 from pyrogram import Client, filters
 from pyrogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
-from .. import ASSETS_DIR
+from .. import ASSETS_DIR, BASE_DIR
 from ..utils.database.access_db import db
 from ..utils.helper import check_chat
 from ..utils.database.add_user import AddUserToDatabase
@@ -24,8 +24,7 @@ async def thumb_command(client, message):
         thumbnail = await db.get_thumbnail(user_id)
 
         # Define absolute path
-        THUMB_DIR = os.path.join(os.getcwd(), "Assets")
-        THUMB_PATH = os.path.join(THUMB_DIR, f"thumb_{user_id}.jpg")
+        THUMB_PATH = os.path.abspath(os.path.join(ASSETS_DIR, f"thumb_{user_id}.jpg"))
         has_thumb = os.path.exists(THUMB_PATH)
 
         text = "> <b>\"ᴄʟɪᴄᴋ ʙᴇʟᴏᴡ ᴛᴏ ᴀᴅᴅ ʏᴏᴜʀ ᴛʜᴜᴍʙɴᴀɪʟ\"</b>\n\n✨ Let's make your files look amazing! Send me a high-quality image to set as your custom cover."
@@ -79,11 +78,13 @@ async def save_thumb(client, message):
                 await message.reply_text("<b>⏳ ᴘʀᴏᴄᴇssɪɴɢ ʏᴏᴜʀ ᴛʜᴜᴍʙɴᴀɪʟ...</b>")
                 await db.set_thumbnail(user_id, file_id)
                 # Define absolute path
-                THUMB_DIR = os.path.join(os.getcwd(), "Assets")
-                THUMB_PATH = os.path.join(THUMB_DIR, f"thumb_{user_id}.jpg")
-                await message.download(file_name=THUMB_PATH)
-                if os.path.exists(THUMB_PATH):
-                    await message.reply("✅ Thumbnail saved!")
+                target_path = os.path.abspath(os.path.join(ASSETS_DIR, f"thumb_{user_id}.jpg"))
+                await message.download(file_name=target_path)
+                if os.path.exists(target_path):
+                    print(f"✅ FILE LOCATED AT: {target_path}")
+                    await message.reply(f"✅ Thumbnail saved at: {target_path}")
+                else:
+                    await message.reply("❌ Error: Download failed, file not found on disk.")
                 del thumbnail_sessions[user_id]
                 return
             else:
@@ -96,11 +97,13 @@ async def save_thumb(client, message):
             await message.reply_text("<b>⏳ ᴘʀᴏᴄᴇssɪɴɢ ʏᴏᴜʀ ᴛʜᴜᴍʙɴᴀɪʟ...</b>")
             await db.set_thumbnail(user_id, file_id)
             # Define absolute path
-            THUMB_DIR = os.path.join(os.getcwd(), "Assets")
-            THUMB_PATH = os.path.join(THUMB_DIR, f"thumb_{user_id}.jpg")
-            await message.download(file_name=THUMB_PATH)
-            if os.path.exists(THUMB_PATH):
-                await message.reply("✅ Thumbnail saved!")
+            target_path = os.path.abspath(os.path.join(ASSETS_DIR, f"thumb_{user_id}.jpg"))
+            await message.download(file_name=target_path)
+            if os.path.exists(target_path):
+                print(f"✅ FILE LOCATED AT: {target_path}")
+                await message.reply(f"✅ Thumbnail saved at: {target_path}")
+            else:
+                await message.reply("❌ Error: Download failed, file not found on disk.")
             
     except Exception as e:
         logging.error(f"Error in save_thumb: {e}")
