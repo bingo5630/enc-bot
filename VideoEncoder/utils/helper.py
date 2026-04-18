@@ -97,17 +97,36 @@ async def handle_encode(filepath, message, msg, audio_map=None, quality=None):
             if subs != sub_path and os.path.exists(subs):
                 os.rename(subs, sub_path)
 
-        new_file = await encode(filepath, message, msg, audio_map=audio_map, quality=quality)
+        new_file, error_log = await encode(filepath, message, msg, audio_map=audio_map, quality=quality)
         if new_file:
-            await msg.edit("<code>Video Encoded, getting metadata...</code>")
-            try:
-                link = await upload_worker(new_file, message, msg)
-                await msg.edit('Video Encoded Successfully! Link: {}'.format(link))
-            except Exception as e:
-                await msg.edit(f"Error while uploading: {e}")
+            # 1MB = 1048576 bytes
+            if os.path.getsize(new_file) < 1048576:
+                LOGGER.error(f"Encoded file is too small ({os.path.getsize(new_file)} bytes). FFmpeg likely failed.")
+                error_file = f"ffmpeg_error_{msg.id}.txt"
+                with open(error_file, 'w', encoding='utf-8') as f:
+                    f.write(error_log or "Unknown FFmpeg error")
+                await message.reply_document(error_file, caption="FFmpeg error log (Output file < 1MB)")
+                if os.path.exists(error_file):
+                    os.remove(error_file)
+                if os.path.exists(new_file):
+                    os.remove(new_file)
+                new_file = None
                 link = None
+            else:
+                await msg.edit("<code>Video Encoded, getting metadata...</code>")
+                try:
+                    link = await upload_worker(new_file, message, msg)
+                    # No extra success notification as per requirement
+                except Exception as e:
+                    await msg.edit(f"Error while uploading: {e}")
+                    link = None
         else:
-            await message.reply("<code>Something wents wrong while encoding your file.</code>")
+            error_file = f"ffmpeg_error_{msg.id}.txt"
+            with open(error_file, 'w', encoding='utf-8') as f:
+                f.write(error_log or "Something went wrong during encoding.")
+            await message.reply_document(error_file, caption="Something went wrong while encoding your file.")
+            if os.path.exists(error_file):
+                os.remove(error_file)
             link = None
         return link
     finally:
@@ -132,25 +151,44 @@ async def handle_interactive_encode(video_path, sub_path, message, msg, mode, qu
         sub_path = sub_dest
 
     new_file = None
+    error_log = None
     try:
         if mode == 'encode':
-            new_file = await encode(video_path, message, msg, quality=quality)
+            new_file, error_log = await encode(video_path, message, msg, quality=quality)
         elif mode == 'hard_sub':
-            new_file = await hard_sub(video_path, sub_path, message, msg, quality=quality)
+            new_file, error_log = await hard_sub(video_path, sub_path, message, msg, quality=quality)
         elif mode == 'soft_code':
-            new_file = await soft_code(video_path, sub_path, message, msg, quality=quality)
+            new_file, error_log = await soft_code(video_path, sub_path, message, msg, quality=quality)
         else:
             new_file = None
 
         if new_file:
-            await msg.edit("<code>Process Completed, getting metadata...</code>")
-            try:
-                link = await upload_worker(new_file, message, msg)
-                await msg.edit('Process Completed Successfully! Link: {}'.format(link))
-            except Exception as e:
-                await msg.edit(f"Error while uploading: {e}")
+            # 1MB = 1048576 bytes
+            if os.path.getsize(new_file) < 1048576:
+                LOGGER.error(f"Processed file is too small ({os.path.getsize(new_file)} bytes). FFmpeg likely failed.")
+                error_file = f"ffmpeg_error_{msg.id}.txt"
+                with open(error_file, 'w', encoding='utf-8') as f:
+                    f.write(error_log or "Unknown FFmpeg error")
+                await message.reply_document(error_file, caption="FFmpeg error log (Output file < 1MB)")
+                if os.path.exists(error_file):
+                    os.remove(error_file)
+                if os.path.exists(new_file):
+                    os.remove(new_file)
+                new_file = None
+            else:
+                await msg.edit("<code>Process Completed, getting metadata...</code>")
+                try:
+                    link = await upload_worker(new_file, message, msg)
+                    # No extra success notification as per requirement
+                except Exception as e:
+                    await msg.edit(f"Error while uploading: {e}")
         else:
-            await message.reply("<code>Something went wrong while processing your file.</code>")
+            error_file = f"ffmpeg_error_{msg.id}.txt"
+            with open(error_file, 'w', encoding='utf-8') as f:
+                f.write(error_log or "Something went wrong during processing.")
+            await message.reply_document(error_file, caption="Something went wrong while processing your file.")
+            if os.path.exists(error_file):
+                os.remove(error_file)
     finally:
         # Cleanup
         if new_file and os.path.exists(new_file):

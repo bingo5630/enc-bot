@@ -328,8 +328,11 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
 
     # Font Selection
     selected_font = await db.get_user_font(message.from_user.id)
-    if not selected_font:
-        selected_font = 'Arial'
+    if not selected_font or not await is_font_available(selected_font):
+        if await is_font_available('Arial'):
+            selected_font = 'Arial'
+        else:
+            selected_font = 'Liberation Sans'
 
     # Font Size based on resolution
     # 480p: FontSize=20, 720p: FontSize=30, 1080p: FontSize=45
@@ -501,7 +504,8 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
     # Finally
     ffmpeg_path = shutil.which("ffmpeg")
     if not ffmpeg_path:
-        return await message.reply("❌ FFmpeg not found on VPS. Please install it.")
+        await message.reply("❌ FFmpeg not found on VPS. Please install it.")
+        return None, "FFmpeg not found"
     print(f"DEBUG: Input: {filepath}, Output: {output_filepath}")
 
     command = ['ffmpeg', '-hide_banner',
@@ -550,9 +554,11 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
 
     command.extend(finish.split())
 
+    print(f"FFMPEG COMMAND: {' '.join(command + [output_filepath])}")
+
     proc = await asyncio.create_subprocess_exec(*command, output_filepath, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     # Progress Bar
-    await handle_progress(proc, msg, message, filepath)
+    stderr_log = await handle_progress(proc, msg, message, filepath)
     # Wait for the subprocess to finish
     stdout, stderr = await proc.communicate()
 
@@ -561,15 +567,15 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
         LOGGER.error(f"FFmpeg failed with exit code {proc.returncode}. Error: {e_response}")
         if os.path.isfile(output_filepath):
             os.remove(output_filepath)
-        return None
+        return None, stderr_log
 
     if not os.path.isfile(output_filepath) or os.path.getsize(output_filepath) == 0:
         LOGGER.error(f"Encoding failed: {output_filepath} not created or is 0 bytes.")
         if os.path.isfile(output_filepath):
             os.remove(output_filepath)
-        return None
+        return None, stderr_log
 
-    return output_filepath
+    return output_filepath, stderr_log
 
 
 async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
@@ -588,8 +594,11 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
 
     # Font Selection
     selected_font = await db.get_user_font(message.from_user.id)
-    if not selected_font:
-        selected_font = 'Arial'
+    if not selected_font or not await is_font_available(selected_font):
+        if await is_font_available('Arial'):
+            selected_font = 'Arial'
+        else:
+            selected_font = 'Liberation Sans'
 
     # Quality logic for hard_sub
     vf_list = []
@@ -628,7 +637,8 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     # Using libx264 for speed
     ffmpeg_path = shutil.which("ffmpeg")
     if not ffmpeg_path:
-        return await message.reply("❌ FFmpeg not found on VPS. Please install it.")
+        await message.reply("❌ FFmpeg not found on VPS. Please install it.")
+        return None, "FFmpeg not found"
     print(f"DEBUG: Input: {filepath}, Output: {output_filepath}")
 
     command = [
@@ -666,17 +676,19 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
         command.extend(['-map', f'{thumb_input_index}:v', '-c:v:1', 'png', '-disposition:v:1', 'attached_pic'])
     command.extend(adv_metadata)
 
+    print(f"FFMPEG COMMAND (hard_sub): {' '.join(command + [output_filepath])}")
+
     proc = await asyncio.create_subprocess_exec(*command, output_filepath, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-    await handle_progress(proc, msg, message, filepath)
+    stderr_log = await handle_progress(proc, msg, message, filepath)
     stdout, stderr = await proc.communicate()
 
     if proc.returncode != 0:
         LOGGER.error(f"FFmpeg hard_sub failed with exit code {proc.returncode}. Error: {stderr.decode().strip()}")
-        return None
+        return None, stderr_log
 
     if not os.path.isfile(output_filepath) or os.path.getsize(output_filepath) == 0:
-        return None
-    return output_filepath
+        return None, stderr_log
+    return output_filepath, stderr_log
 
 
 async def soft_code(filepath, subtitles_path, message, msg, quality=None):
@@ -705,7 +717,8 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
     # However, if quality is set or watermark exists, we HAVE to re-encode to scale/overlay.
     ffmpeg_path = shutil.which("ffmpeg")
     if not ffmpeg_path:
-        return await message.reply("❌ FFmpeg not found on VPS. Please install it.")
+        await message.reply("❌ FFmpeg not found on VPS. Please install it.")
+        return None, "FFmpeg not found"
     print(f"DEBUG: Input: {filepath}, Output: {output_filepath}")
 
     if quality or has_watermark:
@@ -788,17 +801,19 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
 
     command.extend(adv_metadata)
 
+    print(f"FFMPEG COMMAND (soft_code): {' '.join(command + [output_filepath])}")
+
     proc = await asyncio.create_subprocess_exec(*command, output_filepath, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-    await handle_progress(proc, msg, message, filepath)
+    stderr_log = await handle_progress(proc, msg, message, filepath)
     stdout, stderr = await proc.communicate()
 
     if proc.returncode != 0:
         LOGGER.error(f"FFmpeg soft_code failed with exit code {proc.returncode}. Error: {stderr.decode().strip()}")
-        return None
+        return None, stderr_log
 
     if not os.path.isfile(output_filepath) or os.path.getsize(output_filepath) == 0:
-        return None
-    return output_filepath
+        return None, stderr_log
+    return output_filepath, stderr_log
 
 
 
@@ -822,6 +837,21 @@ def get_duration(filepath):
         except Exception as e:
             LOGGER.error(f"hachoir duration failed: {e}")
     return 0
+
+
+async def is_font_available(font_name):
+    try:
+        # Check if the font family exists
+        proc = await asyncio.create_subprocess_exec(
+            'fc-list', f":family={font_name}",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, _ = await proc.communicate()
+        return font_name.lower() in stdout.decode().lower()
+    except Exception as e:
+        LOGGER.error(f"Error checking font {font_name}: {e}")
+        return False
 
 
 def get_width_height(filepath):
@@ -901,8 +931,8 @@ async def handle_progress(proc, msg, message, filepath):
             chunk = await asyncio.wait_for(proc.stderr.read(1024), timeout=1.0)
             if chunk:
                 stderr_buffer += chunk.decode('utf-8', errors='replace')
-                if len(stderr_buffer) > 5000:
-                    stderr_buffer = stderr_buffer[-5000:]
+                if len(stderr_buffer) > 50000:
+                    stderr_buffer = stderr_buffer[-50000:]
             elif proc.returncode is not None:
                 break
         except asyncio.TimeoutError:
@@ -916,7 +946,7 @@ async def handle_progress(proc, msg, message, filepath):
                 s_msg = json.load(f)
                 if not s_msg.get('running', True):
                     proc.kill()
-                    return
+                    return stderr_buffer
         except:
             pass
 
@@ -969,3 +999,5 @@ async def handle_progress(proc, msg, message, filepath):
                     last_update_time = now
                 except:
                     pass
+
+    return stderr_buffer

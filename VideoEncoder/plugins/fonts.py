@@ -40,5 +40,6 @@ async def fonts_handler(bot: Client, event: Message):
     await event.reply_photo(
         photo=FONTS_PIC,
         caption=caption,
+        has_spoiler=True,
         reply_markup=InlineKeyboardMarkup(buttons)
     )
