@@ -541,7 +541,10 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
 
         # Translator Callbacks
         elif cb.data == "hinglish_trigger":
-            translator_sessions[cb.from_user.id] = True
+            translator_sessions[cb.from_user.id] = {
+                'state': 'waiting_for_sub',
+                'msg': cb.message
+            }
             buttons = [[InlineKeyboardButton("[ ᴄᴀɴᴄᴇʟ ]", callback_data="translator_cancel")]]
             await cb.message.edit_caption(
                 caption="‣ ᴘʟᴇᴀsᴇ sᴇɴᴅ ʏᴏᴜʀ sᴜʙᴛɪᴛʟᴇ ꜰɪʟᴇ (.ass/.srt) ᴛᴏ ʙᴇɢɪɴ ᴛʜᴇ ᴀɪ ᴛʀᴀɴsʟᴀᴛɪᴏɴ",

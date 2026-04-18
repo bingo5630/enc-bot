@@ -12,14 +12,16 @@ from ..utils.helper import check_chat
 from ..utils.uploads.telegram import upload_doc
 
 # Setup Gemini
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+class Config:
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+if Config.GEMINI_API_KEY:
+    genai.configure(api_key=Config.GEMINI_API_KEY)
     model = genai.GenerativeModel('gemini-1.5-pro')
 else:
     model = None
 
-# user_id: True if waiting for subtitle file, "CANCELLED" if cancelled during process, "PROCESSING" when active
+# user_id: 'waiting_for_sub' if waiting for subtitle file, "CANCELLED" if cancelled during process, "PROCESSING" when active
 translator_sessions = {}
 
 def get_translator_menu():
@@ -130,17 +132,26 @@ async def translator_cmd(bot: Client, message: Message):
 
 @Client.on_message(filters.document & filters.private, group=-1)
 async def translator_file_handler(bot: Client, message: Message):
+    print(f'User {message.from_user.id} sent a file for translation.')
     user_id = message.from_user.id
-    if user_id not in translator_sessions or translator_sessions[user_id] == "CANCELLED":
+
+    session = translator_sessions.get(user_id)
+    if not isinstance(session, dict) or session.get('state') != "waiting_for_sub":
         return
 
     if not message.document or not (message.document.file_name.lower().endswith(".ass") or message.document.file_name.lower().endswith(".srt")):
         return
 
     message.stop_propagation()
+
+    msg = session['msg']
+
     translator_sessions[user_id] = "PROCESSING"
 
-    msg = await message.reply_text("<code>Downloading file... ⏳</code>")
+    try:
+        await msg.edit("‣ 𝐒𝐭𝐚𝐭𝐮𝐬 : 𝐃𝐨𝐰𝐧𝐥𝐨𝐚𝐝𝐢𝐧𝐠 𝐒𝐮𝐛𝐭𝐢ᴛ𝐥𝐞𝐬... ⏳")
+    except:
+        msg = await message.reply_text("‣ 𝐒𝐭𝐚𝐭𝐮𝐬 : 𝐃𝐨𝐰𝐧𝐥𝐨𝐚𝐝𝐢𝐧𝐠 𝐒𝐮𝐛𝐭𝐢ᴛ𝐥𝐞𝐬... ⏳")
 
     file_path = await message.download(file_name=os.path.join(download_dir, message.document.file_name))
 
@@ -154,16 +165,24 @@ async def translator_file_handler(bot: Client, message: Message):
 
         is_srt = file_path.lower().endswith(".srt")
 
+        def is_translatable(text):
+            if not text or not text.strip():
+                return False
+            # Check if text is just a timestamp like 00:01:20
+            if re.match(r'^\d{1,2}:\d{2}:\d{2}([,.]\d{1,3})?$', text.strip()):
+                return False
+            return True
+
         translatable_items = []
         if is_srt:
             parsed_data = parse_srt(content)
             for item in parsed_data:
-                if 'text' in item:
+                if 'text' in item and is_translatable(item['text']):
                     translatable_items.append(item)
         else:
             header, parsed_data = parse_ass(content)
             for item in parsed_data:
-                if 'text' in item:
+                if 'text' in item and is_translatable(item['text']):
                     translatable_items.append(item)
 
         total_lines = len(translatable_items)
@@ -172,6 +191,7 @@ async def translator_file_handler(bot: Client, message: Message):
             return
 
         batch_size = 10
+        last_updated_percentage = -1
         for i in range(0, total_lines, batch_size):
             if translator_sessions.get(user_id) == "CANCELLED":
                 await msg.edit("🚦 <b>Translation Cancelled by User!</b>")
@@ -181,20 +201,19 @@ async def translator_file_handler(bot: Client, message: Message):
             batch_texts = [item['text'] for item in batch]
 
             percentage = min(100, int((i / total_lines) * 100))
-            bar = get_progress_bar(percentage)
 
-            progress_text = (
-                "‣ 𝐒𝐭𝐚𝐭𝐮𝐬 : 𝐀𝐈 𝐓𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐢𝐧𝐠...\n"
-                f"[{bar}] {percentage}%\n"
-                f"‣ 𝐋𝐢𝐧𝐞𝐬 : {i} / {total_lines}\n"
-                "‣ 𝐄𝐧𝐠𝐢𝐧𝐞 : 𝐆𝐞𝐦𝐢𝐧𝐢 𝟏.𝟓 𝐏𝐫𝐨"
-            )
+            if percentage >= last_updated_percentage + 10 or i == 0:
+                bar = get_progress_bar(percentage)
+                progress_text = (
+                    f"‣ 𝐒𝐭𝐚𝐭𝐮𝐬 : 𝐀𝐈 𝐓𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐢𝐧𝐠...[{bar}] {percentage}%"
+                )
 
-            buttons = [[InlineKeyboardButton("[ ᴄᴀɴᴄᴇʟ ]", callback_data="translator_cancel_ongoing")]]
-            try:
-                await msg.edit(progress_text, reply_markup=InlineKeyboardMarkup(buttons))
-            except:
-                pass
+                buttons = [[InlineKeyboardButton("[ ᴄᴀɴᴄᴇʟ ]", callback_data="translator_cancel_ongoing")]]
+                try:
+                    await msg.edit(progress_text, reply_markup=InlineKeyboardMarkup(buttons))
+                    last_updated_percentage = (percentage // 10) * 10
+                except:
+                    pass
 
             translated = await translate_batch(batch_texts)
 
@@ -209,10 +228,7 @@ async def translator_file_handler(bot: Client, message: Message):
         # 100% Progress
         bar = get_progress_bar(100)
         progress_text = (
-            "‣ 𝐒𝐭𝐚𝐭𝐮𝐬 : 𝐀𝐈 𝐓𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐢𝐧𝐠...\n"
-            f"[{bar}] 100%\n"
-            f"‣ 𝐋𝐢𝐧𝐞𝐬 : {total_lines} / {total_lines}\n"
-            "‣ 𝐄𝐧𝐠𝐢𝐧𝐞 : 𝐆𝐞𝐦𝐢𝐧𝐢 𝟏.𝟓 𝐏𝐫𝐨"
+            f"‣ 𝐒𝐭𝐚𝐭𝐮𝐬 : 𝐀𝐈 𝐓𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐢𝐧𝐠...[{bar}] 100%"
         )
         await msg.edit(progress_text)
 
