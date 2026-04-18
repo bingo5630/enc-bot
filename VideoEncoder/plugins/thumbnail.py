@@ -76,10 +76,8 @@ async def save_thumb(client, message):
                 await db.set_thumbnail(user_id, file_id)
                 thumb_path = os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg')
                 await message.download(file_name=thumb_path)
-                if os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0:
-                    await message.reply("✅ Thumbnail saved successfully!")
-                else:
-                    await message.reply("❌ Error: Thumbnail file is missing or empty.")
+                if os.path.exists(thumb_path):
+                    await message.reply("✅ Thumbnail saved!")
                 del thumbnail_sessions[user_id]
                 return
             else:
@@ -93,10 +91,8 @@ async def save_thumb(client, message):
             await db.set_thumbnail(user_id, file_id)
             thumb_path = os.path.join(ASSETS_DIR, f'thumb_{user_id}.jpg')
             await message.download(file_name=thumb_path)
-            if os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0:
-                await message.reply("✅ Thumbnail saved successfully!")
-            else:
-                await message.reply("❌ Error: Thumbnail file is missing or empty.")
+            if os.path.exists(thumb_path):
+                await message.reply("✅ Thumbnail saved!")
             
     except Exception as e:
         logging.error(f"Error in save_thumb: {e}")

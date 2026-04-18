@@ -2,6 +2,11 @@
 from os import getenv
 import logging
 import os
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ASSETS_DIR = os.path.join(BASE_DIR, 'Assets')
+if not os.path.exists(ASSETS_DIR):
+    os.makedirs(ASSETS_DIR)
+
 import time
 from io import BytesIO, StringIO
 from logging.handlers import RotatingFileHandler
@@ -25,9 +30,6 @@ session = getenv("SESSION_NAME")
 
 drive_dir = getenv("DRIVE_DIR")
 index = getenv("INDEX_URL")
-
-BASE_DIR = os.getcwd()
-ASSETS_DIR = os.path.join(BASE_DIR, 'Assets')
 
 download_dir = os.path.abspath(getenv("DOWNLOAD_DIR", "downloads"))
 encode_dir = os.path.abspath(getenv("ENCODE_DIR", "encodes"))
@@ -82,7 +84,6 @@ def memory_file(name=None, contents=None, *, bytes=True):
 # Check Folder
 os.makedirs(download_dir, exist_ok=True)
 os.makedirs(encode_dir, exist_ok=True)
-os.makedirs(ASSETS_DIR, exist_ok=True)
 
 if not os.path.isdir('VideoEncoder/utils/extras'):
     os.makedirs('VideoEncoder/utils/extras')

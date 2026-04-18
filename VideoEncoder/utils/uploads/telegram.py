@@ -23,12 +23,17 @@ async def upload_to_tg(new_file, message, msg):
     if os.path.exists(local_thumb) and os.path.getsize(local_thumb) > 0:
         thumb = local_thumb
     elif custom_thumb:
-        thumb = await app.download_media(custom_thumb, file_name=os.path.join(download_dir, str(time.time()) + ".jpg"))
+        thumb_path = os.path.join(ASSETS_DIR, f"temp_thumb_{user_id}.jpg")
+        thumb = await app.download_media(custom_thumb, file_name=thumb_path)
+        if thumb:
+            thumb = os.path.abspath(thumb)
     else:
         thumb = get_thumbnail(new_file, download_dir, duration / 4)
+        if thumb:
+            thumb = os.path.abspath(thumb)
 
     # Ensure thumbnail is under 200KB for Telegram API
-    if thumb and os.path.exists(thumb) and os.path.getsize(thumb) > 200000:
+    if thumb and isinstance(thumb, str) and os.path.exists(thumb) and os.path.getsize(thumb) > 200000:
         # If it's too big, we just don't send it.
         # Ideally we should resize it, but the requirement is to ensure it's under 200KB.
         thumb = None
