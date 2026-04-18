@@ -18,7 +18,7 @@ class Config:
 GEMINI_API_KEY = Config.GEMINI_API_KEY
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-pro')
+    model = genai.GenerativeModel('gemini-1.5-flash')
 else:
     model = None
 
@@ -45,9 +45,9 @@ async def translator_file_handler(bot: Client, message: Message):
     global model
     if not model:
         genai.configure(api_key=Config.GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-1.5-pro')
+        model = genai.GenerativeModel('gemini-1.5-flash')
 
-    msg = await message.reply_text("<code>Downloading file... ⏳</code>")
+    msg = await message.reply_text("✅ 𝐟𝐢𝐥𝐞 𝐫𝐞𝐜𝐞𝐢𝐯𝐞𝐝. 𝐢𝐧𝐢𝐭𝐢𝐚𝐥𝐢𝐳𝐢𝐧𝐠 𝐚𝐢...")
 
     file_path = await message.download(file_name=os.path.join(download_dir, message.document.file_name))
 
@@ -65,12 +65,12 @@ async def translator_file_handler(bot: Client, message: Message):
         if is_srt:
             parsed_data = parse_srt(content)
             for item in parsed_data:
-                if 'text' in item:
+                if 'text' in item and item['text'].strip():
                     translatable_items.append(item)
         else:
             header, parsed_data = parse_ass(content)
             for item in parsed_data:
-                if 'text' in item:
+                if 'text' in item and item['text'].strip():
                     translatable_items.append(item)
 
         total_lines = len(translatable_items)
@@ -90,12 +90,7 @@ async def translator_file_handler(bot: Client, message: Message):
             percentage = min(100, int((i / total_lines) * 100))
             bar = get_progress_bar(percentage)
 
-            progress_text = (
-                "‣ 𝐒𝐭𝐚𝐭𝐮𝐬 : 𝐀𝐈 𝐓𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐢𝐧𝐠...\n"
-                f"[{bar}] {percentage}%\n"
-                f"‣ 𝐋𝐢𝐧𝐞𝐬 : {i} / {total_lines}\n"
-                "‣ 𝐄𝐧𝐠𝐢𝐧𝐞 : 𝐆𝐞𝐦𝐢𝐧𝐢 𝟏.𝟓 𝐏𝐫𝐨"
-            )
+            progress_text = f"‣ 𝐒𝐭𝐚𝐭𝐮𝐬 : 𝐀𝐈 𝐓𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐢𝐧𝐠...[{bar}] {percentage}%"
 
             buttons = [[InlineKeyboardButton("[ ᴄᴀɴᴄᴇʟ ]", callback_data="translator_cancel_ongoing")]]
             try:
@@ -115,12 +110,7 @@ async def translator_file_handler(bot: Client, message: Message):
 
         # 100% Progress
         bar = get_progress_bar(100)
-        progress_text = (
-            "‣ 𝐒𝐭𝐚𝐭𝐮𝐬 : 𝐀𝐈 𝐓𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐢𝐧𝐠...\n"
-            f"[{bar}] 100%\n"
-            f"‣ 𝐋𝐢𝐧𝐞𝐬 : {total_lines} / {total_lines}\n"
-            "‣ 𝐄𝐧𝐠𝐢𝐧𝐞 : 𝐆𝐞𝐦𝐢𝐧𝐢 𝟏.𝟓 𝐏𝐫𝐨"
-        )
+        progress_text = f"‣ 𝐒𝐭𝐚𝐭𝐮𝐬 : 𝐀𝐈 𝐓𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐢𝐧𝐠...[{bar}] 100%"
         await msg.edit(progress_text)
 
         if is_srt:

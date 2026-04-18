@@ -543,8 +543,8 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
         elif cb.data == "hinglish_trigger":
             translator_sessions[cb.from_user.id] = True
             buttons = [[InlineKeyboardButton("[ ᴄᴀɴᴄᴇʟ ]", callback_data="translator_cancel")]]
-            await cb.message.edit_caption(
-                caption="‣ ᴘʟᴇᴀsᴇ sᴇɴᴅ ʏᴏᴜʀ sᴜʙᴛɪᴛʟᴇ ꜰɪʟᴇ (.ass/.srt) ᴛᴏ ʙᴇɢɪɴ ᴛʜᴇ ᴀɪ ᴛʀᴀɴsʟᴀᴛɪᴏɴ",
+            await cb.message.reply_text(
+                text="📂 [ 𝐒𝐞𝐧𝐝 𝐒𝐮𝐛𝐭𝐢𝐭𝐥𝐞 𝐅𝐢𝐥𝐞 ]\nᴘʟᴇᴀsᴇ ᴜᴘʟᴏᴀᴅ ʏᴏᴜʀ .ᴀss ᴏʀ .sʀᴛ ғɪʟᴇ ɴᴏᴡ. ɪ ᴀᴍ ʀᴇᴀᴅʏ ғᴏʀ ᴀɪ ᴛʀᴀɴsʟᴀᴛɪᴏɴ.",
                 reply_markup=InlineKeyboardMarkup(buttons)
             )
 
@@ -571,14 +571,7 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
         elif cb.data == "translator_cancel":
             if cb.from_user.id in translator_sessions:
                 del translator_sessions[cb.from_user.id]
-            img_url, text, markup = get_translator_menu()
-            try:
-                await cb.message.edit_media(
-                    media=InputMediaPhoto(img_url, caption=text, has_spoiler=True),
-                    reply_markup=markup
-                )
-            except:
-                await cb.message.edit_caption(caption=text, reply_markup=markup)
+            await cb.message.delete()
 
         elif cb.data == "translator_cancel_ongoing":
             translator_sessions[cb.from_user.id] = "CANCELLED"
