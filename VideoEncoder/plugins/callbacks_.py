@@ -522,13 +522,13 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
 
         # Help Callback
         elif cb.data == "trans_gemini_pro":
-            await process_translation(bot, cb, "gemini", "gemini-1.5-pro")
+            await process_translation(bot, cb, "gemini", "gemini-1.5-pro-latest")
 
         elif cb.data == "trans_gemini_flash":
-            await process_translation(bot, cb, "gemini", "gemini-1.5-flash")
+            await process_translation(bot, cb, "gemini", "gemini-1.5-flash-latest")
 
         elif cb.data == "trans_llama3_groq":
-            await process_translation(bot, cb, "groq", "llama3-70b-8192")
+            await process_translation(bot, cb, "groq", "llama-3.1-70b-versatile")
 
         elif cb.data == "trans_mixtral_groq":
             await process_translation(bot, cb, "groq", "mixtral-8x7b-32768")

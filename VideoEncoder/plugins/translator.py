@@ -8,8 +8,8 @@ from .. import LOGGER, download_dir
 from ..utils.uploads.telegram import upload_doc
 from ..utils.database.access_db import db
 
-# 1. Setup the low-level client for Gemini v1
-from google.ai import generativelanguage_v1 as glossar
+# 1. Setup the low-level client for Gemini v1beta
+from google.ai import generativelanguage_v1beta as glossar
 from google.api_core import client_options
 from google.auth.credentials import AnonymousCredentials
 
