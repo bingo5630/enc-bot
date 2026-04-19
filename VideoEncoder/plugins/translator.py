@@ -1,55 +1,44 @@
 import os
 import asyncio
 import re
+import httpx
 from pyrogram import Client, filters
-from pyrogram.types import Message
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from .. import LOGGER, download_dir
 from ..utils.uploads.telegram import upload_doc
 from ..utils.database.access_db import db
 
-# 1. Setup the low-level client for v1
+# 1. Setup the low-level client for Gemini v1
 from google.ai import generativelanguage_v1 as glossar
 from google.api_core import client_options
 from google.auth.credentials import AnonymousCredentials
 
-class Config:
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-
-# Create low-level client
 client_opts = client_options.ClientOptions(api_endpoint="generativelanguage.googleapis.com")
 gemini_client = glossar.GenerativeServiceClient(
     client_options=client_opts,
     credentials=AnonymousCredentials()
 )
 
-# STABLE API MODEL NAME
-MODEL_NAME = "models/gemini-1.5-flash"
+SYSTEM_PROMPT = "You are a professional Anime/Manhwa translator. Read the English text from the file and translate it into Normal Hinglish (Hindi + English). Rule: Don't change any tags, timing, or symbols. Just change the English words into natural, easy-to-read Hinglish (like we talk in daily life). Format: Keep the same line-by-line structure as the original file. Do not add any explanations, only return the translated content."
 
-# Correct Safety settings for stable v1
-SAFETY_SETTINGS = [
-    glossar.SafetySetting(
-        category=glossar.HarmCategory.HARM_CATEGORY_HARASSMENT,
-        threshold=glossar.SafetySetting.HarmBlockThreshold.BLOCK_NONE,
-    ),
-    glossar.SafetySetting(
-        category=glossar.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-        threshold=glossar.SafetySetting.HarmBlockThreshold.BLOCK_NONE,
-    ),
-    glossar.SafetySetting(
-        category=glossar.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-        threshold=glossar.SafetySetting.HarmBlockThreshold.BLOCK_NONE,
-    ),
-    glossar.SafetySetting(
-        category=glossar.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-        threshold=glossar.SafetySetting.HarmBlockThreshold.BLOCK_NONE,
-    ),
-]
+TRANSLATE_PIC = "https://graph.org/file/600586a9a49029c2e98f1-90c27ea7986142ea7a.jpg"
+TRANSLATE_TEXT = "✨ ᴄʜᴏᴏsᴇ ʏᴏᴜʀ ᴛʀᴀɴsʟᴀᴛɪᴏɴ ᴇɴɢɪɴᴇ ✨\nᴘʟᴇᴀsᴇ sᴇʟᴇᴄᴛ ᴀ ᴍᴏᴅᴇʟ ᴛᴏ sᴛᴀʀᴛ ʜɪɴɢʟɪsʜ ᴛʀᴀɴsʟᴀᴛɪᴏɴ."
 
-# Strict Prompt for Hinglish
-SYSTEM_PROMPT = "You are an expert anime subtitle translator. Translate the provided subtitle content into natural, conversational Hinglish (Hindi + English). Strictly keep all timing codes, Dialogue prefixes, and metadata intact. Only replace the actual Japanese/English text with Hinglish. Output only the translated content."
+TRANSLATE_BUTTONS = InlineKeyboardMarkup([
+    [
+        InlineKeyboardButton("ɢᴇᴍɪɴɪ ᴘʀᴏ 💎", callback_data="trans_gemini_pro"),
+        InlineKeyboardButton("ɢᴇᴍɪɴɪ ғʟᴀsʜ ⚡", callback_data="trans_gemini_flash")
+    ],
+    [
+        InlineKeyboardButton("ʟʟᴀᴍᴀ-𝟹 (ɢʀᴏǫ) 🚀", callback_data="trans_llama3_groq"),
+        InlineKeyboardButton("ᴍɪxᴛʀᴀʟ (ɢʀᴏǫ) 🌀", callback_data="trans_mixtral_groq")
+    ],
+    [
+        InlineKeyboardButton("❌ ᴄʟᴏsᴇ / ᴄᴀɴᴄᴇʟ", callback_data="close_translator")
+    ]
+])
 
 def parse_srt(content):
-    """Simple SRT parser that returns list of blocks."""
     blocks = re.split(r'\n\s*\n', content.strip())
     parsed = []
     for block in blocks:
@@ -65,7 +54,6 @@ def parse_srt(content):
     return parsed
 
 def parse_ass(content):
-    """Simple ASS parser that returns header and list of event blocks."""
     lines = content.splitlines()
     header = []
     events = []
@@ -88,26 +76,18 @@ def parse_ass(content):
                 events.append({'raw': line})
     return header, events
 
-async def translate_chunk(chunk_text, api_key):
-    """Translates a chunk using Gemini V1 with proper formatting."""
+async def translate_gemini(chunk_text, api_key, model_name):
     if not chunk_text.strip():
         return chunk_text
 
     prompt_text = f"{SYSTEM_PROMPT}\n\nCONTENT TO TRANSLATE:\n{chunk_text}"
-
-    # Formatting the request for v1 stable - EXACT STRUCTURE REQUESTED
     request = glossar.GenerateContentRequest(
-        model="models/gemini-1.5-flash",
-        contents=[
-            glossar.Content(
-                parts=[glossar.Part(text=prompt_text)]
-            )
-        ]
+        model=f"models/{model_name}",
+        contents=[glossar.Content(parts=[glossar.Part(text=prompt_text)])]
     )
 
     for attempt in range(2):
         try:
-            # Running the blocking call in a thread
             response = await asyncio.to_thread(
                 gemini_client.generate_content,
                 request=request,
@@ -115,18 +95,49 @@ async def translate_chunk(chunk_text, api_key):
             )
             if response.candidates and response.candidates[0].content.parts:
                 translated_text = response.candidates[0].content.parts[0].text.strip()
-                # Clean up any AI-added markdown like ```ass or ```
                 translated_text = re.sub(r'```[a-z]*\n|```', '', translated_text)
                 return translated_text
-            else:
-                return "❌ Gemini Error: No response candidates found."
+            return "❌ Gemini Error: No response candidates found."
         except Exception as e:
-            error_str = str(e)
-            LOGGER.error(f"Gemini API Attempt {attempt+1} Error: {error_str}")
             if attempt == 0:
-                await asyncio.sleep(3)
+                await asyncio.sleep(2)
                 continue
-            return f"❌ Gemini Error: {error_str}"
+            return f"❌ Gemini Error: {str(e)}"
+
+async def translate_groq(chunk_text, api_key, model_name):
+    if not chunk_text.strip():
+        return chunk_text
+
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": model_name,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": chunk_text}
+        ],
+        "temperature": 0.2
+    }
+
+    async with httpx.AsyncClient() as client:
+        for attempt in range(2):
+            try:
+                response = await client.post(url, headers=headers, json=payload, timeout=60.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    translated_text = data['choices'][0]['message']['content'].strip()
+                    translated_text = re.sub(r'```[a-z]*\n|```', '', translated_text)
+                    return translated_text
+                else:
+                    return f"❌ Groq Error: {response.status_code} - {response.text}"
+            except Exception as e:
+                if attempt == 0:
+                    await asyncio.sleep(2)
+                    continue
+                return f"❌ Groq Error: {str(e)}"
 
 @Client.on_message(filters.command("translate") & filters.private)
 async def translate_cmd_handler(bot: Client, message: Message):
@@ -139,17 +150,69 @@ async def translate_cmd_handler(bot: Client, message: Message):
         await message.reply_text("❌ Please reply to a valid .ass or .srt file.")
         return
 
-    user_api_key = await db.get_gemini_api_key(message.from_user.id)
-    if not user_api_key:
-        await message.reply_text(
-            "❌ API Key Missing! > Please generate a free API Key here: [Google AI Studio](https://aistudio.google.com/app/apikey)\n\n"
-            "Then send it to me like this: /set_api YOUR_KEY_HERE"
-        )
+    await message.reply_photo(
+        photo=TRANSLATE_PIC,
+        caption=TRANSLATE_TEXT,
+        reply_markup=TRANSLATE_BUTTONS,
+        has_spoiler=True
+    )
+
+@Client.on_message(filters.command("set_gemini") & filters.private)
+async def set_gemini_handler(bot: Client, message: Message):
+    if len(message.command) < 2:
+        await message.reply_text("❌ Usage: /set_gemini YOUR_KEY_HERE")
+        return
+    api_key = message.command[1]
+    await db.set_gemini_api_key(message.from_user.id, api_key)
+    await message.reply_text("✅ Gemini API Key saved successfully!")
+
+@Client.on_message(filters.command("set_groq") & filters.private)
+async def set_groq_handler(bot: Client, message: Message):
+    if len(message.command) < 2:
+        await message.reply_text("❌ Usage: /set_groq YOUR_KEY_HERE")
+        return
+    api_key = message.command[1]
+    await db.set_groq_api_key(message.from_user.id, api_key)
+    await message.reply_text("✅ Groq API Key saved successfully!")
+
+@Client.on_message(filters.command("clear_api") & filters.private)
+async def clear_api_handler(bot: Client, message: Message):
+    await db.set_gemini_api_key(message.from_user.id, None)
+    await db.set_groq_api_key(message.from_user.id, None)
+    await message.reply_text("✅ All API Keys cleared successfully!")
+
+async def process_translation(bot, cb, model_type, model_name):
+    # This will be called from callbacks_.py
+    user_id = cb.from_user.id
+
+    if model_type == "gemini":
+        api_key = await db.get_gemini_api_key(user_id)
+        translate_func = translate_gemini
+    else:
+        api_key = await db.get_groq_api_key(user_id)
+        translate_func = translate_groq
+
+    if not api_key:
+        await cb.answer(f"❌ {model_type.capitalize()} API Key Missing!", show_alert=True)
         return
 
-    status_msg = await message.reply_text("⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜𝐞𝐬𝐬𝐢𝐧𝐠] : 𝐑𝐞𝐚𝐝𝐢𝐧𝐠 𝐟𝐢𝐥𝐞 𝐚𝐧𝐝 𝐬𝐭𝐚𝐫𝐭𝐢𝐧𝐠 𝐭𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐢𝐨𝐧...")
+    # Check if there's a replied message with a file
+    # cb.message is the bot's photo message.
+    # cb.message.reply_to_message is the user's /translate command.
+    # cb.message.reply_to_message.reply_to_message is the original subtitle file.
+    cmd_msg = cb.message.reply_to_message
+    if not cmd_msg or not cmd_msg.reply_to_message:
+        await cb.answer("❌ Original file not found. Please try /translate again.", show_alert=True)
+        return
 
-    print("Reading File")
+    replied = cmd_msg.reply_to_message
+    if not (replied.document and replied.document.file_name and replied.document.file_name.lower().endswith((".ass", ".srt"))):
+        await cb.answer("❌ Please reply to a valid .ass or .srt file.", show_alert=True)
+        return
+
+    await cb.message.delete()
+    status_msg = await bot.send_message(user_id, "⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜𝐞𝐬𝐬𝐢𝐧𝐠] : 𝐑𝐞𝐚𝐝𝐢𝐧𝐠 𝐟𝐢𝐥𝐞 𝐚𝐧𝐝 𝐬𝐭𝐚𝐫ᴛɪ𝐧𝐠 ᴛ𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐢𝐨𝐧...")
+
     file_name = replied.document.file_name
     file_path = await replied.download(file_name=os.path.join(download_dir, file_name))
 
@@ -164,79 +227,44 @@ async def translate_cmd_handler(bot: Client, message: Message):
             blocks = re.split(r'\n\s*\n', content.strip())
             total_chunks = (len(blocks) + 24) // 25
             translated_blocks = []
-
             for i in range(0, len(blocks), 25):
-                current_chunk = (i // 25) + 1
-                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜𝐞𝐬𝐬𝐢𝐧𝐠] : Translating chunk {current_chunk}/{total_chunks}...")
-
-                chunk = blocks[i : i + 25]
-                chunk_text = "\n\n".join(chunk)
-
-                translated_chunk_text = await translate_chunk(chunk_text, user_api_key)
-                if translated_chunk_text.startswith("❌ Gemini Error:"):
-                    await status_msg.edit(translated_chunk_text)
+                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜𝐞𝐬𝐬𝐢𝐧𝐠] : Translating chunk {(i//25)+1}/{total_chunks}...")
+                chunk = "\n\n".join(blocks[i : i + 25])
+                res = await translate_func(chunk, api_key, model_name)
+                if res.startswith("❌"):
+                    await status_msg.edit(res)
                     return
-
-                translated_blocks.append(translated_chunk_text)
-
+                translated_blocks.append(res)
             translated_content = "\n\n".join(translated_blocks)
         else:
             header, events = parse_ass(content)
             total_chunks = (len(events) + 79) // 80
             final_events = []
-
             for i in range(0, len(events), 80):
-                current_chunk = (i // 80) + 1
-                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜𝐞𝐬𝐬𝐢𝐧𝐠] : Translating chunk {current_chunk}/{total_chunks}...")
-
-                chunk = events[i : i + 80]
+                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜𝐞𝐬𝐬𝐢𝐧𝐠] : Translating chunk {(i//80)+1}/{total_chunks}...")
                 chunk_lines = []
-                for item in chunk:
+                for item in events[i : i + 80]:
                     if 'text' in item:
                         chunk_lines.append(",".join(item['prefix']) + "," + item['text'])
                     else:
                         chunk_lines.append(item['raw'])
-
-                chunk_text = "\n".join(chunk_lines)
-                translated_chunk_text = await translate_chunk(chunk_text, user_api_key)
-                if translated_chunk_text.startswith("❌ Gemini Error:"):
-                    await status_msg.edit(translated_chunk_text)
+                res = await translate_func("\n".join(chunk_lines), api_key, model_name)
+                if res.startswith("❌"):
+                    await status_msg.edit(res)
                     return
-
-                final_events.append(translated_chunk_text)
-
+                final_events.append(res)
             translated_content = "\n".join(header) + "\n" + "\n".join(final_events)
 
         output_filename = os.path.splitext(file_name)[0] + "_Hinglish" + os.path.splitext(file_name)[1]
         output_path = os.path.join(download_dir, output_filename)
-
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(translated_content)
 
-        print("Success")
         caption = f"✅ Translated by AI (Hinglish)\nFile: <code>{output_filename}</code>"
-        await upload_doc(message, status_msg, 0, output_filename, output_path, caption=caption)
-
+        await upload_doc(replied, status_msg, 0, output_filename, output_path, caption=caption)
     except Exception as e:
-        LOGGER.error(f"Translation logic error: {e}")
+        LOGGER.error(f"Translation Error: {e}")
         await status_msg.edit(f"❌ Error: {e}")
     finally:
-        if os.path.exists(file_path):
-            os.remove(file_path)
-        if 'output_path' in locals() and os.path.exists(output_path):
-            os.remove(output_path)
-
-@Client.on_message(filters.command("set_api") & filters.private)
-async def set_api_handler(bot: Client, message: Message):
-    if len(message.command) < 2:
-        await message.reply_text("❌ Please provide your Gemini API Key.\nUsage: /set_api YOUR_KEY_HERE")
-        return
-
-    api_key = message.command[1]
-    await db.set_gemini_api_key(message.from_user.id, api_key)
-    await message.reply_text("✅ Gemini API Key saved successfully!")
-
-@Client.on_message(filters.command("clear_api") & filters.private)
-async def clear_api_handler(bot: Client, message: Message):
-    await db.set_gemini_api_key(message.from_user.id, None)
-    await message.reply_text("✅ Gemini API Key cleared successfully!")
+        if os.path.exists(file_path): os.remove(file_path)
+        if 'output_path' in locals() and os.path.exists(output_path): os.remove(output_path)

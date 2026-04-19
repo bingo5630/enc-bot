@@ -25,6 +25,7 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
         from .watermark import watermark_sessions, WATERMARK_PIC
         from .interactive_handler import interactive_sessions
         from .metadata_plugin import update_metadata_msg
+        from .translator import process_translation
 
         # Close Button
 
@@ -520,6 +521,21 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
             await cb.message.delete()
 
         # Help Callback
+        elif cb.data == "trans_gemini_pro":
+            await process_translation(bot, cb, "gemini", "gemini-1.5-pro")
+
+        elif cb.data == "trans_gemini_flash":
+            await process_translation(bot, cb, "gemini", "gemini-1.5-flash")
+
+        elif cb.data == "trans_llama3_groq":
+            await process_translation(bot, cb, "groq", "llama3-70b-8192")
+
+        elif cb.data == "trans_mixtral_groq":
+            await process_translation(bot, cb, "groq", "mixtral-8x7b-32768")
+
+        elif cb.data == "close_translator":
+            await cb.message.delete()
+
         elif cb.data == "help_callback":
             help_text = "𝖧𝖤𝖫𝖯 𝖬𝖤𝖭𝖴\n" \
                         "● /sthumb : ʀᴇᴘʟʏ ᴛᴏ ᴘʜᴏᴛᴏ ᴛᴏ sᴇᴛ ᴄᴏᴠᴇʀ.\n" \
