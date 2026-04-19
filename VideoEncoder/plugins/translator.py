@@ -91,17 +91,19 @@ async def translate_chunk(chunk_text):
     """Translates a chunk using Gemini V1 with proper formatting."""
     if not chunk_text.strip():
         return chunk_text
-    # Formatting the request for v1 stable
+
+    prompt_text = f"{SYSTEM_PROMPT}\n\nCONTENT TO TRANSLATE:\n{chunk_text}"
+
+    # Formatting the request for v1 stable - EXACT STRUCTURE REQUESTED
     request = glossar.GenerateContentRequest(
-        model=MODEL_NAME,
+        model="models/gemini-1.5-flash",
         contents=[
             glossar.Content(
-                role="user",
-                parts=[glossar.Part(text=f"{SYSTEM_PROMPT}\n\nCONTENT TO TRANSLATE:\n{chunk_text}")]
+                parts=[glossar.Part(text=prompt_text)]
             )
-        ],
-        safety_settings=SAFETY_SETTINGS
+        ]
     )
+
     for attempt in range(2):
         try:
             # Running the blocking call in a thread
@@ -119,10 +121,6 @@ async def translate_chunk(chunk_text):
                 return "❌ Gemini Error: No response candidates found."
         except Exception as e:
             error_str = str(e)
-            if "404" in error_str:
-                # Emergency fallback: remove 'models/' prefix if 404 occurs
-                request.model = "gemini-1.5-flash"
-                continue
             LOGGER.error(f"Gemini API Attempt {attempt+1} Error: {error_str}")
             if attempt == 0:
                 await asyncio.sleep(3)
