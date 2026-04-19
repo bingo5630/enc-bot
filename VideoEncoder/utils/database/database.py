@@ -46,7 +46,8 @@ class Database:
             metadata_audio="By: @Anime_Fury",
             metadata_subtitle="By: @Anime_Fury",
             metadata_video="By: @Anime_Fury",
-            user_font='Arial'
+            user_font='Arial',
+            gemini_api_key=None
         )
 
     async def add_user(self, id):
@@ -349,3 +350,10 @@ class Database:
     async def get_user_font(self, id):
         user = await self._get_user(id)
         return user.get('user_font', 'Arial')
+
+    async def set_gemini_api_key(self, id, key):
+        await self.col.update_one({'id': id}, {'$set': {'gemini_api_key': key}}, upsert=True)
+
+    async def get_gemini_api_key(self, id):
+        user = await self._get_user(id)
+        return user.get('gemini_api_key', None)

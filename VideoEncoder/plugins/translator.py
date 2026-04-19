@@ -5,6 +5,7 @@ from pyrogram import Client, filters
 from pyrogram.types import Message
 from .. import LOGGER, download_dir
 from ..utils.uploads.telegram import upload_doc
+from ..utils.database.access_db import db
 
 # 1. Setup the low-level client for v1
 from google.ai import generativelanguage_v1 as glossar
@@ -87,7 +88,7 @@ def parse_ass(content):
                 events.append({'raw': line})
     return header, events
 
-async def translate_chunk(chunk_text):
+async def translate_chunk(chunk_text, api_key):
     """Translates a chunk using Gemini V1 with proper formatting."""
     if not chunk_text.strip():
         return chunk_text
@@ -110,7 +111,7 @@ async def translate_chunk(chunk_text):
             response = await asyncio.to_thread(
                 gemini_client.generate_content,
                 request=request,
-                metadata=[('x-goog-api-key', Config.GEMINI_API_KEY)]
+                metadata=[('x-goog-api-key', api_key)]
             )
             if response.candidates and response.candidates[0].content.parts:
                 translated_text = response.candidates[0].content.parts[0].text.strip()
@@ -138,8 +139,12 @@ async def translate_cmd_handler(bot: Client, message: Message):
         await message.reply_text("❌ Please reply to a valid .ass or .srt file.")
         return
 
-    if not Config.GEMINI_API_KEY:
-        await message.reply_text("❌ Error: Gemini API Key not found in Config.")
+    user_api_key = await db.get_gemini_api_key(message.from_user.id)
+    if not user_api_key:
+        await message.reply_text(
+            "❌ API Key Missing! > Please generate a free API Key here: [Google AI Studio](https://aistudio.google.com/app/apikey)\n\n"
+            "Then send it to me like this: /set_api YOUR_KEY_HERE"
+        )
         return
 
     status_msg = await message.reply_text("⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜𝐞𝐬𝐬𝐢𝐧𝐠] : 𝐑𝐞𝐚𝐝𝐢𝐧𝐠 𝐟𝐢𝐥𝐞 𝐚𝐧𝐝 𝐬𝐭𝐚𝐫𝐭𝐢𝐧𝐠 𝐭𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐢𝐨𝐧...")
@@ -167,7 +172,7 @@ async def translate_cmd_handler(bot: Client, message: Message):
                 chunk = blocks[i : i + 25]
                 chunk_text = "\n\n".join(chunk)
 
-                translated_chunk_text = await translate_chunk(chunk_text)
+                translated_chunk_text = await translate_chunk(chunk_text, user_api_key)
                 if translated_chunk_text.startswith("❌ Gemini Error:"):
                     await status_msg.edit(translated_chunk_text)
                     return
@@ -193,7 +198,7 @@ async def translate_cmd_handler(bot: Client, message: Message):
                         chunk_lines.append(item['raw'])
 
                 chunk_text = "\n".join(chunk_lines)
-                translated_chunk_text = await translate_chunk(chunk_text)
+                translated_chunk_text = await translate_chunk(chunk_text, user_api_key)
                 if translated_chunk_text.startswith("❌ Gemini Error:"):
                     await status_msg.edit(translated_chunk_text)
                     return
@@ -220,3 +225,18 @@ async def translate_cmd_handler(bot: Client, message: Message):
             os.remove(file_path)
         if 'output_path' in locals() and os.path.exists(output_path):
             os.remove(output_path)
+
+@Client.on_message(filters.command("set_api") & filters.private)
+async def set_api_handler(bot: Client, message: Message):
+    if len(message.command) < 2:
+        await message.reply_text("❌ Please provide your Gemini API Key.\nUsage: /set_api YOUR_KEY_HERE")
+        return
+
+    api_key = message.command[1]
+    await db.set_gemini_api_key(message.from_user.id, api_key)
+    await message.reply_text("✅ Gemini API Key saved successfully!")
+
+@Client.on_message(filters.command("clear_api") & filters.private)
+async def clear_api_handler(bot: Client, message: Message):
+    await db.set_gemini_api_key(message.from_user.id, None)
+    await message.reply_text("✅ Gemini API Key cleared successfully!")
