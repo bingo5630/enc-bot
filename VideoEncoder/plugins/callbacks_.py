@@ -531,7 +531,7 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
             await process_translation(bot, cb, "groq", "llama-3.3-70b-versatile")
 
         elif cb.data == "trans_mixtral_groq":
-            await process_translation(bot, cb, "groq", "mistral-saba-24b")
+            await process_translation(bot, cb, "groq", "mixtral-8x7b-32768")
 
         elif cb.data == "close_translator":
             await cb.message.delete()

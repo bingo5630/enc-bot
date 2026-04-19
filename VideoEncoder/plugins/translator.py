@@ -45,7 +45,7 @@ TRANSLATE_BUTTONS = InlineKeyboardMarkup([
     ],
     [
         InlineKeyboardButton("ʟʟᴀᴍᴀ-𝟹.𝟹 (ɢʀᴏǫ) 🚀", callback_data="trans_llama3_groq"),
-        InlineKeyboardButton("ᴍɪsᴛʀᴀʟ-sᴀʙᴀ (ɢʀᴏǫ) 🌀", callback_data="trans_mixtral_groq")
+        InlineKeyboardButton("ᴍɪxᴛʀᴀʟ-𝟾x𝟽ʙ (ɢʀᴏǫ) 🌀", callback_data="trans_mixtral_groq")
     ],
     [
         InlineKeyboardButton("ʜᴏᴡ ᴛᴏ ᴛʀᴀɴsʟᴀᴛᴇ? ❓", callback_data="how_to_translate")
@@ -93,6 +93,10 @@ def parse_ass(content):
 async def translate_gemini(chunk_text, api_key, model_name):
     if not chunk_text.strip():
         return chunk_text
+
+    # Ensure model_name doesn't have "models/" prefix for latest SDK compliance
+    if model_name.startswith("models/"):
+        model_name = model_name.replace("models/", "")
 
     prompt_text = f"{SYSTEM_PROMPT}\n\nCONTENT TO TRANSLATE:\n{chunk_text}"
     request = glossar.GenerateContentRequest(
@@ -283,25 +287,27 @@ async def process_translation(bot, cb, model_type, model_name):
 
         if is_srt:
             blocks = re.split(r'\n\s*\n', content.strip())
-            total_chunks = (len(blocks) + 24) // 25
+            total_chunks = (len(blocks) + 19) // 20
             translated_blocks = []
-            for i in range(0, len(blocks), 25):
-                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜𝐞𝐬𝐬𝐢𝐧𝐠] : Translating chunk {(i//25)+1}/{total_chunks}...")
-                chunk = "\n\n".join(blocks[i : i + 25])
+            for i in range(0, len(blocks), 20):
+                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜𝐞𝐬𝐬𝐢𝐧𝐠] : Translating chunk {(i//20)+1}/{total_chunks}...")
+                chunk = "\n\n".join(blocks[i : i + 20])
                 res = await translate_func(chunk, api_key, model_name)
                 if res.startswith("❌"):
                     await status_msg.edit(res)
                     return
                 translated_blocks.append(res)
+                if model_type == "groq" and (i + 20) < len(blocks):
+                    await asyncio.sleep(2)
             translated_content = "\n\n".join(translated_blocks)
         else:
             header, events = parse_ass(content)
-            total_chunks = (len(events) + 79) // 80
+            total_chunks = (len(events) + 19) // 20
             final_events = []
-            for i in range(0, len(events), 80):
-                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜𝐞𝐬𝐬𝐢𝐧𝐠] : Translating chunk {(i//80)+1}/{total_chunks}...")
+            for i in range(0, len(events), 20):
+                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜𝐞𝐬𝐬𝐢𝐧𝐠] : Translating chunk {(i//20)+1}/{total_chunks}...")
                 chunk_lines = []
-                for item in events[i : i + 80]:
+                for item in events[i : i + 20]:
                     if 'text' in item:
                         chunk_lines.append(",".join(item['prefix']) + "," + item['text'])
                     else:
@@ -311,6 +317,8 @@ async def process_translation(bot, cb, model_type, model_name):
                     await status_msg.edit(res)
                     return
                 final_events.append(res)
+                if model_type == "groq" and (i + 20) < len(events):
+                    await asyncio.sleep(2)
             translated_content = "\n".join(header) + "\n" + "\n".join(final_events)
 
         output_filename = os.path.splitext(file_name)[0] + "_Hinglish" + os.path.splitext(file_name)[1]
