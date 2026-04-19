@@ -25,7 +25,6 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
         from .watermark import watermark_sessions, WATERMARK_PIC
         from .interactive_handler import interactive_sessions
         from .metadata_plugin import update_metadata_msg
-        from .translator import translator_sessions, get_translator_menu
 
         # Close Button
 
@@ -538,62 +537,6 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
             except Exception as e:
                 LOGGER.error(f"Error in help_callback: {e}")
                 await cb.message.edit_caption(caption=help_text)
-
-        # Translator Callbacks
-        elif cb.data == "hinglish_trigger":
-            translator_sessions[cb.from_user.id] = True
-            buttons = [[InlineKeyboardButton("[ ᴄᴀɴᴄᴇʟ ]", callback_data="translator_cancel")]]
-            await cb.message.reply_text(
-                text="📂 [ 𝐒𝐞𝐧𝐝 𝐒𝐮𝐛𝐭𝐢𝐭𝐥𝐞 𝐅𝐢𝐥𝐞 ]\nᴘʟᴇᴀsᴇ ᴜᴘʟᴏᴀᴅ ʏᴏᴜʀ .ᴀss ᴏʀ .sʀᴛ ғɪʟᴇ ɴᴏᴡ. ɪ ᴀᴍ ʀᴇᴀᴅʏ ғᴏʀ ᴀɪ ᴛʀᴀɴsʟᴀᴛɪᴏɴ.",
-                reply_markup=InlineKeyboardMarkup(buttons)
-            )
-
-        elif cb.data == "translator_help":
-            help_text = "𝖧𝖤𝖫𝖯 𝖬𝖤𝖭𝖴\n" \
-                        "● /sthumb : ʀᴇᴘʟʏ ᴛᴏ ᴘʜᴏᴛᴏ ᴛᴏ sᴇᴛ ᴄᴏᴠᴇʀ.\n" \
-                        "● /hard_code : ᴇɴᴄᴏᴅᴇ ᴠɪᴅᴇᴏ ᴡɪᴛʜ sᴜʙs.\n" \
-                        "● /soft_code : ᴀᴅᴅ sᴜʙs ᴀs ᴍᴇᴛᴀᴅᴀᴛᴀ.\n" \
-                        "● /sub_extraxt : to extract sub file ᴍᴀᴅᴇ ʙʏ 𝐆𝐨𝐣𝐨."
-            buttons = [[InlineKeyboardButton("[ ʙᴀᴄᴋ ]", callback_data="translator_back")]]
-            try:
-                await cb.message.edit_media(
-                    media=InputMediaPhoto(
-                        "https://graph.org/file/f05e263a23a137e3d166e-2f58e6589333a41113.jpg",
-                        caption=help_text,
-                        has_spoiler=True
-                    ),
-                    reply_markup=InlineKeyboardMarkup(buttons)
-                )
-            except Exception as e:
-                LOGGER.error(f"Error in translator_help: {e}")
-                await cb.message.edit_caption(caption=help_text, reply_markup=InlineKeyboardMarkup(buttons))
-
-        elif cb.data == "translator_cancel":
-            if cb.from_user.id in translator_sessions:
-                del translator_sessions[cb.from_user.id]
-            await cb.message.delete()
-
-        elif cb.data == "translator_cancel_ongoing":
-            translator_sessions[cb.from_user.id] = "CANCELLED"
-            await cb.answer("Translation cancelled!", show_alert=True)
-            img_url, text, markup = get_translator_menu()
-            try:
-                await cb.message.edit_media(
-                    media=InputMediaPhoto(img_url, caption=text, has_spoiler=True),
-                    reply_markup=markup
-                )
-            except:
-                await cb.message.edit_caption(caption=text, reply_markup=markup)
-
-        elif cb.data == "translator_back":
-            img_url, text, markup = get_translator_menu()
-            try:
-                await cb.message.edit_media(
-                    media=InputMediaPhoto(img_url, caption=text, has_spoiler=True),
-                    reply_markup=markup
-                )
-            except:
-                await cb.message.edit_caption(caption=text, reply_markup=markup)
 
     except Exception as e:
         LOGGER.error(f"Error in callback_handlers: {e}")
