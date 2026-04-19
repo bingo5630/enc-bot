@@ -2,7 +2,6 @@
 import os
 import asyncio
 import re
-import google.generativeai as genai
 from pyrogram import Client, filters
 from pyrogram.types import Message
 from .. import LOGGER, download_dir
@@ -11,25 +10,17 @@ from ..utils.uploads.telegram import upload_doc
 class Config:
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-safety_settings = [
-    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-]
-
-SYSTEM_INSTRUCTION = 'You are a professional Anime/Manhwa translator. Translate the following subtitle lines into natural Hinglish. Keep the timing tags (e.g., 0:00:00.00) exactly as they are. Do not add any explanations, only return the translated file content.'
-
-# Initialize Gemini
-if Config.GEMINI_API_KEY:
-    genai.configure(api_key=Config.GEMINI_API_KEY)
-    model = genai.GenerativeModel(
-        model_name='gemini-1.5-flash',
-        safety_settings=safety_settings,
-        system_instruction=SYSTEM_INSTRUCTION
-    )
-else:
-    model = None
+import google.generativeai as genai
+# 1. Force use stable v1 API
+genai.configure(api_key=Config.GEMINI_API_KEY)
+# 2. Use the standard model name without 'models/' prefix
+model = genai.GenerativeModel('gemini-1.5-flash')
+# 3. Test the connection immediately
+try:
+    response = model.generate_content('test')
+    print("DEBUG: API Connection Successful")
+except Exception as e:
+    print(f"DEBUG: Critical API Error: {e}")
 
 def parse_srt(content):
     """Simple SRT parser that returns list of blocks."""
