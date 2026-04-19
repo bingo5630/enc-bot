@@ -18,16 +18,24 @@ safety_settings = [
     {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
 ]
 
+SYSTEM_INSTRUCTION = 'You are a professional Anime/Manhwa translator. Translate the following subtitle lines into natural Hinglish. Keep the timing tags (e.g., 0:00:00.00) exactly as they are. Do not add any explanations, only return the translated file content.'
+
 # Initialize Gemini
 if Config.GEMINI_API_KEY:
     genai.configure(api_key=Config.GEMINI_API_KEY)
-    model = genai.GenerativeModel(
-        model_name='gemini-1.5-flash',
+    flash_model = genai.GenerativeModel(
+        model_name='gemini-1.5-flash-latest',
         safety_settings=safety_settings,
-        system_instruction='You are a professional Anime/Manhwa translator. Translate the following subtitle lines into natural Hinglish. Keep the timing tags (e.g., 0:00:00.00) exactly as they are. Do not add any explanations, only return the translated file content.'
+        system_instruction=SYSTEM_INSTRUCTION
+    )
+    pro_model = genai.GenerativeModel(
+        model_name='gemini-1.5-pro',
+        safety_settings=safety_settings,
+        system_instruction=SYSTEM_INSTRUCTION
     )
 else:
-    model = None
+    flash_model = None
+    pro_model = None
 
 def parse_srt(content):
     """Simple SRT parser that returns list of blocks."""
@@ -70,14 +78,24 @@ def parse_ass(content):
     return header, events
 
 async def translate_chunk(chunk_text):
-    """Translates a chunk of text using Gemini AI with retry logic."""
+    """Translates a chunk of text using Gemini AI with retry logic and fallback."""
     if not chunk_text.strip():
         return chunk_text
 
     for attempt in range(2):
         try:
-            response = await asyncio.to_thread(model.generate_content, chunk_text)
-            return response.text.strip()
+            # Try with flash first
+            try:
+                response = await asyncio.to_thread(flash_model.generate_content, chunk_text)
+                return response.text.strip()
+            except Exception as e:
+                err_str = str(e).lower()
+                if "404" in err_str or "not found" in err_str or "model" in err_str:
+                    LOGGER.info("Gemini Flash failed/not found, falling back to Pro...")
+                    response = await asyncio.to_thread(pro_model.generate_content, chunk_text)
+                    return response.text.strip()
+                raise e
+
         except Exception as e:
             error_msg = f'❌ Gemini Error: {e.message if hasattr(e, "message") else str(e)}'
             LOGGER.error(error_msg)
