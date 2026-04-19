@@ -22,7 +22,7 @@ lk21
 lxml
 httpx
 speedtest-cli
-google-generativeai
+google-generativeai>=0.8.0
 
 # Google Drive
 google-api-core
