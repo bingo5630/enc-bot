@@ -10,6 +10,7 @@ from ..utils.uploads.telegram import upload_doc
 # 1. Setup the low-level client for v1
 from google.ai import generativelanguage_v1 as glossar
 from google.api_core import client_options
+from google.auth.credentials import AnonymousCredentials
 
 class Config:
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -18,8 +19,7 @@ class Config:
 client_opts = client_options.ClientOptions(api_endpoint="generativelanguage.googleapis.com")
 gemini_client = glossar.GenerativeServiceClient(
     client_options=client_opts,
-    client_info=None,
-    transport='rest'
+    credentials=AnonymousCredentials()
 )
 
 MODEL_NAME = "models/gemini-1.5-flash"
