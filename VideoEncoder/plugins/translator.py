@@ -7,22 +7,44 @@ from pyrogram.types import Message
 from .. import LOGGER, download_dir
 from ..utils.uploads.telegram import upload_doc
 
+# 1. Setup the low-level client for v1
+from google.ai import generativelanguage_v1 as glossar
+from google.api_core import client_options
+
 class Config:
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-import google.generativeai as genai
+# Create low-level client
+client_opts = client_options.ClientOptions(api_endpoint="generativelanguage.googleapis.com")
+gemini_client = glossar.GenerativeServiceClient(
+    client_options=client_opts,
+    client_info=None,
+    transport='rest'
+)
 
-# 1. Configure Gemini API
-print(f"DEBUG: Using API Version: {genai.__version__}")
-genai.configure(api_key=Config.GEMINI_API_KEY)
-# 2. Use the standard model name without 'models/' prefix
-model = genai.GenerativeModel('gemini-1.5-flash')
-# 3. Test the connection immediately
-try:
-    response = model.generate_content("Hi, tell me one word: Success.")
-    print(f"DEBUG: Success! Gemini says: {response.text}")
-except Exception as e:
-    print(f"DEBUG: Critical API Error: {e}")
+MODEL_NAME = "models/gemini-1.5-flash"
+
+# Safety settings for translation
+SAFETY_SETTINGS = [
+    glossar.SafetySetting(
+        category=glossar.HarmCategory.HARM_CATEGORY_HARASSMENT,
+        threshold=glossar.SafetySetting.HarmBlockThreshold.BLOCK_NONE,
+    ),
+    glossar.SafetySetting(
+        category=glossar.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        threshold=glossar.SafetySetting.HarmBlockThreshold.BLOCK_NONE,
+    ),
+    glossar.SafetySetting(
+        category=glossar.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+        threshold=glossar.SafetySetting.HarmBlockThreshold.BLOCK_NONE,
+    ),
+    glossar.SafetySetting(
+        category=glossar.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+        threshold=glossar.SafetySetting.HarmBlockThreshold.BLOCK_NONE,
+    ),
+]
+
+SYSTEM_INSTRUCTION = "You are a professional Anime/Manhwa translator. Translate the following subtitle lines into natural Hinglish. Keep the timing tags (e.g., 0:00:00.00) exactly as they are. Do not add any explanations, only return the translated file content."
 
 def parse_srt(content):
     """Simple SRT parser that returns list of blocks."""
@@ -65,19 +87,31 @@ def parse_ass(content):
     return header, events
 
 async def translate_chunk(chunk_text):
-    """Translates a chunk of text using Gemini AI with retry logic."""
+    """Translates a chunk of text using Gemini V1 AI with retry logic."""
     if not chunk_text.strip():
         return chunk_text
+
+    # Prepare request
+    full_prompt = f"{SYSTEM_INSTRUCTION}\n\n{chunk_text}"
+    request = glossar.GenerateContentRequest(
+        model=MODEL_NAME,
+        contents=[glossar.Content(parts=[glossar.Part(text=full_prompt)])],
+        safety_settings=SAFETY_SETTINGS
+    )
 
     for attempt in range(2):
         try:
             response = await asyncio.to_thread(
-                model.generate_content,
-                chunk_text
+                gemini_client.generate_content,
+                request=request,
+                metadata=[('x-goog-api-key', Config.GEMINI_API_KEY)]
             )
-            return response.text.strip()
+            if response.candidates and response.candidates[0].content.parts:
+                return response.candidates[0].content.parts[0].text.strip()
+            else:
+                return "❌ Gemini Error: No content returned"
         except Exception as e:
-            error_msg = f'❌ Gemini Error: {e.message if hasattr(e, "message") else str(e)}'
+            error_msg = f'❌ Gemini Error: {str(e)}'
             LOGGER.error(error_msg)
             if attempt == 0:
                 await asyncio.sleep(2)
@@ -134,9 +168,6 @@ async def translate_cmd_handler(bot: Client, message: Message):
             translated_content = "\n\n".join(translated_blocks)
         else:
             header, events = parse_ass(content)
-
-            # This simple ASS chunking assumes Dialogue: lines are sequential at the end or we just process all Dialogue: lines together
-            # To be safe and preserve order, we'll process chunks of events.
             total_chunks = (len(events) + 79) // 80
             final_events = []
 
@@ -145,7 +176,6 @@ async def translate_cmd_handler(bot: Client, message: Message):
                 await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜𝐞𝐬𝐬𝐢𝐧𝐠] : Translating chunk {current_chunk}/{total_chunks}...")
 
                 chunk = events[i : i + 80]
-                # Prepare text for Gemini: only Dialogue lines
                 chunk_lines = []
                 for item in chunk:
                     if 'text' in item:
@@ -158,12 +188,6 @@ async def translate_cmd_handler(bot: Client, message: Message):
                 if translated_chunk_text.startswith("❌ Gemini Error:"):
                     await status_msg.edit(translated_chunk_text)
                     return
-
-                # Reassemble: we expect the same number of lines
-                translated_lines = translated_chunk_text.splitlines()
-                if len(translated_lines) != len(chunk_lines):
-                    # Fallback if AI didn't return exact number of lines, though unlikely with the new prompt
-                    LOGGER.warning(f"ASS Chunk mismatch: {len(translated_lines)} vs {len(chunk_lines)}")
 
                 final_events.append(translated_chunk_text)
 
