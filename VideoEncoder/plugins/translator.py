@@ -44,8 +44,8 @@ TRANSLATE_BUTTONS = InlineKeyboardMarkup([
         InlineKeyboardButton("ɢᴇᴍɪɴɪ ғʟᴀsʜ ⚡", callback_data="trans_gemini_flash")
     ],
     [
-        InlineKeyboardButton("ʟʟᴀᴍᴀ-𝟹 (ɢʀᴏǫ) 🚀", callback_data="trans_llama3_groq"),
-        InlineKeyboardButton("ᴍɪxᴛʀᴀʟ (ɢʀᴏǫ) 🌀", callback_data="trans_mixtral_groq")
+        InlineKeyboardButton("ʟʟᴀᴍᴀ-𝟹.𝟹 (ɢʀᴏǫ) 🚀", callback_data="trans_llama3_groq"),
+        InlineKeyboardButton("ᴍɪsᴛʀᴀʟ-sᴀʙᴀ (ɢʀᴏǫ) 🌀", callback_data="trans_mixtral_groq")
     ],
     [
         InlineKeyboardButton("ʜᴏᴡ ᴛᴏ ᴛʀᴀɴsʟᴀᴛᴇ? ❓", callback_data="how_to_translate")
@@ -96,7 +96,7 @@ async def translate_gemini(chunk_text, api_key, model_name):
 
     prompt_text = f"{SYSTEM_PROMPT}\n\nCONTENT TO TRANSLATE:\n{chunk_text}"
     request = glossar.GenerateContentRequest(
-        model=f"models/{model_name}",
+        model=model_name,
         contents=[glossar.Content(parts=[glossar.Part(text=prompt_text)])]
     )
 
