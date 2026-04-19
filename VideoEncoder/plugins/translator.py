@@ -11,10 +11,21 @@ from ..utils.uploads.telegram import upload_doc
 class Config:
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
+safety_settings = [
+    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+]
+
 # Initialize Gemini
 if Config.GEMINI_API_KEY:
     genai.configure(api_key=Config.GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel(
+        model_name='gemini-1.5-flash',
+        safety_settings=safety_settings,
+        system_instruction='You are a professional Anime/Manhwa translator. Translate the following subtitle lines into natural Hinglish. Keep the timing tags (e.g., 0:00:00.00) exactly as they are. Do not add any explanations, only return the translated file content.'
+    )
 else:
     model = None
 
@@ -58,40 +69,22 @@ def parse_ass(content):
                 events.append({'raw': line})
     return header, events
 
-async def translate_batch(batch_texts):
-    """Translates a batch of texts using Gemini AI."""
-    if not batch_texts:
-        return []
+async def translate_chunk(chunk_text):
+    """Translates a chunk of text using Gemini AI with retry logic."""
+    if not chunk_text.strip():
+        return chunk_text
 
-    print("Calling Gemini")
-    numbered_text = "\n".join([f"{i+1}: {text}" for i, text in enumerate(batch_texts)])
-    prompt = (
-        "You are a professional Anime/Manhwa translator. Translate the following numbered segments into natural Hinglish. "
-        "Keep the original vibe and all formatting like {\\pos(x,y)}. "
-        "Preserve the numbering format 'n: translated_text'. Output ONLY the translated segments.\n\n"
-        f"{numbered_text}"
-    )
-
-    try:
-        response = await asyncio.to_thread(model.generate_content, prompt)
-        lines = response.text.strip().splitlines()
-        translated = []
-        for line in lines:
-            match = re.match(r'^\d+:\s*(.*)', line.strip())
-            if match:
-                translated.append(match.group(1))
-
-        # Fallback if AI output is slightly misformatted
-        if len(translated) != len(batch_texts):
-            LOGGER.warning(f"Batch mismatch: {len(translated)} vs {len(batch_texts)}")
-            if len(translated) > len(batch_texts):
-                return translated[:len(batch_texts)]
-            else:
-                return translated + batch_texts[len(translated):]
-        return translated
-    except Exception as e:
-        LOGGER.error(f"Gemini API Error: {e}")
-        return None
+    for attempt in range(2):
+        try:
+            response = await asyncio.to_thread(model.generate_content, chunk_text)
+            return response.text.strip()
+        except Exception as e:
+            error_msg = f'❌ Gemini Error: {e.message if hasattr(e, "message") else str(e)}'
+            LOGGER.error(error_msg)
+            if attempt == 0:
+                await asyncio.sleep(2)
+                continue
+            return error_msg
 
 @Client.on_message(filters.command("translate") & filters.private)
 async def translate_cmd_handler(bot: Client, message: Message):
@@ -119,53 +112,64 @@ async def translate_cmd_handler(bot: Client, message: Message):
             content = f.read()
 
         is_srt = file_path.lower().endswith(".srt")
-        translatable = []
+        translated_content = ""
 
         if is_srt:
-            parsed_data = parse_srt(content)
-            for item in parsed_data:
-                if 'text' in item and item['text'].strip():
-                    translatable.append(item)
+            blocks = re.split(r'\n\s*\n', content.strip())
+            total_chunks = (len(blocks) + 24) // 25
+            translated_blocks = []
+
+            for i in range(0, len(blocks), 25):
+                current_chunk = (i // 25) + 1
+                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜𝐞𝐬𝐬𝐢𝐧𝐠] : Translating chunk {current_chunk}/{total_chunks}...")
+
+                chunk = blocks[i : i + 25]
+                chunk_text = "\n\n".join(chunk)
+
+                translated_chunk_text = await translate_chunk(chunk_text)
+                if translated_chunk_text.startswith("❌ Gemini Error:"):
+                    await status_msg.edit(translated_chunk_text)
+                    return
+
+                translated_blocks.append(translated_chunk_text)
+
+            translated_content = "\n\n".join(translated_blocks)
         else:
-            header, parsed_data = parse_ass(content)
-            for item in parsed_data:
-                if 'text' in item and item['text'].strip():
-                    translatable.append(item)
+            header, events = parse_ass(content)
 
-        if not translatable:
-            await status_msg.edit("❌ No translatable text found.")
-            return
+            # This simple ASS chunking assumes Dialogue: lines are sequential at the end or we just process all Dialogue: lines together
+            # To be safe and preserve order, we'll process chunks of events.
+            total_chunks = (len(events) + 79) // 80
+            final_events = []
 
-        # Processing in batches
-        batch_size = 10
-        for i in range(0, len(translatable), batch_size):
-            batch = translatable[i : i + batch_size]
-            batch_texts = [item['text'] for item in batch]
+            for i in range(0, len(events), 80):
+                current_chunk = (i // 80) + 1
+                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜𝐞𝐬𝐬𝐢𝐧𝐠] : Translating chunk {current_chunk}/{total_chunks}...")
 
-            translated_texts = await translate_batch(batch_texts)
-            if translated_texts is None:
-                await status_msg.edit("❌ Gemini API Failure during translation.")
-                return
+                chunk = events[i : i + 80]
+                # Prepare text for Gemini: only Dialogue lines
+                chunk_lines = []
+                for item in chunk:
+                    if 'text' in item:
+                        chunk_lines.append(",".join(item['prefix']) + "," + item['text'])
+                    else:
+                        chunk_lines.append(item['raw'])
 
-            for j, t_text in enumerate(translated_texts):
-                batch[j]['text'] = t_text
+                chunk_text = "\n".join(chunk_lines)
+                translated_chunk_text = await translate_chunk(chunk_text)
+                if translated_chunk_text.startswith("❌ Gemini Error:"):
+                    await status_msg.edit(translated_chunk_text)
+                    return
 
-        # Reconstruct content
-        if is_srt:
-            translated_content = ""
-            for item in parsed_data:
-                if 'raw' in item:
-                    translated_content += item['raw'] + "\n\n"
-                else:
-                    translated_content += f"{item['index']}\n{item['timestamp']}\n{item['text']}\n\n"
-        else:
-            lines = list(header)
-            for item in parsed_data:
-                if 'raw' in item:
-                    lines.append(item['raw'])
-                else:
-                    lines.append(",".join(item['prefix']) + "," + item['text'])
-            translated_content = "\n".join(lines)
+                # Reassemble: we expect the same number of lines
+                translated_lines = translated_chunk_text.splitlines()
+                if len(translated_lines) != len(chunk_lines):
+                    # Fallback if AI didn't return exact number of lines, though unlikely with the new prompt
+                    LOGGER.warning(f"ASS Chunk mismatch: {len(translated_lines)} vs {len(chunk_lines)}")
+
+                final_events.append(translated_chunk_text)
+
+            translated_content = "\n".join(header) + "\n" + "\n".join(final_events)
 
         output_filename = os.path.splitext(file_name)[0] + "_Hinglish" + os.path.splitext(file_name)[1]
         output_path = os.path.join(download_dir, output_filename)
