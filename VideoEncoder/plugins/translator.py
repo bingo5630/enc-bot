@@ -44,15 +44,11 @@ TRANSLATE_BUTTONS = InlineKeyboardMarkup([
         InlineKeyboardButton("ɢᴇᴍɪɴɪ 𝟸.𝟶 ғʟᴀsʜ 🌟", callback_data="trans_gemini_20_flash")
     ],
     [
-        InlineKeyboardButton("ɢᴇᴍɪɴɪ 𝟷.𝟻 ғʟᴀsʜ ⚡", callback_data="trans_gemini_15_flash"),
-        InlineKeyboardButton("ɢᴇᴍɪɴɪ 𝟷.𝟶 ᴘʀᴏ 🧠", callback_data="trans_gemini_10_pro")
-    ],
-    [
         InlineKeyboardButton("ʟʟᴀᴍᴀ 𝟹.𝟹 (ɢʀᴏǫ) 🚀", callback_data="trans_llama3_groq"),
         InlineKeyboardButton("ᴍɪxᴛʀᴀʟ (ɢʀᴏǫ) 🌀", callback_data="trans_mixtral_groq")
     ],
     [
-        InlineKeyboardButton(" ", callback_data="none"),
+        InlineKeyboardButton("ʟʟᴀᴍᴀ 𝟹.𝟷 𝟾ʙ (ɢʀᴏǫ) ⚡", callback_data="trans_llama31_groq"),
         InlineKeyboardButton("ʜᴏᴡ ᴛᴏ ᴛʀᴀɴsʟᴀᴛᴇ? ❓", callback_data="how_to_translate")
     ]
 ])
@@ -99,33 +95,62 @@ async def translate_gemini(chunk_text, api_key, model_name):
     if not chunk_text.strip():
         return chunk_text
 
-    # Ensure model_name doesn't have "models/" prefix for latest SDK compliance
-    if model_name.startswith("models/"):
-        model_name = model_name.replace("models/", "")
+    # Ensure model_name is strictly one of the allowed ones and has no prefix
+    if "2.0-flash" in model_name:
+        model_name = "gemini-2.0-flash-exp"
+    else:
+        model_name = "gemini-1.5-pro"
 
     prompt_text = f"{SYSTEM_PROMPT}\n\nCONTENT TO TRANSLATE:\n{chunk_text}"
-    request = glossar.GenerateContentRequest(
-        model=model_name,
-        contents=[glossar.Content(parts=[glossar.Part(text=prompt_text)])]
-    )
 
-    for attempt in range(2):
-        try:
-            response = await asyncio.to_thread(
-                gemini_client.generate_content,
-                request=request,
-                metadata=[('x-goog-api-key', api_key)]
-            )
-            if response.candidates and response.candidates[0].content.parts:
-                translated_text = response.candidates[0].content.parts[0].text.strip()
-                translated_text = re.sub(r'```[a-z]*\n|```', '', translated_text)
-                return translated_text
-            return "❌ Gemini Error: No response candidates found."
-        except Exception as e:
-            if attempt == 0:
-                await asyncio.sleep(2)
-                continue
-            return f"❌ Gemini Error: {str(e)}"
+    # 1. SDK Method (Direct attempt)
+    try:
+        request = glossar.GenerateContentRequest(
+            model=model_name,
+            contents=[glossar.Content(parts=[glossar.Part(text=prompt_text)])]
+        )
+        response = await asyncio.to_thread(
+            gemini_client.generate_content,
+            request=request,
+            metadata=[('x-goog-api-key', api_key)]
+        )
+        if response.candidates and response.candidates[0].content.parts:
+            translated_text = response.candidates[0].content.parts[0].text.strip()
+            translated_text = re.sub(r'```[a-z]*\n|```', '', translated_text)
+            return translated_text
+    except Exception as e:
+        LOGGER.warning(f"Gemini SDK failed for {model_name}, trying Direct Request: {e}")
+
+    # 2. Direct Request Fallback (Bypassing SDK)
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "contents": [{
+            "parts": [{"text": prompt_text}]
+        }]
+    }
+
+    async with httpx.AsyncClient() as client:
+        for attempt in range(2):
+            try:
+                response = await client.post(url, headers=headers, json=payload, timeout=60.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    if 'candidates' in data and data['candidates'][0]['content']['parts']:
+                        translated_text = data['candidates'][0]['content']['parts'][0]['text'].strip()
+                        translated_text = re.sub(r'```[a-z]*\n|```', '', translated_text)
+                        return translated_text
+                    return f"❌ Gemini Direct Error: Unexpected response structure."
+                else:
+                    if attempt == 0:
+                        await asyncio.sleep(2)
+                        continue
+                    return f"❌ Gemini Direct Error: {response.status_code} - {response.text}"
+            except Exception as e:
+                if attempt == 0:
+                    await asyncio.sleep(2)
+                    continue
+                return f"❌ Gemini Direct Error: {str(e)}"
 
 async def translate_groq(chunk_text, api_key, model_name):
     if not chunk_text.strip():

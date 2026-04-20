@@ -527,17 +527,14 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
         elif cb.data == "trans_gemini_20_flash":
             await process_translation(bot, cb, "gemini", "gemini-2.0-flash-exp")
 
-        elif cb.data == "trans_gemini_15_flash":
-            await process_translation(bot, cb, "gemini", "gemini-1.5-flash")
-
-        elif cb.data == "trans_gemini_10_pro":
-            await process_translation(bot, cb, "gemini", "gemini-1.0-pro")
-
         elif cb.data == "trans_llama3_groq":
             await process_translation(bot, cb, "groq", "llama-3.3-70b-versatile")
 
         elif cb.data == "trans_mixtral_groq":
             await process_translation(bot, cb, "groq", "mixtral-8x7b-32768")
+
+        elif cb.data == "trans_llama31_groq":
+            await process_translation(bot, cb, "groq", "llama-3.1-8b-instant")
 
         elif cb.data == "close_translator":
             await cb.message.delete()
