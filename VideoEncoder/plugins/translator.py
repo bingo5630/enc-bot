@@ -100,11 +100,11 @@ async def translate_gemini(chunk_text, api_key, model_name):
 
     # Exact Model Mapping
     if "2.0-flash" in model_name:
-        full_model_name = "models/gemini-2.0-flash-exp"
+        full_model_name = "gemini-2.0-flash-exp"
     elif "1.5-flash" in model_name:
-        full_model_name = "models/gemini-1.5-flash"
+        full_model_name = "gemini-1.5-flash"
     else:
-        full_model_name = "models/gemini-1.5-pro"
+        full_model_name = "gemini-1.5-pro"
 
     prompt_text = f"{SYSTEM_PROMPT}\n\nCONTENT TO TRANSLATE:\n{chunk_text}"
 
@@ -128,7 +128,7 @@ async def translate_gemini(chunk_text, api_key, model_name):
 
     # 2. Direct Request Fallback (Bypassing SDK)
     # Using v1 endpoint as requested
-    url = f"https://generativelanguage.googleapis.com/v1/{full_model_name}:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1/models/{full_model_name}:generateContent?key={api_key}"
     headers = {"Content-Type": "application/json"}
     payload = {
         "contents": [{
@@ -330,10 +330,32 @@ async def process_translation(bot, cb, model_type, model_name):
             for i in range(0, len(blocks), 10):
                 await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜𝐞𝐬𝐬𝐢𝐧𝐠] : Translating chunk {(i//10)+1}/{total_chunks}...")
                 chunk = "\n\n".join(blocks[i : i + 10])
-                res = await translate_func(chunk, api_key, model_name)
-                if res.startswith("❌"):
+
+                try:
+                    res = await translate_func(chunk, api_key, model_name)
+                except Exception as e:
+                    res = f"❌ Error: {e}"
+
+                if res.startswith("❌") and model_type == "gemini":
+                    groq_key = await db.get_groq_api_key(user_id)
+                    if groq_key:
+                        LOGGER.info(f"Gemini failed, switching to Groq for user {user_id}")
+                        await status_msg.edit("⚠️ Gemini failed. Switching to Groq Bodyguard Engine...")
+                        model_type = "groq"
+                        model_name = "llama-3.3-70b-versatile"
+                        api_key = groq_key
+                        translate_func = translate_groq
+                        res = await translate_func(chunk, api_key, model_name)
+                        if res.startswith("❌"):
+                            await status_msg.edit(res)
+                            return
+                    else:
+                        await status_msg.edit(res)
+                        return
+                elif res.startswith("❌"):
                     await status_msg.edit(res)
                     return
+
                 translated_blocks.append(res)
                 if model_type == "groq" and (i + 10) < len(blocks):
                     await asyncio.sleep(3)
@@ -350,10 +372,33 @@ async def process_translation(bot, cb, model_type, model_name):
                         chunk_lines.append(",".join(item['prefix']) + "," + item['text'])
                     else:
                         chunk_lines.append(item['raw'])
-                res = await translate_func("\n".join(chunk_lines), api_key, model_name)
-                if res.startswith("❌"):
+
+                chunk_text = "\n".join(chunk_lines)
+                try:
+                    res = await translate_func(chunk_text, api_key, model_name)
+                except Exception as e:
+                    res = f"❌ Error: {e}"
+
+                if res.startswith("❌") and model_type == "gemini":
+                    groq_key = await db.get_groq_api_key(user_id)
+                    if groq_key:
+                        LOGGER.info(f"Gemini failed, switching to Groq for user {user_id}")
+                        await status_msg.edit("⚠️ Gemini failed. Switching to Groq Bodyguard Engine...")
+                        model_type = "groq"
+                        model_name = "llama-3.3-70b-versatile"
+                        api_key = groq_key
+                        translate_func = translate_groq
+                        res = await translate_func(chunk_text, api_key, model_name)
+                        if res.startswith("❌"):
+                            await status_msg.edit(res)
+                            return
+                    else:
+                        await status_msg.edit(res)
+                        return
+                elif res.startswith("❌"):
                     await status_msg.edit(res)
                     return
+
                 final_events.append(res)
                 if model_type == "groq" and (i + 10) < len(events):
                     await asyncio.sleep(3)
