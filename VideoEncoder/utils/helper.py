@@ -20,10 +20,9 @@ output = InlineKeyboardMarkup([
 ])
 
 start_but = InlineKeyboardMarkup([
-    [InlineKeyboardButton("sᴇᴛᴛɪɴɢs", callback_data="OpenSettings")],
-    [InlineKeyboardButton("sᴛᴀᴛs", callback_data="stats")],
-    [InlineKeyboardButton("[ • ᴏᴜʀ ᴄᴏᴍᴍᴜɴɪᴛʏ • ]", url="https://t.me/cantarellabots")],
-    [InlineKeyboardButton("MUGIWARAS NETWORK", url="https://t.me/Mugiwaras_Network")]
+    [InlineKeyboardButton("⚙️ sᴇᴛᴛɪɴɢs", callback_data="OpenSettings")],
+    [InlineKeyboardButton("❓ ʜᴇʟᴘ", callback_data="help_callback"), InlineKeyboardButton("👨‍💻 ᴅᴇᴠᴇʟᴏᴘᴇʀ", url="https://t.me/cantarella_wuwa")],
+    [InlineKeyboardButton("• ᴍᴜɢɪᴡᴀʀᴀs ɴᴇᴛᴡᴏʀᴋ •", url="https://t.me/Mugiwaras_Network")]
 ])
 
 

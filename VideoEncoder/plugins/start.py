@@ -66,7 +66,7 @@ The bot will split your file into chunks to ensure high-quality Hinglish transla
 Once done, you'll receive the translated file. Just add it to your video player!
 
 <b>Note:</b> If one engine fails, the 'Bodyguard' system automatically switches to the fallback engine to ensure your file is never rejected."""
-    await message.reply(text=msg, disable_web_page_preview=True, reply_markup=start_but)
+    await message.reply_photo(photo=START_PIC, caption=msg, reply_markup=start_but, has_spoiler=True)
 
 
 @Client.on_message(filters.command('stats'))
