@@ -19,7 +19,7 @@ gemini_client = glossar.GenerativeServiceClient(
     credentials=AnonymousCredentials()
 )
 
-SYSTEM_PROMPT = "You are a professional Anime/Manhwa translator. Read the English text from the file and translate it into Normal Hinglish (Hindi + English). Rule: Don't change any tags, timing, or symbols. Just change the English words into natural, easy-to-read Hinglish (like we talk in daily life). Format: Keep the same line-by-line structure as the original file. Do not add any explanations, only return the translated content."
+SYSTEM_PROMPT = "Strictly translate English text into natural Hinglish (Hindi + English). Rule: Do not change any tags, timing, or symbols. Maintain the original line-by-line structure. Only return the translated content without any explanations."
 
 TRANSLATE_PIC = "https://graph.org/file/600586a9a49029c2e98f1-90c27ea7986142ea7a.jpg"
 TRANSLATE_TEXT = "✨ ᴄʜᴏᴏsᴇ ʏᴏᴜʀ ᴛʀᴀɴsʟᴀᴛɪᴏɴ ᴇɴɢɪɴᴇ ✨\nᴘʟᴇᴀsᴇ sᴇʟᴇᴄᴛ ᴀ ᴍᴏᴅᴇʟ ᴛᴏ sᴛᴀʀᴛ ʜɪɴɢʟɪsʜ ᴛʀᴀɴsʟᴀᴛɪᴏɴ."
@@ -40,14 +40,19 @@ SETUP_GUIDE_BUTTONS = InlineKeyboardMarkup([
 
 TRANSLATE_BUTTONS = InlineKeyboardMarkup([
     [
-        InlineKeyboardButton("ɢᴇᴍɪɴɪ ᴘʀᴏ 💎", callback_data="trans_gemini_pro"),
-        InlineKeyboardButton("ɢᴇᴍɪɴɪ ғʟᴀsʜ ⚡", callback_data="trans_gemini_flash")
+        InlineKeyboardButton("ɢᴇᴍɪɴɪ 𝟷.𝟻 ᴘʀᴏ 💎", callback_data="trans_gemini_15_pro"),
+        InlineKeyboardButton("ɢᴇᴍɪɴɪ 𝟸.𝟶 ғʟᴀsʜ 🌟", callback_data="trans_gemini_20_flash")
     ],
     [
-        InlineKeyboardButton("ʟʟᴀᴍᴀ-𝟹.𝟹 (ɢʀᴏǫ) 🚀", callback_data="trans_llama3_groq"),
-        InlineKeyboardButton("ᴍɪxᴛʀᴀʟ-𝟾x𝟽ʙ (ɢʀᴏǫ) 🌀", callback_data="trans_mixtral_groq")
+        InlineKeyboardButton("ɢᴇᴍɪɴɪ 𝟷.𝟻 ғʟᴀsʜ ⚡", callback_data="trans_gemini_15_flash"),
+        InlineKeyboardButton("ɢᴇᴍɪɴɪ 𝟷.𝟶 ᴘʀᴏ 🧠", callback_data="trans_gemini_10_pro")
     ],
     [
+        InlineKeyboardButton("ʟʟᴀᴍᴀ 𝟹.𝟹 (ɢʀᴏǫ) 🚀", callback_data="trans_llama3_groq"),
+        InlineKeyboardButton("ᴍɪxᴛʀᴀʟ (ɢʀᴏǫ) 🌀", callback_data="trans_mixtral_groq")
+    ],
+    [
+        InlineKeyboardButton(" ", callback_data="none"),
         InlineKeyboardButton("ʜᴏᴡ ᴛᴏ ᴛʀᴀɴsʟᴀᴛᴇ? ❓", callback_data="how_to_translate")
     ]
 ])
@@ -287,27 +292,27 @@ async def process_translation(bot, cb, model_type, model_name):
 
         if is_srt:
             blocks = re.split(r'\n\s*\n', content.strip())
-            total_chunks = (len(blocks) + 19) // 20
+            total_chunks = (len(blocks) + 9) // 10
             translated_blocks = []
-            for i in range(0, len(blocks), 20):
-                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜𝐞𝐬𝐬𝐢𝐧𝐠] : Translating chunk {(i//20)+1}/{total_chunks}...")
-                chunk = "\n\n".join(blocks[i : i + 20])
+            for i in range(0, len(blocks), 10):
+                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜𝐞𝐬𝐬𝐢𝐧𝐠] : Translating chunk {(i//10)+1}/{total_chunks}...")
+                chunk = "\n\n".join(blocks[i : i + 10])
                 res = await translate_func(chunk, api_key, model_name)
                 if res.startswith("❌"):
                     await status_msg.edit(res)
                     return
                 translated_blocks.append(res)
-                if model_type == "groq" and (i + 20) < len(blocks):
-                    await asyncio.sleep(2)
+                if model_type == "groq" and (i + 10) < len(blocks):
+                    await asyncio.sleep(3)
             translated_content = "\n\n".join(translated_blocks)
         else:
             header, events = parse_ass(content)
-            total_chunks = (len(events) + 19) // 20
+            total_chunks = (len(events) + 9) // 10
             final_events = []
-            for i in range(0, len(events), 20):
-                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜𝐞𝐬𝐬𝐢𝐧𝐠] : Translating chunk {(i//20)+1}/{total_chunks}...")
+            for i in range(0, len(events), 10):
+                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜𝐞𝐬𝐬𝐢𝐧𝐠] : Translating chunk {(i//10)+1}/{total_chunks}...")
                 chunk_lines = []
-                for item in events[i : i + 20]:
+                for item in events[i : i + 10]:
                     if 'text' in item:
                         chunk_lines.append(",".join(item['prefix']) + "," + item['text'])
                     else:
@@ -317,8 +322,8 @@ async def process_translation(bot, cb, model_type, model_name):
                     await status_msg.edit(res)
                     return
                 final_events.append(res)
-                if model_type == "groq" and (i + 20) < len(events):
-                    await asyncio.sleep(2)
+                if model_type == "groq" and (i + 10) < len(events):
+                    await asyncio.sleep(3)
             translated_content = "\n".join(header) + "\n" + "\n".join(final_events)
 
         output_filename = os.path.splitext(file_name)[0] + "_Hinglish" + os.path.splitext(file_name)[1]
