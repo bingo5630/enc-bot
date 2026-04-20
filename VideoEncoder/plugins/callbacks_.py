@@ -524,6 +524,9 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
         elif cb.data == "trans_gemini_15_pro":
             await process_translation(bot, cb, "gemini", "gemini-1.5-pro")
 
+        elif cb.data == "trans_gemini_15_flash":
+            await process_translation(bot, cb, "gemini", "gemini-1.5-flash")
+
         elif cb.data == "trans_gemini_20_flash":
             await process_translation(bot, cb, "gemini", "gemini-2.0-flash-exp")
 

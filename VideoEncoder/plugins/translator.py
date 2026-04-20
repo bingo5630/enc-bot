@@ -8,8 +8,8 @@ from .. import LOGGER, download_dir
 from ..utils.uploads.telegram import upload_doc
 from ..utils.database.access_db import db
 
-# 1. Setup the low-level client for Gemini v1beta
-from google.ai import generativelanguage_v1beta as glossar
+# 1. Setup the low-level client for Gemini v1
+from google.ai import generativelanguage_v1 as glossar
 from google.api_core import client_options
 from google.auth.credentials import AnonymousCredentials
 
@@ -41,6 +41,9 @@ SETUP_GUIDE_BUTTONS = InlineKeyboardMarkup([
 TRANSLATE_BUTTONS = InlineKeyboardMarkup([
     [
         InlineKeyboardButton("ɢᴇᴍɪɴɪ 𝟷.𝟻 ᴘʀᴏ 💎", callback_data="trans_gemini_15_pro"),
+        InlineKeyboardButton("ɢᴇᴍɪɴɪ 𝟷.𝟻 ғʟᴀsʜ ⚡", callback_data="trans_gemini_15_flash")
+    ],
+    [
         InlineKeyboardButton("ɢᴇᴍɪɴɪ 𝟸.𝟶 ғʟᴀsʜ 🌟", callback_data="trans_gemini_20_flash")
     ],
     [
@@ -95,18 +98,20 @@ async def translate_gemini(chunk_text, api_key, model_name):
     if not chunk_text.strip():
         return chunk_text
 
-    # Ensure model_name is strictly one of the allowed ones and has no prefix
+    # Exact Model Mapping
     if "2.0-flash" in model_name:
-        model_name = "gemini-2.0-flash-exp"
+        full_model_name = "models/gemini-2.0-flash-exp"
+    elif "1.5-flash" in model_name:
+        full_model_name = "models/gemini-1.5-flash"
     else:
-        model_name = "gemini-1.5-pro"
+        full_model_name = "models/gemini-1.5-pro"
 
     prompt_text = f"{SYSTEM_PROMPT}\n\nCONTENT TO TRANSLATE:\n{chunk_text}"
 
     # 1. SDK Method (Direct attempt)
     try:
         request = glossar.GenerateContentRequest(
-            model=model_name,
+            model=full_model_name,
             contents=[glossar.Content(parts=[glossar.Part(text=prompt_text)])]
         )
         response = await asyncio.to_thread(
@@ -119,10 +124,11 @@ async def translate_gemini(chunk_text, api_key, model_name):
             translated_text = re.sub(r'```[a-z]*\n|```', '', translated_text)
             return translated_text
     except Exception as e:
-        LOGGER.warning(f"Gemini SDK failed for {model_name}, trying Direct Request: {e}")
+        LOGGER.warning(f"Gemini SDK failed for {full_model_name}, trying Direct Request: {e}")
 
     # 2. Direct Request Fallback (Bypassing SDK)
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+    # Using v1 endpoint as requested
+    url = f"https://generativelanguage.googleapis.com/v1/{full_model_name}:generateContent?key={api_key}"
     headers = {"Content-Type": "application/json"}
     payload = {
         "contents": [{
@@ -141,6 +147,8 @@ async def translate_gemini(chunk_text, api_key, model_name):
                         translated_text = re.sub(r'```[a-z]*\n|```', '', translated_text)
                         return translated_text
                     return f"❌ Gemini Direct Error: Unexpected response structure."
+                elif response.status_code == 404:
+                    return "❌ Gemini Error: 404 - Model not found or API not enabled. Please ensure 'Generative Language API' is toggled ON in the Google Cloud Console."
                 else:
                     if attempt == 0:
                         await asyncio.sleep(2)
