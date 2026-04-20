@@ -50,34 +50,22 @@ async def help_message(app, message):
     if not c:
         return
     await AddUserToDatabase(app, message)
-    msg = """<b>📕 Commands List</b>:
+    msg = """<blockquote>\"Language is the key to the heart of civilization.\"</blockquote>
+<b>How to Translate - Step by Step Guide:</b>
 
-- Autodetect Telegram File.
-- /ddl - encode through DDL
-- /batch - encode in batch
-- /queue - check queue
-- /settings - settings
-- /vset - view settings
-- /reset - reset settings
-- /stats - cpu stats
+➼ <b>Step 1: Upload Your File</b>
+Send your .ass or subtitle file directly to the bot.
 
-For Sudo:
-- /exec - Execute Python
-- /sh - Execute Shell
-- /vupload - video upload
-- /dupload - doc upload
-- /gupload - drive upload
-- /update - git pull
-- /restart - restart bot
-- /clean - clean junk
-- /clear - clean queue
-- /logs - view logs
+➼ <b>Step 2: Select the Engine</b>
+Choose between Gemini (Best Quality) or Groq/Llama (Lightning Fast).
 
-For Owner:
-- /addchat and /addsudo
-- /rmsudo and /rmchat
+➼ <b>Step 3: Wait for Processing</b>
+The bot will split your file into chunks to ensure high-quality Hinglish translation without hitting limits.
 
-Supports: <a href='https://t.me/DoraShin_hlo'>click here</a>"""
+➼ <b>Step 4: Download & Enjoy</b>
+Once done, you'll receive the translated file. Just add it to your video player!
+
+<b>Note:</b> If one engine fails, the 'Bodyguard' system automatically switches to the fallback engine to ensure your file is never rejected."""
     await message.reply(text=msg, disable_web_page_preview=True, reply_markup=start_but)
 
 

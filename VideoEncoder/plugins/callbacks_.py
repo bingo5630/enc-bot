@@ -549,22 +549,29 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
             )
 
         elif cb.data == "help_callback":
-            help_text = "𝖧𝖤𝖫𝖯 𝖬𝖤𝖭𝖴\n" \
-                        "● /sthumb : ʀᴇᴘʟʏ ᴛᴏ ᴘʜᴏᴛᴏ ᴛᴏ sᴇᴛ ᴄᴏᴠᴇʀ.\n" \
-                        "● /hard_code : ᴇɴᴄᴏᴅᴇ ᴠɪᴅᴇᴏ ᴡɪᴛʜ sᴜʙs.\n" \
-                        "● /soft_code : ᴀᴅᴅ sᴜʙs ᴀs ᴍᴇᴛᴀᴅᴀᴛᴀ.\n" \
-                        "● /sub_extraxt : to extract sub file ᴍᴀᴅᴇ ʙʏ 𝐆𝐨𝐣𝐨."
+            help_text = "<blockquote>\"Language is the key to the heart of civilization.\"</blockquote>\n" \
+                        "<b>How to Translate - Step by Step Guide:</b>\n\n" \
+                        "➼ <b>Step 1: Upload Your File</b>\n" \
+                        "Send your .ass or subtitle file directly to the bot.\n\n" \
+                        "➼ <b>Step 2: Select the Engine</b>\n" \
+                        "Choose between Gemini (Best Quality) or Groq/Llama (Lightning Fast).\n\n" \
+                        "➼ <b>Step 3: Wait for Processing</b>\n" \
+                        "The bot will split your file into chunks to ensure high-quality Hinglish translation without hitting limits.\n\n" \
+                        "➼ <b>Step 4: Download & Enjoy</b>\n" \
+                        "Once done, you'll receive the translated file. Just add it to your video player!\n\n" \
+                        "<b>Note:</b> If one engine fails, the 'Bodyguard' system automatically switches to the fallback engine to ensure your file is never rejected."
             try:
                 await cb.message.edit_media(
                     media=InputMediaPhoto(
                         "https://graph.org/file/f05e263a23a137e3d166e-2f58e6589333a41113.jpg",
                         caption=help_text,
                         has_spoiler=True
-                    )
+                    ),
+                    reply_markup=start_but
                 )
             except Exception as e:
                 LOGGER.error(f"Error in help_callback: {e}")
-                await cb.message.edit_caption(caption=help_text)
+                await cb.message.edit_caption(caption=help_text, reply_markup=start_but)
 
     except Exception as e:
         LOGGER.error(f"Error in callback_handlers: {e}")

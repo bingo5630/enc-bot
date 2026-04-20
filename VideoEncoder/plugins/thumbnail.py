@@ -35,8 +35,7 @@ async def sthumb_command(client: Client, message: Message):
             
             buttons = [
                 [
-                    InlineKeyboardButton("ʜᴇʟᴘ", url="https://t.me/cantarellabots"),
-                    InlineKeyboardButton("ᴅᴇᴠᴇʟᴏᴘᴇʀ", url="http://t.me/DoraShin_hlo")
+                    InlineKeyboardButton("ʜᴇʟᴘ", callback_data="help_callback")
                 ],
                 [
                     InlineKeyboardButton("ᴄʟᴏsᴇ", callback_data="closeMeh")

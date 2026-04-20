@@ -128,7 +128,7 @@ async def translate_gemini(chunk_text, api_key, model_name):
 
     # 2. Direct Request Fallback (Bypassing SDK)
     # Using v1 endpoint as requested
-    url = f"https://generativelanguage.googleapis.com/v1/models/{full_model_name}:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1/{full_model_name}:generateContent?key={api_key}"
     headers = {"Content-Type": "application/json"}
     payload = {
         "contents": [{
@@ -358,10 +358,60 @@ async def process_translation(bot, cb, model_type, model_name):
 
                 translated_blocks.append(res)
                 if model_type == "groq" and (i + 10) < len(blocks):
-                    await asyncio.sleep(3)
+                    await asyncio.sleep(2)
             translated_content = "\n\n".join(translated_blocks)
         else:
             header, events = parse_ass(content)
+
+            # Subtitle Rendering Fixes: Force PlayResY: 1080 and Arial/48 Style
+            new_header = []
+            script_info_found = False
+            playresy_found = False
+
+            for line in header:
+                if line.strip().lower().startswith('[script info]'):
+                    script_info_found = True
+                    new_header.append(line)
+                    continue
+
+                if line.strip().startswith('PlayResY:'):
+                    new_header.append('PlayResY: 1080')
+                    playresy_found = True
+                    continue
+
+                if line.strip().startswith('Style:'):
+                    # Style: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+                    parts = line.split(',', 2)
+                    if len(parts) >= 3:
+                        # parts[0] is 'Style: Name'
+                        # parts[1] is ' Fontname'
+                        # parts[2] is everything else
+                        remaining = parts[2].split(',', 1)
+                        if len(remaining) >= 2:
+                            # remaining[0] is ' Fontsize'
+                            # remaining[1] is the rest
+                            new_style = f"{parts[0]},Arial,48,{remaining[1]}"
+                            new_header.append(new_style)
+                        else:
+                            new_header.append(line)
+                    else:
+                        new_header.append(line)
+                    continue
+
+                new_header.append(line)
+
+            if script_info_found and not playresy_found:
+                # Insert PlayResY after [Script Info]
+                idx = -1
+                for i, line in enumerate(new_header):
+                    if line.strip().lower().startswith('[script info]'):
+                        idx = i
+                        break
+                if idx != -1:
+                    new_header.insert(idx + 1, 'PlayResY: 1080')
+
+            header = new_header
+
             total_chunks = (len(events) + 9) // 10
             final_events = []
             for i in range(0, len(events), 10):
@@ -401,7 +451,7 @@ async def process_translation(bot, cb, model_type, model_name):
 
                 final_events.append(res)
                 if model_type == "groq" and (i + 10) < len(events):
-                    await asyncio.sleep(3)
+                    await asyncio.sleep(2)
             translated_content = "\n".join(header) + "\n" + "\n".join(final_events)
 
         output_filename = os.path.splitext(file_name)[0] + "_Hinglish" + os.path.splitext(file_name)[1]

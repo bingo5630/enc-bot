@@ -16,15 +16,14 @@ from .uploads import upload_worker
 from .uploads.telegram import upload_doc
 
 output = InlineKeyboardMarkup([
-    [InlineKeyboardButton("ᴅᴇᴠᴇʟᴏᴘᴇʀ", url="https://t.me/akaza7902")]
+    [InlineKeyboardButton("ᴄʟᴏsᴇ", callback_data="closeMeh")]
 ])
 
 start_but = InlineKeyboardMarkup([
     [InlineKeyboardButton("sᴇᴛᴛɪɴɢs", callback_data="OpenSettings")],
-    [InlineKeyboardButton("sᴛᴀᴛs", callback_data="stats"), InlineKeyboardButton("ᴅᴇᴠᴇʟᴏᴘᴇʀ", url="https://t.me/akaza7902")],
+    [InlineKeyboardButton("sᴛᴀᴛs", callback_data="stats")],
     [InlineKeyboardButton("[ • ᴏᴜʀ ᴄᴏᴍᴍᴜɴɪᴛʏ • ]", url="https://t.me/cantarellabots")],
-    [InlineKeyboardButton("[ • ᴍᴜɢɪᴡᴀʀᴀs ɴᴇᴛᴡᴏʀᴋ • ]", url="https://t.me/Mugiwaras_Network")],
-    [InlineKeyboardButton("ʜᴇʟᴘ", callback_data="help_callback")]
+    [InlineKeyboardButton("MUGIWARAS NETWORK", url="https://t.me/Mugiwaras_Network")]
 ])
 
 
