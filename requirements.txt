@@ -22,7 +22,6 @@ lk21
 lxml
 httpx
 speedtest-cli
-p2d-deepseek==0.1.8
 
 # Google Drive
 google-api-core
