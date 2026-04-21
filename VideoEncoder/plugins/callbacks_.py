@@ -521,8 +521,7 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
             await cb.message.delete()
 
         # Translator Callbacks
-        elif cb.data == "trans_deepseek_free":
-            await process_translation(bot, cb, "deepseek", "deepseek-expert")
+
 
         elif cb.data == "trans_llama3_groq":
             await process_translation(bot, cb, "groq", "llama-3.3-70b-versatile")
@@ -542,12 +541,12 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
                         "➼ <b>Step 1: Upload Your File</b>\n" \
                         "Send your .ass or subtitle file directly to the bot.\n\n" \
                         "➼ <b>Step 2: Select the Engine</b>\n" \
-                        "Choose between DeepSeek-Free (Thinking Expert) or Groq (Lightning Fast).\n\n" \
+                        "Choose the high-stability Groq engine for lightning-fast results.\n\n" \
                         "➼ <b>Step 3: Wait for Processing</b>\n" \
                         "The bot will split your file into micro-chunks to ensure high-quality Hinglish translation without hitting any limits.\n\n" \
                         "➼ <b>Step 4: Download & Enjoy</b>\n" \
                         "Once done, you'll receive the translated file with UTF-8-SIG encoding to prevent any character corruption.\n\n" \
-                        "<b>Note:</b> DeepSeek-Free is now fully integrated with Thinking Mode for superior Hinglish subbing!"
+                        "<b>Note:</b> The bot now uses an optimized Groq-Only architecture for 100% stability!"
             try:
                 await cb.message.edit_media(
                     media=InputMediaPhoto(START_PIC, caption=help_text, has_spoiler=True),
@@ -563,12 +562,12 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
                         "➼ <b>Step 1: Upload Your File</b>\n" \
                         "Send your .ass or subtitle file directly to the bot.\n\n" \
                         "➼ <b>Step 2: Select the Engine</b>\n" \
-                        "Choose between DeepSeek-Free (Thinking Expert) or Groq (Lightning Fast).\n\n" \
+                        "Choose the high-stability Groq engine for lightning-fast results.\n\n" \
                         "➼ <b>Step 3: Wait for Processing</b>\n" \
                         "The bot will split your file into micro-chunks to ensure high-quality Hinglish translation without hitting any limits.\n\n" \
                         "➼ <b>Step 4: Download & Enjoy</b>\n" \
                         "Once done, you'll receive the translated file with UTF-8-SIG encoding to prevent any character corruption.\n\n" \
-                        "<b>Note:</b> DeepSeek-Free is now fully integrated with Thinking Mode for superior Hinglish subbing!"
+                        "<b>Note:</b> The bot now uses an optimized Groq-Only architecture for 100% stability!"
             try:
                 await cb.message.edit_media(
                     media=InputMediaPhoto(START_PIC, caption=help_text, has_spoiler=True),

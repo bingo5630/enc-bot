@@ -2,7 +2,6 @@ import os
 import asyncio
 import re
 import httpx
-from p2d_deepseek import DeepSeekClient
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from .. import LOGGER, download_dir
@@ -18,10 +17,9 @@ TRANSLATE_TEXT = "✨ ᴄʜᴏᴏsᴇ ʏᴏᴜʀ ᴛʀᴀɴsʟᴀᴛɪᴏɴ ᴇ�
 translation_data = {}
 
 SETUP_GUIDE_TEXT = (
-    "✨ ʜᴏᴡ ᴛᴏ sᴇᴛ ᴜᴘ ʏᴏᴜʀ ᴛʀᴀɴsʟᴀᴛɪᴏɴ ᴇɴɢɪɴᴇ ✨\n"
-    "🚀 ᴅᴇᴇᴘsᴇᴇᴋ ɪs ғʀᴇᴇ ᴀɴᴅ ʀᴇǫᴜɪʀᴇs ɴᴏ ᴋᴇʏ!\n\n"
+    "✨ ʜᴏᴡ ᴛᴏ sᴇᴛ ᴜᴘ ʏᴏᴜʀ ᴛʀᴀɴsʟᴀᴛɪᴏɴ ᴇɴɢɪɴᴇ ✨\n\n"
     "𝟷️⃣ [ᴄʟɪᴄᴋ ʜᴇʀᴇ ғᴏʀ ɢʀᴏǫ ᴋᴇʏ](https://console.groq.com/keys)\n"
-    "👉 sᴇɴᴅ ʏᴏᴜʀ ᴋᴇʏ ᴜsɪɴɢ /set_groq ɪғ ʏᴏᴜ ᴡᴀɴᴛ ᴛᴏ ᴜsᴇ ɢʀᴏǫ."
+    "👉 sᴇɴᴅ ʏᴏᴜʀ ᴋᴇʏ ᴜsɪɴɢ /set_groq_api ᴛᴏ ᴜsᴇ ᴛʜᴇ ʜɪɢʜ-sᴛᴀʙɪʟɪᴛʏ ɢʀᴏǫ ᴇɴɢɪɴᴇ."
 )
 
 SETUP_GUIDE_BUTTONS = InlineKeyboardMarkup([
@@ -29,9 +27,6 @@ SETUP_GUIDE_BUTTONS = InlineKeyboardMarkup([
 ])
 
 TRANSLATE_BUTTONS = InlineKeyboardMarkup([
-    [
-        InlineKeyboardButton("ᴅᴇᴇᴘsᴇᴇᴋ ᴇxᴘᴇʀᴛ 🧠", callback_data="trans_deepseek_free")
-    ],
     [
         InlineKeyboardButton("ʟʟᴀᴍᴀ 𝟹.𝟹 (ɢʀᴏǫ) 🚀", callback_data="trans_llama3_groq"),
         InlineKeyboardButton("ᴍɪxᴛʀᴀʟ (ɢʀᴏǫ) 🌀", callback_data="trans_mixtral_groq")
@@ -57,29 +52,6 @@ def parse_srt(content):
             parsed.append({'raw': block})
     return parsed
 
-async def translate_deepseek(chunk_text):
-    if not chunk_text.strip():
-        return chunk_text
-
-    try:
-        client = DeepSeekClient()
-        prompt = f"{SYSTEM_PROMPT}\n\nCONTENT TO TRANSLATE:\n{chunk_text}"
-
-        # Enable thinking and use expert model as requested
-        response = await client.chat(
-            prompt=prompt,
-            thinking=True,
-            model="expert"
-        )
-
-        if response:
-            translated_text = response.strip()
-            translated_text = re.sub(r'```[a-z]*\n|```', '', translated_text)
-            return translated_text
-        return "❌ DeepSeek Error: Empty response."
-    except Exception as e:
-        return f"❌ DeepSeek Error: {str(e)}"
-
 def parse_ass(content):
     lines = content.splitlines()
     header = []
@@ -104,39 +76,28 @@ def parse_ass(content):
     return header, events
 
 
-async def translate_groq(chunk_text, api_key, model_name):
-    if not chunk_text.strip():
-        return chunk_text
-
+async def translate_groq(chunk_text, api_key, model_name="llama-3.3-70b-versatile"):
+    if not chunk_text.strip(): return chunk_text
     url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "model": model_name,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": chunk_text}
-        ],
-        "temperature": 0.2
-    }
-
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    payload = {"model": model_name, "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": chunk_text}], "temperature": 0.2}
     async with httpx.AsyncClient() as client:
         for attempt in range(2):
             try:
                 response = await client.post(url, headers=headers, json=payload, timeout=60.0)
                 if response.status_code == 200:
-                    data = response.json()
-                    translated_text = data['choices'][0]['message']['content'].strip()
+                    data = response.json(); translated_text = data['choices'][0]['message']['content'].strip()
                     translated_text = re.sub(r'```[a-z]*\n|```', '', translated_text)
-                    return translated_text
-                else:
-                    return f"❌ Groq Error: {response.status_code} - {response.text}"
+                    await asyncio.sleep(3); return translated_text
+                elif response.status_code == 429:
+                    LOGGER.info(f"Rate limit hit for {model_name}. Waiting 5s and switching..."); await asyncio.sleep(5)
+                    fallback_models = ["mixtral-8x7b-32768", "llama-3.1-8b-instant"]
+                    for fallback in fallback_models:
+                        if fallback != model_name: return await translate_groq(chunk_text, api_key, fallback)
+                    return f"❌ Groq Error: 429 Rate Limit"
+                else: return f"❌ Groq Error: {response.status_code} - {response.text}"
             except Exception as e:
-                if attempt == 0:
-                    await asyncio.sleep(2)
-                    continue
+                if attempt == 0: await asyncio.sleep(2); continue
                 return f"❌ Groq Error: {str(e)}"
 
 @Client.on_message(filters.command("translate") & filters.private)
@@ -151,7 +112,7 @@ async def translate_cmd_handler(bot: Client, message: Message):
         await message.reply_text("❌ Please reply to a valid .ass or .srt file.")
         return
 
-    # Check for API Keys - only if we want to enforce it, but DeepSeek is free.
+
     # Let's show the translate options directly.
 
     sent_msg = await message.reply_photo(
@@ -171,19 +132,15 @@ async def translate_cmd_handler(bot: Client, message: Message):
         'user_id': user_id
     }
 
-@Client.on_message(filters.command("set_groq") & filters.private)
+@Client.on_message(filters.command("set_groq_api") & filters.private)
 async def set_groq_handler(bot: Client, message: Message):
     if len(message.command) < 2:
-        await message.reply_text("❌ Usage: /set_groq YOUR_KEY_HERE")
+        await message.reply_text("❌ Usage: /set_groq_api YOUR_KEY_HERE")
         return
     api_key = message.command[1]
     await db.set_groq_api_key(message.from_user.id, api_key)
     await message.reply_text("✅ Groq API Key saved successfully!")
 
-@Client.on_message(filters.command("clear_api") & filters.private)
-async def clear_api_handler(bot: Client, message: Message):
-    await db.set_groq_api_key(message.from_user.id, None)
-    await message.reply_text("✅ API Key cleared successfully!")
 
 async def process_translation(bot, cb, model_type, model_name):
     # This will be called from callbacks_.py
@@ -193,16 +150,8 @@ async def process_translation(bot, cb, model_type, model_name):
         api_key = await db.get_groq_api_key(user_id)
         translate_func = translate_groq
         if not api_key:
-            await cb.answer(f"❌ {model_type.capitalize()} API Key Missing!", show_alert=True)
+            await cb.answer("❌ Groq API Key Missing!", show_alert=True)
             return
-    elif model_type == "deepseek":
-        api_key = None
-        translate_func = lambda chunk, k, m: translate_deepseek(chunk)
-    else:
-        await cb.answer("❌ Invalid model type!", show_alert=True)
-        return
-
-    # 1. Try to get file info from temporary storage (Fixes "File Not Found")
     unique_key = f"{cb.message.chat.id}_{cb.message.id}"
     file_data = translation_data.get(unique_key)
     replied = None
@@ -243,128 +192,64 @@ async def process_translation(bot, cb, model_type, model_name):
         del translation_data[unique_key]
 
     try:
-        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+        with open(file_path, "r", encoding="utf-8-sig", errors="ignore") as f:
             content = f.read()
 
         is_srt = file_path.lower().endswith(".srt")
+
+        # High-Stability Groq Chunking: ~300 tokens (approx 1000 characters)
+        MAX_CHUNK_CHARS = 1000
         translated_content = ""
 
         if is_srt:
-            blocks = re.split(r'\n\s*\n', content.strip())
-            # Micro-chunks: 5 lines/blocks to stay within 300-400 tokens
-            chunk_size = 5
-            total_chunks = (len(blocks) + chunk_size - 1) // chunk_size
+            blocks = re.split(r"\n\s*\n", content.strip())
             translated_blocks = []
-            for i in range(0, len(blocks), chunk_size):
-                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜𝐞𝐬𝐬𝐢𝐧𝐠] : Translating chunk {(i//chunk_size)+1}/{total_chunks}...")
-                chunk = "\n\n".join(blocks[i : i + chunk_size])
+            chunk_queue = []
+            temp_chunk = []
+            temp_size = 0
+            for block in blocks:
+                if temp_size + len(block) > MAX_CHUNK_CHARS and temp_chunk:
+                    chunk_queue.append("\n\n".join(temp_chunk)); temp_chunk = [block]; temp_size = len(block)
+                else: temp_chunk.append(block); temp_size += len(block)
+            if temp_chunk: chunk_queue.append("\n\n".join(temp_chunk))
 
-                try:
-                    res = await translate_func(chunk, api_key, model_name)
-                except Exception as e:
-                    res = f"❌ Error: {e}"
-
-                if res.startswith("❌"):
-                    await status_msg.edit(res)
-                    return
-
+            for idx, chunk in enumerate(chunk_queue):
+                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : Translating chunk {idx+1}/{len(chunk_queue)}...")
+                res = await translate_func(chunk, api_key, model_name)
+                if res.startswith("❌"): await status_msg.edit(res); return
                 translated_blocks.append(res)
-                if model_type == "groq":
-                    await asyncio.sleep(3)
-                else:
-                    await asyncio.sleep(1) # Small breather for deepseek free
             translated_content = "\n\n".join(translated_blocks)
         else:
-            header, events = parse_ass(content)
-
-            # Subtitle Rendering Fixes: Force PlayResX: 1920, PlayResY: 1080 and Fontsize: 60
-            new_header = []
-            script_info_found = False
-            playresx_found = False
-            playresy_found = False
-
-            for line in header:
-                if line.strip().lower().startswith('[script info]'):
-                    script_info_found = True
-                    new_header.append(line)
+            header, events = parse_ass(content); new_header = []
+            script_info_found = False; playresx_found = False; playresy_found = False
+            for line_h in header:
+                if line_h.strip().lower().startswith('[script info]'): script_info_found = True; new_header.append(line_h); continue
+                if line_h.strip().startswith('PlayResX:'): new_header.append('PlayResX: 1920'); playresx_found = True; continue
+                if line_h.strip().startswith('PlayResY:'): new_header.append('PlayResY: 1080'); playresy_found = True; continue
+                if line_h.strip().startswith('Style:'):
+                    parts = line_h.split(',')
+                    if len(parts) > 2: parts[2] = "60"; new_header.append(",".join(parts))
+                    else: new_header.append(line_h)
                     continue
-
-                if line.strip().startswith('PlayResX:'):
-                    new_header.append('PlayResX: 1920')
-                    playresx_found = True
-                    continue
-
-                if line.strip().startswith('PlayResY:'):
-                    new_header.append('PlayResY: 1080')
-                    playresy_found = True
-                    continue
-
-                if line.strip().startswith('Style:'):
-                    # Style: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-                    parts = line.split(',', 2)
-                    if len(parts) >= 3:
-                        # parts[0] is 'Style: Name'
-                        # parts[1] is ' Fontname'
-                        # parts[2] is everything else
-                        remaining = parts[2].split(',', 1)
-                        if len(remaining) >= 2:
-                            # remaining[0] is ' Fontsize'
-                            # remaining[1] is the rest
-                            new_style = f"{parts[0]},Arial,60,{remaining[1]}"
-                            new_header.append(new_style)
-                        else:
-                            new_header.append(line)
-                    else:
-                        new_header.append(line)
-                    continue
-
-                new_header.append(line)
-
+                new_header.append(line_h)
             if script_info_found:
-                # Insert missing PlayRes after [Script Info]
-                idx = -1
-                for i, line in enumerate(new_header):
-                    if line.strip().lower().startswith('[script info]'):
-                        idx = i
-                        break
-                if idx != -1:
-                    if not playresy_found:
-                        new_header.insert(idx + 1, 'PlayResY: 1080')
-                    if not playresx_found:
-                        new_header.insert(idx + 1, 'PlayResX: 1920')
-
+                if not playresy_found: new_header.insert(1, 'PlayResY: 1080')
+                if not playresx_found: new_header.insert(1, 'PlayResX: 1920')
             header = new_header
-
-            # Micro-chunks: 5 lines/events to stay within 300-400 tokens
-            chunk_size = 5
-            total_chunks = (len(events) + chunk_size - 1) // chunk_size
+            chunk_queue = []; temp_lines = []; temp_size = 0
+            for item in events:
+                line_text = ",".join(item['prefix']) + "," + item['text'] if 'text' in item else item['raw']
+                if temp_size + len(line_text) > MAX_CHUNK_CHARS and temp_lines:
+                    chunk_queue.append("\n".join(temp_lines)); temp_lines = [line_text]; temp_size = len(line_text)
+                else: temp_lines.append(line_text); temp_size += len(line_text)
+            if temp_lines: chunk_queue.append("\n".join(temp_lines))
             final_events = []
-            for i in range(0, len(events), chunk_size):
-                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜𝐞𝐬𝐬𝐢𝐧𝐠] : Translating chunk {(i//chunk_size)+1}/{total_chunks}...")
-                chunk_lines = []
-                for item in events[i : i + chunk_size]:
-                    if 'text' in item:
-                        chunk_lines.append(",".join(item['prefix']) + "," + item['text'])
-                    else:
-                        chunk_lines.append(item['raw'])
-
-                chunk_text = "\n".join(chunk_lines)
-                try:
-                    res = await translate_func(chunk_text, api_key, model_name)
-                except Exception as e:
-                    res = f"❌ Error: {e}"
-
-                if res.startswith("❌"):
-                    await status_msg.edit(res)
-                    return
-
+            for idx, chunk in enumerate(chunk_queue):
+                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : Translating chunk {idx+1}/{len(chunk_queue)}...")
+                res = await translate_func(chunk, api_key, model_name)
+                if res.startswith("❌"): await status_msg.edit(res); return
                 final_events.append(res)
-                if model_type == "groq":
-                    await asyncio.sleep(3)
-                else:
-                    await asyncio.sleep(1) # Small breather for deepseek free
             translated_content = "\n".join(header) + "\n" + "\n".join(final_events)
-
         output_filename = os.path.splitext(file_name)[0] + "_Hinglish" + os.path.splitext(file_name)[1]
         output_path = os.path.join(download_dir, output_filename)
         with open(output_path, "w", encoding="utf-8-sig") as f:
