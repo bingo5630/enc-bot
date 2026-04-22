@@ -47,8 +47,7 @@ class Database:
             metadata_subtitle="By: @Anime_Fury",
             metadata_video="By: @Anime_Fury",
             user_font='Arial',
-            groq_api_key=None,
-            groq_api_key2=None
+            groq_api_pool=[]
         )
 
     async def add_user(self, id):
@@ -352,16 +351,12 @@ class Database:
         user = await self._get_user(id)
         return user.get('user_font', 'Arial')
 
-    async def set_groq_api_key(self, id, key):
-        await self.col.update_one({'id': id}, {'$set': {'groq_api_key': key}}, upsert=True)
+    async def add_groq_api_key(self, id, key):
+        await self.col.update_one({'id': id}, {'$addToSet': {'groq_api_pool': key}}, upsert=True)
 
-    async def get_groq_api_key(self, id):
+    async def get_groq_api_pool(self, id):
         user = await self._get_user(id)
-        return user.get('groq_api_key', None)
+        return user.get('groq_api_pool', [])
 
-    async def set_groq_api_key2(self, id, key):
-        await self.col.update_one({'id': id}, {'$set': {'groq_api_key2': key}}, upsert=True)
-
-    async def get_groq_api_key2(self, id):
-        user = await self._get_user(id)
-        return user.get('groq_api_key2', None)
+    async def clear_groq_api_pool(self, id):
+        await self.col.update_one({'id': id}, {'$set': {'groq_api_pool': []}}, upsert=True)

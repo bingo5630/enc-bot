@@ -283,9 +283,9 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
     # Some Optional Things
     x265 = await db.get_hevc(message.from_user.id)
     if x265:
-        video_opts = f'-profile:v main  -map 0:v? -map_chapters 0 -map_metadata 0'
+        video_opts = f'-profile:v main  -map 0:v:0 -map_chapters 0 -map_metadata 0'
     else:
-        video_opts = f'{cabac} {reframe} -profile:v main  -map 0:v? -map_chapters 0 -map_metadata 0'
+        video_opts = f'{cabac} {reframe} -profile:v main  -map 0:v:0 -map_chapters 0 -map_metadata 0'
 
     # Metadata Watermark
     m = await db.get_metadata_w(message.from_user.id)
@@ -485,7 +485,7 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
 
             audio_opts = f"{audio_opts} {map_opts} {disposition_opts}"
         else:
-             audio_opts += " -map 0:a?"
+             audio_opts += " -map 0:a:0"
 
 
     # Audio Channel
@@ -694,12 +694,12 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
         input_count += 1
 
     if has_watermark:
-        filter_str = f"[0:v]{','.join(vf_list)}[vbase];"
+        filter_str = f"[0:v:0]{','.join(vf_list)}[vbase];"
         filter_str += f"[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[wm];"
         filter_str += f"[vbase][wm]overlay=W-w-10:10[v_out]"
-        command.extend(['-filter_complex', filter_str, '-map', '[v_out]', '-map', '0:a?'])
+        command.extend(['-filter_complex', filter_str, '-map', '[v_out]', '-map', '0:a:0'])
     else:
-        command.extend(['-vf', ",".join(vf_list)])
+        command.extend(['-vf', ",".join(vf_list), '-map', '0:v:0', '-map', '0:a:0'])
 
     command.extend([
         '-c:v', 'libx264', '-preset', 'veryfast', '-crf', crf
@@ -792,15 +792,15 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
         if has_watermark:
             filter_str = ""
             if vf_list:
-                filter_str += f"[0:v]{','.join(vf_list)}[vbase];"
+                filter_str += f"[0:v:0]{','.join(vf_list)}[vbase];"
                 filter_str += f"[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[wm];"
                 filter_str += f"[vbase][wm]overlay=W-w-10:10[v_out]"
             else:
                 filter_str += f"[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[wm];"
-                filter_str += f"[0:v][wm]overlay=W-w-10:10[v_out]"
-            command.extend(['-filter_complex', filter_str, '-map', '[v_out]', '-map', '0:a?', '-map', '1:s'])
+                filter_str += f"[0:v:0][wm]overlay=W-w-10:10[v_out]"
+            command.extend(['-filter_complex', filter_str, '-map', '[v_out]', '-map', '0:a:0', '-map', '1:s'])
         else:
-            command.extend(['-vf', ",".join(vf_list), '-map', '0:v', '-map', '0:a?', '-map', '1:s'])
+            command.extend(['-vf', ",".join(vf_list), '-map', '0:v:0', '-map', '0:a:0', '-map', '1:s'])
 
         command.extend([
             '-c:v', 'libx264', '-preset', 'veryfast', '-crf', crf
@@ -823,7 +823,7 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
             input_count += 1
 
         command.extend([
-            '-map', '0', '-map', '1',
+            '-map', '0:v:0', '-map', '0:a:0', '-map', '1:s',
             '-c', 'copy'
         ])
         if thumb_path:

@@ -19,7 +19,7 @@ translation_data = {}
 SETUP_GUIDE_TEXT = (
     "✨ ʜᴏᴡ ᴛᴏ sᴇᴛ ᴜᴘ ʏᴏᴜʀ ᴛʀᴀɴsʟᴀᴛɪᴏɴ ᴇɴɢɪɴᴇ ✨\n\n"
     "𝟷️⃣ [ᴄʟɪᴄᴋ ʜᴇʀᴇ ғᴏʀ ɢʀᴏǫ ᴋᴇʏ](https://console.groq.com/keys)\n"
-    "👉 sᴇɴᴅ ʏᴏᴜʀ ᴋᴇʏ ᴜsɪɴɢ /set_groq_api ᴛᴏ ᴜsᴇ ᴛʜᴇ ʜɪɢʜ-sᴛᴀʙɪʟɪᴛʏ ɢʀᴏǫ ᴇɴɢɪɴᴇ."
+    "👉 sᴇɴᴅ ʏᴏᴜʀ ᴋᴇʏ ᴜsɪɴɢ /set_groq_api ᴛᴏ ᴀᴅᴅ ɪᴛ ᴛᴏ ʏᴏᴜʀ ᴀᴘɪ ᴘᴏᴏʟ."
 )
 
 SETUP_GUIDE_BUTTONS = InlineKeyboardMarkup([
@@ -132,17 +132,27 @@ async def set_groq_handler(bot: Client, message: Message):
         await message.reply_text("❌ Usage: /set_groq_api YOUR_KEY_HERE")
         return
     api_key = message.command[1]
-    await db.set_groq_api_key(message.from_user.id, api_key)
-    await message.reply_text("✅ Groq API Key 1 saved successfully!")
+    await db.add_groq_api_key(message.from_user.id, api_key)
+    await message.reply_text("✅ Groq API Key added to pool successfully!")
 
-@Client.on_message(filters.command("set_groq_api2") & filters.private)
-async def set_groq_handler2(bot: Client, message: Message):
-    if len(message.command) < 2:
-        await message.reply_text("❌ Usage: /set_groq_api2 YOUR_KEY_HERE")
+@Client.on_message(filters.command("view_api") & filters.private)
+async def view_api_handler(bot: Client, message: Message):
+    api_pool = await db.get_groq_api_pool(message.from_user.id)
+    if not api_pool:
+        await message.reply_text("❌ Your API Pool is empty.")
         return
-    api_key = message.command[1]
-    await db.set_groq_api_key2(message.from_user.id, api_key)
-    await message.reply_text("✅ Groq API Key 2 saved successfully!")
+
+    text = "📂 **Your Groq API Pool:**\n\n"
+    for i, key in enumerate(api_pool, 1):
+        masked_key = f"{key[:4]}...{key[-4:]}" if len(key) > 8 else "****"
+        text += f"{i}. <code>{masked_key}</code>\n"
+
+    await message.reply_text(text)
+
+@Client.on_message(filters.command("clear_api") & filters.private)
+async def clear_api_handler(bot: Client, message: Message):
+    await db.clear_groq_api_pool(message.from_user.id)
+    await message.reply_text("✅ All Groq API Keys cleared from pool!")
 
 
 async def process_translation(bot, cb, model_type, model_name):
@@ -150,10 +160,9 @@ async def process_translation(bot, cb, model_type, model_name):
     user_id = cb.from_user.id
 
     if model_type == "groq":
-        api_key1 = await db.get_groq_api_key(user_id)
-        api_key2 = await db.get_groq_api_key2(user_id)
-        if not api_key1:
-            await cb.answer("❌ Groq API Key 1 Missing!", show_alert=True)
+        api_pool = await db.get_groq_api_pool(user_id)
+        if not api_pool:
+            await cb.answer("❌ Groq API Pool is Empty!", show_alert=True)
             return
     unique_key = f"{cb.message.chat.id}_{cb.message.id}"
     file_data = translation_data.get(unique_key)
@@ -183,7 +192,7 @@ async def process_translation(bot, cb, model_type, model_name):
             return
 
     await cb.message.delete()
-    status_msg = await bot.send_message(user_id, "⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : 𝐑𝐞𝐚𝐝𝐢𝐧𝐠 𝐟𝐢𝐥𝐞 𝐚𝐧𝐝 𝐬𝐭ᴀ𝐫ᴛɪ𝐧𝐠 ᴛ𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐢𝐨𝐧...")
+    status_msg = await bot.send_message(user_id, "⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : 𝐑𝐞𝐚𝐝𝐢𝐧𝐠 𝐟𝐢𝐥𝐞 𝐚𝐧𝐝 𝐬𝐭ᴀ𝐫ᴛɪ𝐧𝐠 ᴛ𝐫𝐚𝐧𝐬𝐥𝐚ᴛɪ𝐨𝐧...")
 
     file_path = await bot.download_media(
         message=file_id,
@@ -216,24 +225,22 @@ async def process_translation(bot, cb, model_type, model_name):
                 else: temp_chunk.append(block); temp_size += len(block)
             if temp_chunk: chunk_queue.append("\n\n".join(temp_chunk))
 
-            current_api = 1
+            current_key_idx = 0
             idx = 0
             while idx < len(chunk_queue):
                 chunk = chunk_queue[idx]
-                api_key = api_key1 if current_api == 1 else api_key2
-                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : Translating chunk {idx+1}/{len(chunk_queue)} (API {current_api})...")
+                api_key = api_pool[current_key_idx]
+                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : Translating chunk {idx+1}/{len(chunk_queue)} (API Key {current_key_idx + 1})...")
                 res = await translate_groq(chunk, api_key)
                 if res == "429":
-                    if current_api == 1:
-                        if api_key2:
-                            LOGGER.info("API 1 Rate Limit. Switching to API 2.")
-                            current_api = 2; continue
-                        else:
-                            LOGGER.info("API 1 Rate Limit. API 2 missing. Waiting 60s.")
-                            await status_msg.edit("⏳ Rate limit hit. Waiting 60s..."); await asyncio.sleep(60); continue
+                    current_key_idx += 1
+                    if current_key_idx >= len(api_pool):
+                        LOGGER.info("All keys in pool hit rate limit. Waiting 60s.")
+                        await status_msg.edit("⏳ All keys rate limited. Waiting 60s..."); await asyncio.sleep(60)
+                        current_key_idx = 0
                     else:
-                        LOGGER.info("API 2 Rate Limit. Waiting 60s and switching to API 1.")
-                        await status_msg.edit("⏳ Both APIs Rate Limited. Waiting 60s..."); await asyncio.sleep(60); current_api = 1; continue
+                        LOGGER.info(f"Rate limit hit for key {current_key_idx}. Switching to key {current_key_idx + 1}.")
+                    continue
                 if res.startswith("❌"): await status_msg.edit(res); return
                 translated_blocks.append(res); idx += 1
             translated_content = "\n\n".join(translated_blocks)
@@ -274,24 +281,22 @@ async def process_translation(bot, cb, model_type, model_name):
                 else: temp_lines.append(line_text); temp_size += len(line_text)
             if temp_lines: chunk_queue.append("\n".join(temp_lines))
             final_events = []
-            current_api = 1
+            current_key_idx = 0
             idx = 0
             while idx < len(chunk_queue):
                 chunk = chunk_queue[idx]
-                api_key = api_key1 if current_api == 1 else api_key2
-                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : Translating chunk {idx+1}/{len(chunk_queue)} (API {current_api})...")
+                api_key = api_pool[current_key_idx]
+                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : Translating chunk {idx+1}/{len(chunk_queue)} (API Key {current_key_idx + 1})...")
                 res = await translate_groq(chunk, api_key)
                 if res == "429":
-                    if current_api == 1:
-                        if api_key2:
-                            LOGGER.info("API 1 Rate Limit. Switching to API 2.")
-                            current_api = 2; continue
-                        else:
-                            LOGGER.info("API 1 Rate Limit. API 2 missing. Waiting 60s.")
-                            await status_msg.edit("⏳ Rate limit hit. Waiting 60s..."); await asyncio.sleep(60); continue
+                    current_key_idx += 1
+                    if current_key_idx >= len(api_pool):
+                        LOGGER.info("All keys in pool hit rate limit. Waiting 60s.")
+                        await status_msg.edit("⏳ All keys rate limited. Waiting 60s..."); await asyncio.sleep(60)
+                        current_key_idx = 0
                     else:
-                        LOGGER.info("API 2 Rate Limit. Waiting 60s and switching to API 1.")
-                        await status_msg.edit("⏳ Both APIs Rate Limited. Waiting 60s..."); await asyncio.sleep(60); current_api = 1; continue
+                        LOGGER.info(f"Rate limit hit for key {current_key_idx}. Switching to key {current_key_idx + 1}.")
+                    continue
                 if res.startswith("❌"): await status_msg.edit(res); return
                 final_events.append(res); idx += 1
             translated_content = "\n".join(header) + "\n" + "\n".join(final_events)
