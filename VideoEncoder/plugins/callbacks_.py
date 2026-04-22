@@ -529,45 +529,32 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
         elif cb.data == "close_translator":
             await cb.message.delete()
 
-        elif cb.data == "how_to_translate":
+        elif cb.data in ["how_to_translate", "help_callback"]:
             help_text = "<blockquote><b>How to Translate - Step by Step Guide:</b></blockquote>\n" \
-                        "<blockquote expandable>➼ <b>Step 1: Upload Your File</b>\n" \
+                        "<blockquote expandable>➼ <b>Step 1: Get Groq Key</b>\n" \
+                        "[Click here to Create Groq API Key](https://console.groq.com/keys) and add it using /set_groq_api.\n\n" \
+                        "➼ <b>Step 2: Upload Your File</b>\n" \
                         "Send your .ass or subtitle file directly to the bot.\n\n" \
-                        "➼ <b>Step 2: Select the Engine</b>\n" \
+                        "➼ <b>Step 3: Select the Engine</b>\n" \
                         "Choose the high-stability Groq engine for lightning-fast results.\n\n" \
-                        "➼ <b>Step 3: Wait for Processing</b>\n" \
-                        "The bot will split your file into micro-chunks to ensure high-quality Hinglish translation without hitting any limits.\n\n" \
-                        "➼ <b>Step 4: Download & Enjoy</b>\n" \
-                        "Once done, you'll receive the translated file with UTF-8-SIG encoding to prevent any character corruption.</blockquote>\n\n" \
+                        "➼ <b>Step 4: Wait for Processing</b>\n" \
+                        "The bot will split your file into micro-chunks to ensure high-quality Hinglish translation. Once done, you'll receive the translated file.</blockquote>\n\n" \
                         "<b>Note:</b> The bot now uses an optimized Groq-Only architecture for 100% stability!"
-            try:
-                await cb.message.edit_media(
-                    media=InputMediaPhoto(START_PIC, caption=help_text, has_spoiler=True),
-                    reply_markup=start_but
-                )
-            except Exception as e:
-                LOGGER.error(f"Error in how_to_translate: {e}")
-                await cb.message.edit_caption(caption=help_text, reply_markup=start_but)
 
-        elif cb.data == "help_callback":
-            help_text = "<blockquote><b>How to Translate - Step by Step Guide:</b></blockquote>\n" \
-                        "<blockquote expandable>➼ <b>Step 1: Upload Your File</b>\n" \
-                        "Send your .ass or subtitle file directly to the bot.\n\n" \
-                        "➼ <b>Step 2: Select the Engine</b>\n" \
-                        "Choose the high-stability Groq engine for lightning-fast results.\n\n" \
-                        "➼ <b>Step 3: Wait for Processing</b>\n" \
-                        "The bot will split your file into micro-chunks to ensure high-quality Hinglish translation without hitting any limits.\n\n" \
-                        "➼ <b>Step 4: Download & Enjoy</b>\n" \
-                        "Once done, you'll receive the translated file with UTF-8-SIG encoding to prevent any character corruption.</blockquote>\n\n" \
-                        "<b>Note:</b> The bot now uses an optimized Groq-Only architecture for 100% stability!"
+            help_buttons = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔙 Back to Home", callback_data="backToStart"),
+                    InlineKeyboardButton("❌ Close", callback_data="closeMeh")
+                ]
+            ])
             try:
                 await cb.message.edit_media(
                     media=InputMediaPhoto(START_PIC, caption=help_text, has_spoiler=True),
-                    reply_markup=start_but
+                    reply_markup=help_buttons
                 )
             except Exception as e:
-                LOGGER.error(f"Error in help_callback: {e}")
-                await cb.message.edit_caption(caption=help_text, reply_markup=start_but)
+                LOGGER.error(f"Error in {cb.data}: {e}")
+                await cb.message.edit_caption(caption=help_text, reply_markup=help_buttons)
 
     except Exception as e:
         LOGGER.error(f"Error in callback_handlers: {e}")

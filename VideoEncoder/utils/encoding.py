@@ -398,7 +398,7 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
         subtitles_path = os.path.abspath(subtitles_path)
         escaped_sub_path = subtitles_path.replace(":", "\\:")
         # Ensure selected_font is used and fallback to system font if it fails (handled by FFmpeg usually, but we set it)
-        vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize={font_size}'")
+        vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize={font_size},Outline=2,BorderStyle=1,OutlineColour=&H00000000'")
 
     if vf_list:
         watermark = "-vf " + ",".join(vf_list)
@@ -656,7 +656,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     # Ensure path is absolute and correctly escaped for FFmpeg subtitles filter
     subtitles_path = os.path.abspath(subtitles_path)
     escaped_sub_path = subtitles_path.replace(":", "\\:")
-    vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize={font_size}'")
+    vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize={font_size},Outline=2,BorderStyle=1,OutlineColour=&H00000000'")
 
     # Thumbnail injection
     user_id = message.from_user.id
