@@ -29,7 +29,7 @@ SETUP_GUIDE_BUTTONS = InlineKeyboardMarkup([
 TRANSLATE_BUTTONS = InlineKeyboardMarkup([
     [
         InlineKeyboardButton("ʟʟᴀᴍᴀ 𝟹.𝟹 (ɢʀᴏǫ) 🚀", callback_data="trans_llama3_groq"),
-        InlineKeyboardButton("ᴍɪxᴛʀᴀʟ (ɢʀᴏǫ) 🌀", callback_data="trans_mixtral_groq")
+        InlineKeyboardButton("ɢᴇᴍᴍᴀ 𝟸 (ɢʀᴏǫ) 💎", callback_data="trans_gemma2_groq")
     ],
     [
         InlineKeyboardButton("ʟʟᴀᴍᴀ 𝟹.𝟷 𝟾ʙ (ɢʀᴏǫ) ⚡", callback_data="trans_llama31_groq"),
@@ -91,7 +91,7 @@ async def translate_groq(chunk_text, api_key, model_name="llama-3.3-70b-versatil
                     await asyncio.sleep(3); return translated_text
                 elif response.status_code == 429:
                     LOGGER.info(f"Rate limit hit for {model_name}. Waiting 5s and switching..."); await asyncio.sleep(5)
-                    fallback_models = ["mixtral-8x7b-32768", "llama-3.1-8b-instant"]
+                    fallback_models = ["llama-3.1-8b-instant", "gemma2-9b-it"]
                     for fallback in fallback_models:
                         if fallback != model_name: return await translate_groq(chunk_text, api_key, fallback)
                     return f"❌ Groq Error: 429 Rate Limit"

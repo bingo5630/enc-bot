@@ -351,6 +351,15 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
             font_size = 30
         elif r_db == '480' or r_db == '576':
             font_size = 20
+        elif r_db == 'OG':
+            # Analyze resolution
+            _, height = get_width_height(filepath)
+            if height >= 1000:
+                font_size = 45
+            elif height >= 700:
+                font_size = 30
+            else:
+                font_size = 20
         else:
             font_size = 30
 
@@ -604,22 +613,42 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     vf_list = []
     crf = '22'
     v_bitrate = []
-    font_size = 30
-    if quality == '480p':
-        vf_list.append('scale=854:480')
-        crf = '28'
-        v_bitrate = ['-b:v', '800k']
-        font_size = 20
-    elif quality == '720p':
-        vf_list.append('scale=1280:720')
-        crf = '24'
-        v_bitrate = ['-b:v', '1.5M']
-        font_size = 30
-    elif quality == '1080p':
-        vf_list.append('scale=1920:1080')
-        crf = '22'
-        v_bitrate = ['-b:v', '3M']
-        font_size = 45
+
+    # Analyze resolution for font size and scaling if quality is not provided
+    if not quality:
+        r_db = await db.get_resolution(message.from_user.id)
+        if r_db == '1080':
+            font_size = 45
+        elif r_db == '720':
+            font_size = 30
+        elif r_db in ['480', '576']:
+            font_size = 20
+        else:
+            _, height = get_width_height(filepath)
+            if height >= 1000:
+                font_size = 45
+            elif height >= 700:
+                font_size = 30
+            else:
+                font_size = 20
+    else:
+        if quality == '480p':
+            vf_list.append('scale=854:480')
+            crf = '28'
+            v_bitrate = ['-b:v', '800k']
+            font_size = 20
+        elif quality == '720p':
+            vf_list.append('scale=1280:720')
+            crf = '24'
+            v_bitrate = ['-b:v', '1.5M']
+            font_size = 30
+        elif quality == '1080p':
+            vf_list.append('scale=1920:1080')
+            crf = '22'
+            v_bitrate = ['-b:v', '3M']
+            font_size = 45
+        else:
+            font_size = 30
 
     vf_list.append(f"subtitles='{subtitles_path}':force_style='FontName={selected_font},FontSize={font_size}'")
 

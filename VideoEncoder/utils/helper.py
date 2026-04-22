@@ -7,7 +7,7 @@ from pyrogram.errors.exceptions.bad_request_400 import MessageNotModified
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 from pySmartDL import SmartDL
 
-from .. import all, everyone, owner, sudo_users, download_dir, encode_dir
+from .. import all, everyone, owner, sudo_users, download_dir, encode_dir, LOGGER
 from .database.access_db import db
 from .display_progress import progress_for_url
 from .encoding import encode, extract_subs, extract_subtitle, hard_sub, soft_code
@@ -20,7 +20,7 @@ output = InlineKeyboardMarkup([
 
 start_but = InlineKeyboardMarkup([
     [InlineKeyboardButton("⚙️ sᴇᴛᴛɪɴɢs", callback_data="OpenSettings")],
-    [InlineKeyboardButton("❓ ʜᴇʟᴘ", callback_data="help_callback"), InlineKeyboardButton("👨‍💻 ᴅᴇᴠᴇʟᴏᴘᴇʀ", url="https://t.me/cantarella_wuwa")],
+    [InlineKeyboardButton("❓ ʜᴇʟᴘ", callback_data="help_callback"), InlineKeyboardButton("👨‍💻 ᴅᴇᴠᴇʟᴏᴘᴇʀ", url="https://t.me/Dorashin_hlo")],
     [InlineKeyboardButton("• ᴍᴜɢɪᴡᴀʀᴀs ɴᴇᴛᴡᴏʀᴋ •", url="https://t.me/Mugiwaras_Network")]
 ])
 

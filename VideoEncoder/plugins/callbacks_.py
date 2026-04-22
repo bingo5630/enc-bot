@@ -526,8 +526,8 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
         elif cb.data == "trans_llama3_groq":
             await process_translation(bot, cb, "groq", "llama-3.3-70b-versatile")
 
-        elif cb.data == "trans_mixtral_groq":
-            await process_translation(bot, cb, "groq", "mixtral-8x7b-32768")
+        elif cb.data == "trans_gemma2_groq":
+            await process_translation(bot, cb, "groq", "gemma2-9b-it")
 
         elif cb.data == "trans_llama31_groq":
             await process_translation(bot, cb, "groq", "llama-3.1-8b-instant")
@@ -536,16 +536,15 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
             await cb.message.delete()
 
         elif cb.data == "how_to_translate":
-            help_text = "<blockquote>\"Language is the key to the heart of civilization.\"</blockquote>\n" \
-                        "<b>How to Translate - Step by Step Guide:</b>\n\n" \
-                        "➼ <b>Step 1: Upload Your File</b>\n" \
+            help_text = "<blockquote><b>How to Translate - Step by Step Guide:</b></blockquote>\n" \
+                        "<blockquote expandable>➼ <b>Step 1: Upload Your File</b>\n" \
                         "Send your .ass or subtitle file directly to the bot.\n\n" \
                         "➼ <b>Step 2: Select the Engine</b>\n" \
                         "Choose the high-stability Groq engine for lightning-fast results.\n\n" \
                         "➼ <b>Step 3: Wait for Processing</b>\n" \
                         "The bot will split your file into micro-chunks to ensure high-quality Hinglish translation without hitting any limits.\n\n" \
                         "➼ <b>Step 4: Download & Enjoy</b>\n" \
-                        "Once done, you'll receive the translated file with UTF-8-SIG encoding to prevent any character corruption.\n\n" \
+                        "Once done, you'll receive the translated file with UTF-8-SIG encoding to prevent any character corruption.</blockquote>\n\n" \
                         "<b>Note:</b> The bot now uses an optimized Groq-Only architecture for 100% stability!"
             try:
                 await cb.message.edit_media(
@@ -557,16 +556,15 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
                 await cb.message.edit_caption(caption=help_text, reply_markup=start_but)
 
         elif cb.data == "help_callback":
-            help_text = "<blockquote>\"Language is the key to the heart of civilization.\"</blockquote>\n" \
-                        "<b>How to Translate - Step by Step Guide:</b>\n\n" \
-                        "➼ <b>Step 1: Upload Your File</b>\n" \
+            help_text = "<blockquote><b>How to Translate - Step by Step Guide:</b></blockquote>\n" \
+                        "<blockquote expandable>➼ <b>Step 1: Upload Your File</b>\n" \
                         "Send your .ass or subtitle file directly to the bot.\n\n" \
                         "➼ <b>Step 2: Select the Engine</b>\n" \
                         "Choose the high-stability Groq engine for lightning-fast results.\n\n" \
                         "➼ <b>Step 3: Wait for Processing</b>\n" \
                         "The bot will split your file into micro-chunks to ensure high-quality Hinglish translation without hitting any limits.\n\n" \
                         "➼ <b>Step 4: Download & Enjoy</b>\n" \
-                        "Once done, you'll receive the translated file with UTF-8-SIG encoding to prevent any character corruption.\n\n" \
+                        "Once done, you'll receive the translated file with UTF-8-SIG encoding to prevent any character corruption.</blockquote>\n\n" \
                         "<b>Note:</b> The bot now uses an optimized Groq-Only architecture for 100% stability!"
             try:
                 await cb.message.edit_media(

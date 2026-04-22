@@ -50,10 +50,8 @@ async def help_message(app, message):
     if not c:
         return
     await AddUserToDatabase(app, message)
-    msg = """<blockquote>\"Language is the key to the heart of civilization.\"</blockquote>
-<b>How to Translate - Step by Step Guide:</b>
-
-➼ <b>Step 1: Upload Your File</b>
+    msg = """<blockquote><b>How to Translate - Step by Step Guide:</b></blockquote>
+<blockquote expandable>➼ <b>Step 1: Upload Your File</b>
 Send your .ass or subtitle file directly to the bot.
 
 ➼ <b>Step 2: Select the Engine</b>
@@ -63,7 +61,7 @@ Choose the high-stability Groq engine for lightning-fast results.
 The bot will split your file into micro-chunks to ensure high-quality Hinglish translation without hitting any limits.
 
 ➼ <b>Step 4: Download & Enjoy</b>
-Once done, you'll receive the translated file with UTF-8-SIG encoding for maximum compatibility.
+Once done, you'll receive the translated file with UTF-8-SIG encoding for maximum compatibility.</blockquote>
 
 <b>Note:</b> The bot now uses an optimized Groq-Only architecture for 100% stability!"""
     await message.reply_photo(photo=START_PIC, caption=msg, reply_markup=start_but, has_spoiler=True)
