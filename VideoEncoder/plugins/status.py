@@ -1,3 +1,4 @@
+from VideoEncoder import LOGGER
 from asyncio import gather
 from psutil import cpu_percent, virtual_memory, disk_usage, net_io_counters
 from pyrogram import filters

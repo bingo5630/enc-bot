@@ -29,10 +29,6 @@ SETUP_GUIDE_BUTTONS = InlineKeyboardMarkup([
 TRANSLATE_BUTTONS = InlineKeyboardMarkup([
     [
         InlineKeyboardButton("ʟʟᴀᴍᴀ 𝟹.𝟹 𝟽𝟶ʙ 🚀", callback_data="trans_llama33_groq"),
-        InlineKeyboardButton("ʟʟᴀᴍᴀ 𝟹 𝟽𝟶ʙ 💎", callback_data="trans_llama3_70b_groq")
-    ],
-    [
-        InlineKeyboardButton("ʟʟᴀᴍᴀ 𝟹 𝟾ʙ ⚡", callback_data="trans_llama3_8b_groq"),
         InlineKeyboardButton("ʜᴏᴡ ᴛᴏ ᴛʀᴀɴsʟᴀᴛᴇ? ❓", callback_data="how_to_translate")
     ]
 ])
@@ -76,19 +72,12 @@ def parse_ass(content):
     return header, events
 
 
-async def translate_groq(chunk_text, api_key, model_name="llama-3.3-70b-versatile"):
+async def translate_groq(chunk_text, api_key):
     if not chunk_text.strip(): return chunk_text
+    model_name = "llama-3.3-70b-versatile"
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     payload = {"model": model_name, "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": chunk_text}], "temperature": 0.2}
-
-    # Delays per model (STABLE)
-    delays = {
-        "llama-3.3-70b-versatile": 5,
-        "llama3-70b-8192": 4,
-        "llama3-8b-8192": 3
-    }
-    delay = delays.get(model_name, 3)
 
     async with httpx.AsyncClient() as client:
         for attempt in range(2):
@@ -97,13 +86,9 @@ async def translate_groq(chunk_text, api_key, model_name="llama-3.3-70b-versatil
                 if response.status_code == 200:
                     data = response.json(); translated_text = data['choices'][0]['message']['content'].strip()
                     translated_text = re.sub(r'```[a-z]*\n|```', '', translated_text)
-                    await asyncio.sleep(delay); return translated_text
+                    await asyncio.sleep(5); return translated_text
                 elif response.status_code == 429:
-                    LOGGER.info(f"Rate limit hit for {model_name}. Waiting 10s and switching..."); await asyncio.sleep(10)
-                    fallback_models = ["llama-3.3-70b-versatile", "llama3-70b-8192", "llama3-8b-8192"]
-                    for fallback in fallback_models:
-                        if fallback != model_name: return await translate_groq(chunk_text, api_key, fallback)
-                    return f"❌ Groq Error: 429 Rate Limit"
+                    return "429"
                 else: return f"❌ Groq Error: {response.status_code} - {response.text}"
             except Exception as e:
                 if attempt == 0: await asyncio.sleep(2); continue
@@ -148,7 +133,16 @@ async def set_groq_handler(bot: Client, message: Message):
         return
     api_key = message.command[1]
     await db.set_groq_api_key(message.from_user.id, api_key)
-    await message.reply_text("✅ Groq API Key saved successfully!")
+    await message.reply_text("✅ Groq API Key 1 saved successfully!")
+
+@Client.on_message(filters.command("set_groq_api2") & filters.private)
+async def set_groq_handler2(bot: Client, message: Message):
+    if len(message.command) < 2:
+        await message.reply_text("❌ Usage: /set_groq_api2 YOUR_KEY_HERE")
+        return
+    api_key = message.command[1]
+    await db.set_groq_api_key2(message.from_user.id, api_key)
+    await message.reply_text("✅ Groq API Key 2 saved successfully!")
 
 
 async def process_translation(bot, cb, model_type, model_name):
@@ -156,10 +150,10 @@ async def process_translation(bot, cb, model_type, model_name):
     user_id = cb.from_user.id
 
     if model_type == "groq":
-        api_key = await db.get_groq_api_key(user_id)
-        translate_func = translate_groq
-        if not api_key:
-            await cb.answer("❌ Groq API Key Missing!", show_alert=True)
+        api_key1 = await db.get_groq_api_key(user_id)
+        api_key2 = await db.get_groq_api_key2(user_id)
+        if not api_key1:
+            await cb.answer("❌ Groq API Key 1 Missing!", show_alert=True)
             return
     unique_key = f"{cb.message.chat.id}_{cb.message.id}"
     file_data = translation_data.get(unique_key)
@@ -222,11 +216,26 @@ async def process_translation(bot, cb, model_type, model_name):
                 else: temp_chunk.append(block); temp_size += len(block)
             if temp_chunk: chunk_queue.append("\n\n".join(temp_chunk))
 
-            for idx, chunk in enumerate(chunk_queue):
-                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : Translating chunk {idx+1}/{len(chunk_queue)}...")
-                res = await translate_func(chunk, api_key, model_name)
+            current_api = 1
+            idx = 0
+            while idx < len(chunk_queue):
+                chunk = chunk_queue[idx]
+                api_key = api_key1 if current_api == 1 else api_key2
+                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : Translating chunk {idx+1}/{len(chunk_queue)} (API {current_api})...")
+                res = await translate_groq(chunk, api_key)
+                if res == "429":
+                    if current_api == 1:
+                        if api_key2:
+                            LOGGER.info("API 1 Rate Limit. Switching to API 2.")
+                            current_api = 2; continue
+                        else:
+                            LOGGER.info("API 1 Rate Limit. API 2 missing. Waiting 60s.")
+                            await status_msg.edit("⏳ Rate limit hit. Waiting 60s..."); await asyncio.sleep(60); continue
+                    else:
+                        LOGGER.info("API 2 Rate Limit. Waiting 60s and switching to API 1.")
+                        await status_msg.edit("⏳ Both APIs Rate Limited. Waiting 60s..."); await asyncio.sleep(60); current_api = 1; continue
                 if res.startswith("❌"): await status_msg.edit(res); return
-                translated_blocks.append(res)
+                translated_blocks.append(res); idx += 1
             translated_content = "\n\n".join(translated_blocks)
         else:
             header, events = parse_ass(content); new_header = []
@@ -265,11 +274,26 @@ async def process_translation(bot, cb, model_type, model_name):
                 else: temp_lines.append(line_text); temp_size += len(line_text)
             if temp_lines: chunk_queue.append("\n".join(temp_lines))
             final_events = []
-            for idx, chunk in enumerate(chunk_queue):
-                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : Translating chunk {idx+1}/{len(chunk_queue)}...")
-                res = await translate_func(chunk, api_key, model_name)
+            current_api = 1
+            idx = 0
+            while idx < len(chunk_queue):
+                chunk = chunk_queue[idx]
+                api_key = api_key1 if current_api == 1 else api_key2
+                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : Translating chunk {idx+1}/{len(chunk_queue)} (API {current_api})...")
+                res = await translate_groq(chunk, api_key)
+                if res == "429":
+                    if current_api == 1:
+                        if api_key2:
+                            LOGGER.info("API 1 Rate Limit. Switching to API 2.")
+                            current_api = 2; continue
+                        else:
+                            LOGGER.info("API 1 Rate Limit. API 2 missing. Waiting 60s.")
+                            await status_msg.edit("⏳ Rate limit hit. Waiting 60s..."); await asyncio.sleep(60); continue
+                    else:
+                        LOGGER.info("API 2 Rate Limit. Waiting 60s and switching to API 1.")
+                        await status_msg.edit("⏳ Both APIs Rate Limited. Waiting 60s..."); await asyncio.sleep(60); current_api = 1; continue
                 if res.startswith("❌"): await status_msg.edit(res); return
-                final_events.append(res)
+                final_events.append(res); idx += 1
             translated_content = "\n".join(header) + "\n" + "\n".join(final_events)
         output_filename = os.path.splitext(file_name)[0] + "_Hinglish" + os.path.splitext(file_name)[1]
         output_path = os.path.join(download_dir, output_filename)

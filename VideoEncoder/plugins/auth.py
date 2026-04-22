@@ -1,3 +1,4 @@
+from VideoEncoder import LOGGER
 
 
 from pyrogram import Client, filters
