@@ -9,6 +9,8 @@ RUN apt-get update && apt-get install -y \
     ffmpeg git wget pv jq python3-dev \
     mediainfo gcc libsm6 libxext6 \
     libfontconfig1 libxrender1 libgl1-mesa-glx \
+    libass-dev fonts-dejavu-core \
+ && fc-cache -f \
  && rm -rf /var/lib/apt/lists/*
 
 COPY . .

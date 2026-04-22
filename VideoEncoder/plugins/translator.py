@@ -32,7 +32,7 @@ TRANSLATE_BUTTONS = InlineKeyboardMarkup([
         InlineKeyboardButton("ɢᴇᴍᴍᴀ 𝟸 (ɢʀᴏǫ) 💎", callback_data="trans_gemma2_groq")
     ],
     [
-        InlineKeyboardButton("ʟʟᴀᴍᴀ 𝟹.𝟷 𝟾ʙ (ɢʀᴏǫ) ⚡", callback_data="trans_llama31_groq"),
+        InlineKeyboardButton("ʟʟᴀᴍᴀ 𝟹.𝟸 𝟷𝟷ʙ (ɢʀᴏǫ) ⚡", callback_data="trans_llama32_groq"),
         InlineKeyboardButton("ʜᴏᴡ ᴛᴏ ᴛʀᴀɴsʟᴀᴛᴇ? ❓", callback_data="how_to_translate")
     ]
 ])
@@ -76,11 +76,20 @@ def parse_ass(content):
     return header, events
 
 
-async def translate_groq(chunk_text, api_key, model_name="llama-3.3-70b-versatile"):
+async def translate_groq(chunk_text, api_key, model_name="llama-3.3-70b-specdec"):
     if not chunk_text.strip(): return chunk_text
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     payload = {"model": model_name, "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": chunk_text}], "temperature": 0.2}
+
+    # Delays per model
+    delays = {
+        "llama-3.3-70b-specdec": 4,
+        "llama-3.2-11b-vision-preview": 3,
+        "gemma2-9b-it": 5
+    }
+    delay = delays.get(model_name, 3)
+
     async with httpx.AsyncClient() as client:
         for attempt in range(2):
             try:
@@ -88,10 +97,10 @@ async def translate_groq(chunk_text, api_key, model_name="llama-3.3-70b-versatil
                 if response.status_code == 200:
                     data = response.json(); translated_text = data['choices'][0]['message']['content'].strip()
                     translated_text = re.sub(r'```[a-z]*\n|```', '', translated_text)
-                    await asyncio.sleep(3); return translated_text
+                    await asyncio.sleep(delay); return translated_text
                 elif response.status_code == 429:
-                    LOGGER.info(f"Rate limit hit for {model_name}. Waiting 5s and switching..."); await asyncio.sleep(5)
-                    fallback_models = ["llama-3.1-8b-instant", "gemma2-9b-it"]
+                    LOGGER.info(f"Rate limit hit for {model_name}. Waiting 10s and switching..."); await asyncio.sleep(10)
+                    fallback_models = ["llama-3.3-70b-specdec", "llama-3.2-11b-vision-preview", "gemma2-9b-it"]
                     for fallback in fallback_models:
                         if fallback != model_name: return await translate_groq(chunk_text, api_key, fallback)
                     return f"❌ Groq Error: 429 Rate Limit"
@@ -221,21 +230,33 @@ async def process_translation(bot, cb, model_type, model_name):
             translated_content = "\n\n".join(translated_blocks)
         else:
             header, events = parse_ass(content); new_header = []
-            script_info_found = False; playresx_found = False; playresy_found = False
+            script_info_found = False; playresx_found = False; playresy_found = False; res_y = 1080
             for line_h in header:
                 if line_h.strip().lower().startswith('[script info]'): script_info_found = True; new_header.append(line_h); continue
                 if line_h.strip().startswith('PlayResX:'): new_header.append('PlayResX: 1920'); playresx_found = True; continue
-                if line_h.strip().startswith('PlayResY:'): new_header.append('PlayResY: 1080'); playresy_found = True; continue
+                if line_h.strip().startswith('PlayResY:'):
+                    try: res_y = int(line_h.split(':')[1].strip())
+                    except: res_y = 1080
+                    new_header.append(f'PlayResY: {res_y}'); playresy_found = True; continue
+                new_header.append(line_h)
+
+            if script_info_found:
+                if not playresy_found: new_header.insert(1, 'PlayResY: 1080'); res_y = 1080
+                if not playresx_found: new_header.insert(1, 'PlayResX: 1920')
+
+            # Dynamic Fontsize Calculation
+            if res_y >= 1080: f_size = 60
+            elif res_y >= 720: f_size = 40
+            else: f_size = 25
+
+            final_header = []
+            for line_h in new_header:
                 if line_h.strip().startswith('Style:'):
                     parts = line_h.split(',')
-                    if len(parts) > 2: parts[2] = "60"; new_header.append(",".join(parts))
-                    else: new_header.append(line_h)
-                    continue
-                new_header.append(line_h)
-            if script_info_found:
-                if not playresy_found: new_header.insert(1, 'PlayResY: 1080')
-                if not playresx_found: new_header.insert(1, 'PlayResX: 1920')
-            header = new_header
+                    if len(parts) > 2: parts[2] = str(f_size); final_header.append(",".join(parts))
+                    else: final_header.append(line_h)
+                else: final_header.append(line_h)
+            header = final_header
             chunk_queue = []; temp_lines = []; temp_size = 0
             for item in events:
                 line_text = ",".join(item['prefix']) + "," + item['text'] if 'text' in item else item['raw']

@@ -335,33 +335,33 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
             selected_font = 'Liberation Sans'
 
     # Font Size based on resolution
-    # 480p: FontSize=20, 720p: FontSize=30, 1080p: FontSize=45
+    # 480p: FontSize=25, 720p: FontSize=40, 1080p: FontSize=60
     if quality == '480p':
-        font_size = 20
+        font_size = 25
     elif quality == '720p':
-        font_size = 30
+        font_size = 40
     elif quality == '1080p':
-        font_size = 45
+        font_size = 60
     else:
         # Check resolution setting
         r_db = await db.get_resolution(message.from_user.id)
         if r_db == '1080':
-            font_size = 45
+            font_size = 60
         elif r_db == '720':
-            font_size = 30
-        elif r_db == '480' or r_db == '576':
-            font_size = 20
+            font_size = 40
+        elif r_db in ['480', '576']:
+            font_size = 25
         elif r_db == 'OG':
             # Analyze resolution
             _, height = get_width_height(filepath)
             if height >= 1000:
-                font_size = 45
+                font_size = 60
             elif height >= 700:
-                font_size = 30
+                font_size = 40
             else:
-                font_size = 20
+                font_size = 25
         else:
-            font_size = 30
+            font_size = 40
 
     # Watermark and Resolution
     r = await db.get_resolution(message.from_user.id)
@@ -395,8 +395,10 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
 
     # Hard Subs
     if h:
+        # Escape path for FFmpeg subtitles filter
+        escaped_sub_path = subtitles_path.replace(":", "\\:")
         # Ensure selected_font is used and fallback to system font if it fails (handled by FFmpeg usually, but we set it)
-        vf_list.append(f"subtitles='{subtitles_path}':force_style='FontName={selected_font},FontSize={font_size}'")
+        vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize={font_size}'")
 
     if vf_list:
         watermark = "-vf " + ",".join(vf_list)
@@ -618,39 +620,41 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     if not quality:
         r_db = await db.get_resolution(message.from_user.id)
         if r_db == '1080':
-            font_size = 45
+            font_size = 60
         elif r_db == '720':
-            font_size = 30
+            font_size = 40
         elif r_db in ['480', '576']:
-            font_size = 20
+            font_size = 25
         else:
             _, height = get_width_height(filepath)
             if height >= 1000:
-                font_size = 45
+                font_size = 60
             elif height >= 700:
-                font_size = 30
+                font_size = 40
             else:
-                font_size = 20
+                font_size = 25
     else:
         if quality == '480p':
             vf_list.append('scale=854:480')
             crf = '28'
             v_bitrate = ['-b:v', '800k']
-            font_size = 20
+            font_size = 25
         elif quality == '720p':
             vf_list.append('scale=1280:720')
             crf = '24'
             v_bitrate = ['-b:v', '1.5M']
-            font_size = 30
+            font_size = 40
         elif quality == '1080p':
             vf_list.append('scale=1920:1080')
             crf = '22'
             v_bitrate = ['-b:v', '3M']
-            font_size = 45
+            font_size = 60
         else:
-            font_size = 30
+            font_size = 40
 
-    vf_list.append(f"subtitles='{subtitles_path}':force_style='FontName={selected_font},FontSize={font_size}'")
+    # Escape path for FFmpeg subtitles filter
+    escaped_sub_path = subtitles_path.replace(":", "\\:")
+    vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize={font_size}'")
 
     # Thumbnail injection
     user_id = message.from_user.id
@@ -1007,7 +1011,7 @@ async def handle_progress(proc, msg, message, filepath):
                 elapsed = now - COMPRESSION_START_TIME
                 speed_mb_s = current_size_mb / elapsed if elapsed > 0 else 0
 
-                bar_count = math.floor(percentage / 10)
+                bar_count = round(percentage / 10)
                 bar = '█' * bar_count + '░' * (10 - bar_count)
 
                 status_text = (
