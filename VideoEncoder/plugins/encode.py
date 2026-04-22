@@ -46,9 +46,17 @@ async def quality_encode(app, message):
            return
 
     data.append(message)
-    cmd = (message.text or message.caption).split()[0][1:] # e.g. '480p'
+    text = (message.text or message.caption)
+    cmd = text.split()[0][1:] # e.g. '480p'
+
+    custom_name = None
+    if "-n" in text:
+        parts = text.split("-n", 1)
+        if len(parts) > 1:
+            custom_name = os.path.basename(parts[1].strip())
+
     if len(data) == 1:
-        await handle_tasks(message, cmd)
+        await handle_tasks(message, cmd, custom_name=custom_name)
     else:
         await message.reply(f"📔 Waiting for queue for {cmd}...")
     await asyncio.sleep(1)

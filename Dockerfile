@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y \
     git wget pv jq python3-dev \
     mediainfo gcc libsm6 libxext6 \
     libfontconfig1 libxrender1 libgl1-mesa-glx \
-    fonts-dejavu-core \
+    fonts-dejavu-core fonts-roboto \
  && fc-cache -f \
  && rm -rf /var/lib/apt/lists/*
 

@@ -37,8 +37,15 @@ async def on_task_complete():
     text_content = message.text or message.caption
 
     if text_content:
-        text = text_content.split(None, 1)
-        command = text[0].lower()
+        text_parts = text_content.split()
+        command = text_parts[0].lower()
+
+        custom_name = None
+        if "-n" in text_content:
+            parts = text_content.split("-n", 1)
+            if len(parts) > 1:
+                custom_name = os.path.basename(parts[1].strip())
+
         if '/ddl' in command:
             await handle_tasks(message, 'url')
         elif '/batch' in command:
@@ -46,11 +53,11 @@ async def on_task_complete():
         elif '/dl' in command:
             await handle_tasks(message, 'tg')
         elif '/480p' in command:
-            await handle_tasks(message, '480p')
+            await handle_tasks(message, '480p', custom_name=custom_name)
         elif '/720p' in command:
-            await handle_tasks(message, '720p')
+            await handle_tasks(message, '720p', custom_name=custom_name)
         elif '/1080p' in command:
-            await handle_tasks(message, '1080p')
+            await handle_tasks(message, '1080p', custom_name=custom_name)
         elif '/af' in command:
             await handle_tasks(message, 'af')
         elif '/sub_extract' in command:
@@ -78,13 +85,13 @@ async def on_task_complete():
         await handle_tasks(message, 'tg')
 
 
-async def handle_tasks(message, mode):
+async def handle_tasks(message, mode, custom_name=None):
     try:
         msg = await message.reply_text("<b>💠 Downloading...</b>")
         if mode == 'tg':
             await tg_task(message, msg)
         elif mode in ['480p', '720p', '1080p']:
-            await tg_task(message, msg, quality=mode)
+            await tg_task(message, msg, quality=mode, custom_name=custom_name)
         elif mode == 'url':
             await url_task(message, msg)
         elif mode == 'af':
@@ -115,13 +122,13 @@ async def handle_tasks(message, mode):
         await on_task_complete()
 
 
-async def tg_task(message, msg, quality=None):
+async def tg_task(message, msg, quality=None, custom_name=None):
     filepath = await handle_tg_down(message, msg)
     if not filepath:
         await msg.edit("Download failed or no file found.")
         return
     await msg.edit('Encoding...')
-    await handle_encode(filepath, message, msg, quality=quality)
+    await handle_encode(filepath, message, msg, quality=quality, custom_name=custom_name)
 
 
 async def sub_tg_task(message, msg):
