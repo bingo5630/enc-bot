@@ -47,6 +47,7 @@ class Database:
             metadata_subtitle="By: @Anime_Fury",
             metadata_video="By: @Anime_Fury",
             user_font='Arial',
+            user_font_size=0,
             groq_api_pool=[]
         )
 
@@ -350,6 +351,13 @@ class Database:
     async def get_user_font(self, id):
         user = await self._get_user(id)
         return user.get('user_font', 'Arial')
+
+    async def set_user_font_size(self, id, size):
+        await self.col.update_one({'id': id}, {'$set': {'user_font_size': size}}, upsert=True)
+
+    async def get_user_font_size(self, id):
+        user = await self._get_user(id)
+        return user.get('user_font_size', 0)
 
     async def add_groq_api_key(self, id, key):
         await self.col.update_one({'id': id}, {'$addToSet': {'groq_api_pool': key}}, upsert=True)

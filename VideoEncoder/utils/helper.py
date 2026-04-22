@@ -81,10 +81,19 @@ async def handle_sub_extract(filepath, message, msg):
         os.remove(filepath)
 
 
-async def handle_encode(filepath, message, msg, audio_map=None, quality=None):
+async def handle_encode(filepath, message, msg, audio_map=None, quality=None, custom_name=None):
     sub_path = os.path.join(encode_dir, str(msg.id) + '.ass')
     new_file = None
     try:
+        if custom_name:
+            # Ensure it has an extension, if not use original's
+            if not os.path.splitext(custom_name)[1]:
+                custom_name += os.path.splitext(filepath)[1]
+            # Replace filepath to use custom name for output base
+            # Note: handle_encode/encode usually derive output name from input filepath
+            # We can create a temp copy or just pass custom_name to encode()
+            pass
+
         if await db.get_hardsub(message.from_user.id):
             subs = await extract_subs(filepath, msg, message.from_user.id)
             if not subs:
@@ -94,7 +103,7 @@ async def handle_encode(filepath, message, msg, audio_map=None, quality=None):
             if subs != sub_path and os.path.exists(subs):
                 os.rename(subs, sub_path)
 
-        new_file, error_log = await encode(filepath, message, msg, audio_map=audio_map, quality=quality)
+        new_file, error_log = await encode(filepath, message, msg, audio_map=audio_map, quality=quality, custom_name=custom_name)
         if new_file:
             # 1MB = 1048576 bytes
             if os.path.getsize(new_file) < 1048576:
@@ -119,7 +128,7 @@ async def handle_encode(filepath, message, msg, audio_map=None, quality=None):
                     link = None
         else:
             error_file = f"ffmpeg_error_{msg.id}.txt"
-            with open(error_file, 'w', encoding='utf-8') as f:
+            with open(error_file, 'w', encoding='utf-8-sig') as f:
                 f.write(error_log or "Something went wrong during encoding.")
             await message.reply_document(error_file, caption="Something went wrong while encoding your file.")
             if os.path.exists(error_file):
@@ -164,7 +173,7 @@ async def handle_interactive_encode(video_path, sub_path, message, msg, mode, qu
             if os.path.getsize(new_file) < 1048576:
                 LOGGER.error(f"Processed file is too small ({os.path.getsize(new_file)} bytes). FFmpeg likely failed.")
                 error_file = f"ffmpeg_error_{msg.id}.txt"
-                with open(error_file, 'w', encoding='utf-8') as f:
+                with open(error_file, 'w', encoding='utf-8-sig') as f:
                     f.write(error_log or "Unknown FFmpeg error")
                 await message.reply_document(error_file, caption="FFmpeg error log (Output file < 1MB)")
                 if os.path.exists(error_file):
@@ -181,7 +190,7 @@ async def handle_interactive_encode(video_path, sub_path, message, msg, mode, qu
                     await msg.edit(f"Error while uploading: {e}")
         else:
             error_file = f"ffmpeg_error_{msg.id}.txt"
-            with open(error_file, 'w', encoding='utf-8') as f:
+            with open(error_file, 'w', encoding='utf-8-sig') as f:
                 f.write(error_log or "Something went wrong during processing.")
             await message.reply_document(error_file, caption="Something went wrong while processing your file.")
             if os.path.exists(error_file):

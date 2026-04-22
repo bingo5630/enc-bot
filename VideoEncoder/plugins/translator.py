@@ -8,7 +8,7 @@ from .. import LOGGER, download_dir
 from ..utils.uploads.telegram import upload_doc
 from ..utils.database.access_db import db
 
-SYSTEM_PROMPT = "Strictly translate English text into natural Hinglish (Hindi + English). Rule: Do not change any tags, timing, or symbols. Maintain the original line-by-line structure. Only return the translated content without any explanations."
+SYSTEM_PROMPT = "You are a translator that ONLY translates to Hinglish (Roman Script). Do NOT use Devanagari script. Use Hinglish with English grammar and structure. Maintain the exact timing and formatting of the original subtitle file."
 
 TRANSLATE_PIC = "https://graph.org/file/600586a9a49029c2e98f1-90c27ea7986142ea7a.jpg"
 TRANSLATE_TEXT = "✨ ᴄʜᴏᴏsᴇ ʏᴏᴜʀ ᴛʀᴀɴsʟᴀᴛɪᴏɴ ᴇɴɢɪɴᴇ ✨\nᴘʟᴇᴀsᴇ sᴇʟᴇᴄᴛ ᴀ ᴍᴏᴅᴇʟ ᴛᴏ sᴛᴀʀᴛ ʜɪɴɢʟɪsʜ ᴛʀᴀɴsʟᴀᴛɪᴏɴ."
@@ -236,7 +236,7 @@ async def process_translation(bot, cb, model_type, model_name):
                     current_key_idx += 1
                     if current_key_idx >= len(api_pool):
                         await status_msg.edit("⏳ All keys rate limited. Waiting 60s..."); await asyncio.sleep(60); current_key_idx = 0
-                    continue
+                    continue # Re-attempt current chunk with new key or after wait
                 if res.startswith("❌"): await status_msg.edit(res); return
                 lines = res.split('\n')
                 translated_texts.extend(lines); idx += 1
@@ -307,7 +307,7 @@ async def process_translation(bot, cb, model_type, model_name):
                     current_key_idx += 1
                     if current_key_idx >= len(api_pool):
                         await status_msg.edit("⏳ All keys rate limited. Waiting 60s..."); await asyncio.sleep(60); current_key_idx = 0
-                    continue
+                    continue # Re-attempt current chunk with new key or after wait
                 if res.startswith("❌"): await status_msg.edit(res); return
                 lines = res.split('\n')
                 translated_texts.extend(lines); idx += 1

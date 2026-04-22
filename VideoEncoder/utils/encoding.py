@@ -160,13 +160,15 @@ async def get_metadata_flags(user_id):
 
     return flags
 
-async def encode(filepath, message, msg, audio_map=None, quality=None):
+async def encode(filepath, message, msg, audio_map=None, quality=None, custom_name=None):
     filepath = os.path.abspath(filepath)
     ex = await db.get_extensions(message.from_user.id)
     path, extension = os.path.splitext(filepath)
     name = os.path.basename(path)
 
-    if ex == 'MP4':
+    if custom_name:
+        output_filepathh = os.path.join(encode_dir, custom_name)
+    elif ex == 'MP4':
         output_filepathh = os.path.join(encode_dir, name + '.mp4')
     elif ex == 'AVI':
         output_filepathh = os.path.join(encode_dir, name + '.avi')
@@ -283,9 +285,9 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
     # Some Optional Things
     x265 = await db.get_hevc(message.from_user.id)
     if x265:
-        video_opts = f'-profile:v main  -map 0:v:0 -map_chapters 0 -map_metadata 0'
+        video_opts = f'-profile:v main -map 0:v:0 -map_chapters 0 -map_metadata 0'
     else:
-        video_opts = f'{cabac} {reframe} -profile:v main  -map 0:v:0 -map_chapters 0 -map_metadata 0'
+        video_opts = f'{cabac} {reframe} -profile:v main -map 0:v:0 -map_chapters 0 -map_metadata 0'
 
     # Metadata Watermark
     m = await db.get_metadata_w(message.from_user.id)
@@ -326,17 +328,14 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
 #        f'x=40:y=40'
 #    ])
 
-    # Font Selection
-    selected_font = await db.get_user_font(message.from_user.id)
-    if not selected_font or not await is_font_available(selected_font):
-        if await is_font_available('Arial'):
-            selected_font = 'Arial'
-        else:
-            selected_font = 'Liberation Sans'
+    # Font Selection - Locked to Roboto-Bold
+    selected_font = 'Roboto-Bold'
 
-    # Font Size based on resolution
-    # 480p: FontSize=30, 720p: FontSize=50, 1080p: FontSize=65
-    if quality == '480p':
+    # Font Size override or calculation based on resolution
+    user_size = await db.get_user_font_size(message.from_user.id)
+    if user_size > 0:
+        font_size = user_size
+    elif quality == '480p':
         font_size = 30
     elif quality == '720p':
         font_size = 50
@@ -521,7 +520,7 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
     print(f"DEBUG: Input: {filepath}, Output: {output_filepath}")
 
     command = ['ffmpeg', '-hide_banner',
-               '-hwaccel', 'auto', '-y', '-i', filepath]
+               '-hwaccel', 'auto', '-y', '-sub_charenc', 'utf-8-sig', '-i', filepath]
 
     input_count = 1
     watermark_input_index = -1
@@ -548,8 +547,8 @@ async def encode(filepath, message, msg, audio_map=None, quality=None):
             filter_str += f"[0:v][wm]overlay=W-w-10:10[v_out]"
         command.extend(['-filter_complex', filter_str])
         # When using filter_complex, we must map the output of the filter
-        # And we need to ensure we don't map 0:v? later which would conflict
-        video_opts = video_opts.replace('-map 0:v?', '-map [v_out]')
+        # And we need to ensure we don't map 0:v:0 later which would conflict
+        video_opts = video_opts.replace('-map 0:v:0', '-map [v_out]')
     elif watermark:
         command.extend(watermark.split())
 
@@ -604,18 +603,16 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
 
     adv_metadata = await get_metadata_flags(message.from_user.id)
 
-    # Font Selection
-    selected_font = await db.get_user_font(message.from_user.id)
-    if not selected_font or not await is_font_available(selected_font):
-        if await is_font_available('Arial'):
-            selected_font = 'Arial'
-        else:
-            selected_font = 'Liberation Sans'
+    # Font Selection - Locked to Roboto-Bold
+    selected_font = 'Roboto-Bold'
 
     # Quality logic for hard_sub
     vf_list = []
     crf = '22'
     v_bitrate = []
+
+    # Font Size override
+    user_size = await db.get_user_font_size(message.from_user.id)
 
     # Analyze resolution for font size and scaling if quality is not provided
     if not quality:
@@ -653,6 +650,9 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
         else:
             font_size = 50
 
+    if user_size > 0:
+        font_size = user_size
+
     # Ensure path is absolute and correctly escaped for FFmpeg subtitles filter
     subtitles_path = os.path.abspath(subtitles_path)
     escaped_sub_path = subtitles_path.replace(":", "\\:")
@@ -679,7 +679,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     command = [
         'ffmpeg', '-hide_banner',
         '-hwaccel', 'auto', '-y',
-        '-i', filepath
+        '-sub_charenc', 'utf-8-sig', '-i', filepath
     ]
 
     input_count = 1
@@ -775,7 +775,7 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
 
         command = [
             'ffmpeg', '-hide_banner',
-            '-y', '-i', filepath, '-i', subtitles_path
+            '-y', '-sub_charenc', 'utf-8-sig', '-i', filepath, '-sub_charenc', 'utf-8-sig', '-i', subtitles_path
         ]
 
         input_count = 2
@@ -813,7 +813,7 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
     else:
         command = [
             'ffmpeg', '-hide_banner',
-            '-y', '-i', filepath, '-i', subtitles_path
+            '-y', '-sub_charenc', 'utf-8-sig', '-i', filepath, '-sub_charenc', 'utf-8-sig', '-i', subtitles_path
         ]
 
         input_count = 2
