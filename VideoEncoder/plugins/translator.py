@@ -8,7 +8,15 @@ from .. import LOGGER, download_dir
 from ..utils.uploads.telegram import upload_doc
 from ..utils.database.access_db import db
 
-SYSTEM_PROMPT = "You are a translator that ONLY translates to Hinglish (Roman Script). Do NOT use Devanagari script. Use Hinglish with English grammar and structure. Maintain the exact timing and formatting of the original subtitle file."
+SYSTEM_PROMPT = (
+    "You are a translator that ONLY translates to Hinglish (Roman Script). Do NOT use Devanagari script. "
+    "Use Hinglish with natural flow. Analyze the dialogue context: if characters are close friends or rivals, "
+    "use informal Hinglish (Tu/Tera). If a character is talking to an elder, superior, or stranger, "
+    "use formal Hinglish (Aap/Apka). Maintain this consistency. Identify character gender from sentence structure "
+    "and context; ensure verb endings (Gender-based grammar) are accurate (e.g., 'Raha hoon' vs 'Rahi hoon'). "
+    "You will receive a batch of lines; translate them while maintaining the original line-by-line structure and "
+    "order. Do not add any extra text or explanations."
+)
 
 TRANSLATE_PIC = "https://graph.org/file/600586a9a49029c2e98f1-90c27ea7986142ea7a.jpg"
 TRANSLATE_TEXT = "✨ ᴄʜᴏᴏsᴇ ʏᴏᴜʀ ᴛʀᴀɴsʟᴀᴛɪᴏɴ ᴇɴɢɪɴᴇ ✨\nᴘʟᴇᴀsᴇ sᴇʟᴇᴄᴛ ᴀ ᴍᴏᴅᴇʟ ᴛᴏ sᴛᴀʀᴛ ʜɪɴɢʟɪsʜ ᴛʀᴀɴsʟᴀᴛɪᴏɴ."
@@ -209,7 +217,6 @@ async def process_translation(bot, cb, model_type, model_name):
             content = f.read()
 
         is_srt = file_path.lower().endswith(".srt")
-        MAX_CHUNK_CHARS = 1000
         translated_content = ""
 
         if is_srt:
@@ -219,12 +226,10 @@ async def process_translation(bot, cb, model_type, model_name):
                 if 'text' in b:
                     to_translate.append(b['text'].replace('\n', '\\N'))
 
-            chunk_queue = []; temp_chunk = []; temp_size = 0
-            for text in to_translate:
-                if temp_size + len(text) > MAX_CHUNK_CHARS and temp_chunk:
-                    chunk_queue.append("\n".join(temp_chunk)); temp_chunk = [text]; temp_size = len(text)
-                else: temp_chunk.append(text); temp_size += len(text)
-            if temp_chunk: chunk_queue.append("\n".join(temp_chunk))
+            # Send 10 lines at once for context
+            chunk_queue = []
+            for i in range(0, len(to_translate), 10):
+                chunk_queue.append("\n".join(to_translate[i:i+10]))
 
             translated_texts = []
             current_key_idx = 0; idx = 0
@@ -290,12 +295,10 @@ async def process_translation(bot, cb, model_type, model_name):
             for item in events:
                 if 'text' in item: to_translate.append(item['text'])
 
-            chunk_queue = []; temp_chunk = []; temp_size = 0
-            for text in to_translate:
-                if temp_size + len(text) > MAX_CHUNK_CHARS and temp_chunk:
-                    chunk_queue.append("\n".join(temp_chunk)); temp_chunk = [text]; temp_size = len(text)
-                else: temp_chunk.append(text); temp_size += len(text)
-            if temp_chunk: chunk_queue.append("\n".join(temp_chunk))
+            # Send 10 lines at once for context
+            chunk_queue = []
+            for i in range(0, len(to_translate), 10):
+                chunk_queue.append("\n".join(to_translate[i:i+10]))
 
             translated_texts = []
             current_key_idx = 0; idx = 0
