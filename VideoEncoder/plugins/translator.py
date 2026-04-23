@@ -292,8 +292,8 @@ async def process_translation(bot, cb, model_type, model_name):
                 if not playresy_found: new_header.insert(1, 'PlayResY: 1080'); res_y = 1080
                 if not playresx_found: new_header.insert(1, 'PlayResX: 1920')
 
-            # Dynamic Fontsize Calculation: 1080p: 65, 720p: 50, 480p: 30
-            if res_y >= 1080: f_size = 65
+            # Dynamic Fontsize Calculation: 1080p: 62, 720p: 50, 480p: 30
+            if res_y >= 1080: f_size = 62
             elif res_y >= 720: f_size = 50
             else: f_size = 30
 
@@ -301,11 +301,12 @@ async def process_translation(bot, cb, model_type, model_name):
             for line_h in new_header:
                 if line_h.strip().startswith('Style:'):
                     parts = line_h.split(',')
-                    if len(parts) > 16:
+                    if len(parts) > 17:
                         parts[1] = 'Roboto-Bold' # FontName
                         parts[2] = str(f_size) # FontSize
                         parts[15] = '1' # BorderStyle
-                        parts[16] = '2' # Outline
+                        parts[16] = '3' # Outline
+                        parts[17] = '2' # Shadow
                         final_header.append(",".join(parts))
                     else:
                         final_header.append(line_h)

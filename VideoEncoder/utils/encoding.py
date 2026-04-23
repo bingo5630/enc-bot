@@ -341,12 +341,12 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
     elif quality == '720p':
         font_size = 50
     elif quality == '1080p':
-        font_size = 65
+        font_size = 62
     else:
         # Check resolution setting
         r_db = await db.get_resolution(message.from_user.id)
         if r_db == '1080':
-            font_size = 65
+            font_size = 62
         elif r_db == '720':
             font_size = 50
         elif r_db in ['480', '576']:
@@ -355,7 +355,7 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
             # Analyze resolution
             _, height = get_width_height(filepath)
             if height >= 1080:
-                font_size = 65
+                font_size = 62
             elif height >= 720:
                 font_size = 50
             else:
@@ -399,7 +399,7 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
         subtitles_path = os.path.abspath(subtitles_path)
         escaped_sub_path = subtitles_path.replace(":", "\\:")
         # Ensure selected_font is used and fallback to system font if it fails (handled by FFmpeg usually, but we set it)
-        vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize={font_size},Outline=2,BorderStyle=1,OutlineColour=&H00000000'")
+        vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize={font_size},Outline=3,Shadow=2,BorderStyle=1,OutlineColour=&H00000000'")
 
     if vf_list:
         watermark = "-vf " + ",".join(vf_list)
@@ -562,7 +562,9 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
 
     if thumb_path:
         # Map thumb from thumb_input_index. Primary streams are already handled by video_opts/audio_opts
-        command.extend(['-map', f'{thumb_input_index}:v', '-c:v:1', 'png', '-disposition:v:1', 'attached_pic'])
+        command.extend(['-map', '0', '-map', f'{thumb_input_index}:v', '-c:v:1', 'png', '-disposition:v:1', 'attached_pic'])
+    else:
+        command.extend(['-map', '0'])
 
     command.extend(finish.split())
 
@@ -619,7 +621,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     if not quality:
         r_db = await db.get_resolution(message.from_user.id)
         if r_db == '1080':
-            font_size = 65
+            font_size = 62
         elif r_db == '720':
             font_size = 50
         elif r_db in ['480', '576']:
@@ -627,7 +629,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
         else:
             _, height = get_width_height(filepath)
             if height >= 1080:
-                font_size = 65
+                font_size = 62
             elif height >= 720:
                 font_size = 50
             else:
@@ -647,7 +649,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
             vf_list.append('scale=1920:1080')
             crf = '22'
             v_bitrate = ['-b:v', '3M']
-            font_size = 65
+            font_size = 62
         else:
             font_size = 50
 
@@ -657,7 +659,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     # Ensure path is absolute and correctly escaped for FFmpeg subtitles filter
     subtitles_path = os.path.abspath(subtitles_path)
     escaped_sub_path = subtitles_path.replace(":", "\\:")
-    vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize={font_size},Outline=2,BorderStyle=1,OutlineColour=&H00000000'")
+    vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize={font_size},Outline=3,Shadow=2,BorderStyle=1,OutlineColour=&H00000000'")
 
     # Thumbnail injection
     user_id = message.from_user.id
@@ -709,7 +711,9 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     command.extend(['-c:a', 'copy'])
 
     if thumb_path:
-        command.extend(['-map', f'{thumb_input_index}:v', '-c:v:1', 'png', '-disposition:v:1', 'attached_pic'])
+        command.extend(['-map', '0', '-map', f'{thumb_input_index}:v', '-c:v:1', 'png', '-disposition:v:1', 'attached_pic'])
+    else:
+        command.extend(['-map', '0'])
     command.extend(adv_metadata)
 
     print(f"FFMPEG COMMAND (hard_sub): {' '.join(command + [output_filepath])}")
@@ -810,7 +814,9 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
         command.extend(['-c:a', 'copy', '-c:s', 'copy'])
 
         if thumb_path:
-            command.extend(['-map', f'{thumb_input_index}:v', '-c:v:1', 'png', '-disposition:v:1', 'attached_pic'])
+            command.extend(['-map', '0', '-map', '1:s', '-map', f'{thumb_input_index}:v', '-c:v:1', 'png', '-disposition:v:1', 'attached_pic'])
+        else:
+            command.extend(['-map', '0', '-map', '1:s'])
     else:
         command = [
             'ffmpeg', '-hide_banner',
@@ -823,12 +829,16 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
             thumb_input_index = input_count
             input_count += 1
 
-        command.extend([
-            '-map', '0:v:0', '-map', '0:a:0', '-map', '1:s',
-            '-c', 'copy'
-        ])
         if thumb_path:
-            command.extend(['-map', f'{thumb_input_index}:v', '-c:v:1', 'png', '-disposition:v:1', 'attached_pic'])
+            command.extend([
+                '-map', '0:v:0', '-map', '0:a:0', '-map', '1:s', '-map', f'{thumb_input_index}:v',
+                '-c', 'copy', '-c:v:1', 'png', '-disposition:v:1', 'attached_pic'
+            ])
+        else:
+            command.extend([
+                '-map', '0:v:0', '-map', '0:a:0', '-map', '1:s',
+                '-c', 'copy'
+            ])
 
     # If output is MP4, convert subtitle to mov_text
     if ex == 'MP4':

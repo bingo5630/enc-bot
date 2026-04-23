@@ -62,7 +62,7 @@ async def upload_video(message, msg, new_file, filename, c_time, thumb, duration
                 print(f"DEBUG: Full path is: {thumb}")
             await app.send_video(log, resp.video.file_id, thumb=thumb,
                                  caption=caption or filename, duration=duration,
-                                 width=width, height=height, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+                                 width=width, height=height, parse_mode=ParseMode.HTML)
 
         return resp.link
     except Exception as e:
@@ -89,7 +89,7 @@ async def upload_doc(message, msg, c_time, filename, new_file, thumb=None, capti
             if thumb:
                 print(f"DEBUG: Does file exist? {os.path.exists(thumb)}")
                 print(f"DEBUG: Full path is: {thumb}")
-            await app.send_document(log, resp.document.file_id, thumb=thumb, caption=caption or filename, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+            await app.send_document(log, resp.document.file_id, thumb=thumb, caption=caption or filename, parse_mode=ParseMode.HTML)
 
         return resp.link
     except Exception as e:
