@@ -15,7 +15,10 @@ from .uploads import upload_worker
 from .uploads.telegram import upload_doc
 
 output = InlineKeyboardMarkup([
-    [InlineKeyboardButton("ᴄʟᴏsᴇ", callback_data="closeMeh")]
+    [
+        InlineKeyboardButton("🔙 Back to Home", callback_data="backToStart"),
+        InlineKeyboardButton("ᴄʟosᴇ", callback_data="closeMeh")
+    ]
 ])
 
 start_but = InlineKeyboardMarkup([

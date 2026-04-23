@@ -4,6 +4,7 @@ from VideoEncoder import LOGGER
 import os
 import shutil
 import time
+import shlex
 from os import execl as osexecl
 from subprocess import run as srun
 from sys import executable
@@ -24,7 +25,7 @@ SIZE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
 
 START_PIC = "https://graph.org/file/a43e51fdee6998d7074e0-c9255fe3e80803a9a9.jpg"
 FORCE_PIC = "https://graph.org/file/a0947a8895736ff574666-422dfa95e7395c7142.jpg"
-START_MSG = "<b>ʜᴇʏ!!, {mention} ~    You woke me up! \n\n<blockquote expandable>I was having such a great dream about world domination... err, I mean, serving you efficiently.\n\nReady to start the show? Send me a video file and let's roll!</blockquote></b>"
+START_MSG = "<b>ʜᴇʏ!!, {mention} ~\n\nYou woke me up!\n\n<blockquote expandable>I was having such a great dream about world domination... err, I mean, serving you efficiently.\n\nReady to start the show? Send me a video file and let's roll!</blockquote></b>"
 
 
 def uptime():
@@ -52,17 +53,17 @@ async def help_message(app, message):
         return
     await AddUserToDatabase(app, message)
     msg = """<blockquote><b>How to Translate - Step by Step Guide:</b></blockquote>
-<blockquote expandable>➼ <b>Step 1: Upload Your File</b>
+<blockquote expandable>➼ <b>Step 1: Get Groq Key</b>
+[Click here to Create Groq API Key](https://console.groq.com/keys) and add it using /set_groq_api.
+
+➼ <b>Step 2: Upload Your File</b>
 Send your .ass or subtitle file directly to the bot.
 
-➼ <b>Step 2: Select the Engine</b>
+➼ <b>Step 3: Select the Engine</b>
 Choose the high-stability Groq engine for lightning-fast results.
 
-➼ <b>Step 3: Wait for Processing</b>
-The bot will split your file into micro-chunks to ensure high-quality Hinglish translation without hitting any limits.
-
-➼ <b>Step 4: Download & Enjoy</b>
-Once done, you'll receive the translated file with UTF-8-SIG encoding for maximum compatibility.</blockquote>
+➼ <b>Step 4: Wait for Processing</b>
+The bot will split your file into micro-chunks to ensure high-quality Hinglish translation. Once done, you'll receive the translated file.</blockquote>
 
 <b>Note:</b> The bot now uses an optimized Groq-Only architecture for 100% stability!"""
     await message.reply_photo(photo=START_PIC, caption=msg, reply_markup=start_but, has_spoiler=True)
@@ -180,4 +181,4 @@ async def update_message(app, message):
     try:
         await app.stop()
     finally:
-        srun([f"bash run.sh"], shell=True)
+        srun("bash run.sh", shell=True)

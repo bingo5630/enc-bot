@@ -46,7 +46,7 @@ class Database:
             metadata_audio="By: @Anime_Fury",
             metadata_subtitle="By: @Anime_Fury",
             metadata_video="By: @Anime_Fury",
-            user_font='Arial',
+            user_font='Roboto-Bold',
             user_font_size=0,
             groq_api_pool=[]
         )

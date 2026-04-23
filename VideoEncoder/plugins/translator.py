@@ -10,12 +10,14 @@ from ..utils.database.access_db import db
 
 SYSTEM_PROMPT = (
     "You are a translator that ONLY translates to Hinglish (Roman Script). Do NOT use Devanagari script. "
-    "Use Hinglish with natural flow. Analyze the dialogue context: if characters are close friends or rivals, "
-    "use informal Hinglish (Tu/Tera). If a character is talking to an elder, superior, or stranger, "
-    "use formal Hinglish (Aap/Apka). Maintain this consistency. Identify character gender from sentence structure "
-    "and context; ensure verb endings (Gender-based grammar) are accurate (e.g., 'Raha hoon' vs 'Rahi hoon'). "
-    "You will receive a batch of lines; translate them while maintaining the original line-by-line structure and "
-    "order. Do not add any extra text or explanations."
+    "Use Hinglish with natural flow. Analyze the dialogue context (5-10 lines at once) to determine relationships: "
+    "if characters are close friends or rivals, use informal Hinglish (Tu/Tum/Tera). If a character is talking to "
+    "an elder, superior, or stranger, use formal Hinglish (Aap/Apka). Maintain this consistency. "
+    "Identify character gender from sentence structure and context; ensure verb endings (Gender-based grammar) "
+    "are accurate (e.g., 'Raha hoon' vs 'Rahi hoon'). Use 'Woh' instead of 'Voh'. "
+    "Keep common English words like 'Good Morning', 'Sorry', 'Okay' in English. Don't force-translate everything; "
+    "it should sound like natural Hinglish. You will receive a batch of lines; translate them while maintaining "
+    "the original line-by-line structure and order. Do not add any extra text or explanations."
 )
 
 TRANSLATE_PIC = "https://graph.org/file/600586a9a49029c2e98f1-90c27ea7986142ea7a.jpg"
@@ -27,11 +29,22 @@ translation_data = {}
 SETUP_GUIDE_TEXT = (
     "✨ ʜᴏᴡ ᴛᴏ sᴇᴛ ᴜᴘ ʏᴏᴜʀ ᴛʀᴀɴsʟᴀᴛɪᴏɴ ᴇɴɢɪɴᴇ ✨\n\n"
     "𝟷️⃣ [ᴄʟɪᴄᴋ ʜᴇʀᴇ ғᴏʀ ɢʀᴏǫ ᴋᴇʏ](https://console.groq.com/keys)\n"
-    "👉 sᴇɴᴅ ʏᴏᴜʀ ᴋᴇʏ ᴜsɪɴɢ /set_groq_api ᴛᴏ ᴀᴅᴅ ɪᴛ ᴛᴏ ʏᴏᴜʀ ᴀᴘɪ ᴘᴏᴏʟ."
+    "👉 sᴇɴᴅ ʏᴏᴜʀ ᴋᴇʏ ᴜsɪɴɢ /set_groq_api ᴛᴏ ᴀᴅᴅ ɪᴛ ᴛᴏ ʏᴏᴜʀ ᴀᴘɪ ᴘᴏᴏʟ.\n\n"
+    "<blockquote expandable>➼ <b>Step 1: Get Groq Key</b>\n"
+    "Visit Groq Console and create an API Key.\n\n"
+    "➼ <b>Step 2: Add to Pool</b>\n"
+    "Use /set_groq_api [key] to add keys to your pool.\n\n"
+    "➼ <b>Step 3: Reply to Subtitle</b>\n"
+    "Reply to any .ass or .srt file with /translate.\n\n"
+    "➼ <b>Step 4: Select Model</b>\n"
+    "Choose Llama 3.3 70B and wait for the AI to work its magic!</blockquote>"
 )
 
 SETUP_GUIDE_BUTTONS = InlineKeyboardMarkup([
-    [InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_translator")]
+    [
+        InlineKeyboardButton("🔙 Back to Home", callback_data="backToStart"),
+        InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_translator")
+    ]
 ])
 
 TRANSLATE_BUTTONS = InlineKeyboardMarkup([
@@ -96,8 +109,8 @@ async def translate_groq(chunk_text, api_key):
                     data = response.json(); translated_text = data['choices'][0]['message']['content'].strip()
                     translated_text = re.sub(r'```[a-z]*\n|```', '', translated_text)
                     await asyncio.sleep(5); return translated_text
-                elif response.status_code == 429:
-                    return "429"
+                elif response.status_code in [429, 503]:
+                    return str(response.status_code)
                 else: return f"❌ Groq Error: {response.status_code} - {response.text}"
             except Exception as e:
                 if attempt == 0: await asyncio.sleep(2); continue
@@ -237,10 +250,10 @@ async def process_translation(bot, cb, model_type, model_name):
                 chunk = chunk_queue[idx]; api_key = api_pool[current_key_idx]
                 await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : Translating chunk {idx+1}/{len(chunk_queue)}...")
                 res = await translate_groq(chunk, api_key)
-                if res == "429":
+                if res in ["429", "503"]:
                     current_key_idx += 1
                     if current_key_idx >= len(api_pool):
-                        await status_msg.edit("⏳ All keys rate limited. Waiting 60s..."); await asyncio.sleep(60); current_key_idx = 0
+                        await status_msg.edit(f"⏳ All keys hit {res}. Waiting 60s..."); await asyncio.sleep(60); current_key_idx = 0
                     continue # Re-attempt current chunk with new key or after wait
                 if res.startswith("❌"): await status_msg.edit(res); return
                 lines = res.split('\n')
@@ -282,8 +295,11 @@ async def process_translation(bot, cb, model_type, model_name):
             for line_h in new_header:
                 if line_h.strip().startswith('Style:'):
                     parts = line_h.split(',')
-                    if len(parts) > 2:
-                        parts[2] = str(f_size)
+                    if len(parts) > 16:
+                        parts[1] = 'Roboto-Bold' # FontName
+                        parts[2] = str(f_size) # FontSize
+                        parts[15] = '1' # BorderStyle
+                        parts[16] = '2' # Outline
                         final_header.append(",".join(parts))
                     else:
                         final_header.append(line_h)
@@ -306,10 +322,10 @@ async def process_translation(bot, cb, model_type, model_name):
                 chunk = chunk_queue[idx]; api_key = api_pool[current_key_idx]
                 await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : Translating chunk {idx+1}/{len(chunk_queue)}...")
                 res = await translate_groq(chunk, api_key)
-                if res == "429":
+                if res in ["429", "503"]:
                     current_key_idx += 1
                     if current_key_idx >= len(api_pool):
-                        await status_msg.edit("⏳ All keys rate limited. Waiting 60s..."); await asyncio.sleep(60); current_key_idx = 0
+                        await status_msg.edit(f"⏳ All keys hit {res}. Waiting 60s..."); await asyncio.sleep(60); current_key_idx = 0
                     continue # Re-attempt current chunk with new key or after wait
                 if res.startswith("❌"): await status_msg.edit(res); return
                 lines = res.split('\n')
@@ -333,7 +349,13 @@ async def process_translation(bot, cb, model_type, model_name):
         caption = f"✅ Translated by AI (Hinglish)\nFile: <code>{output_filename}</code>"
         # If replied is still None (fallback failed), use cb.message as a last resort to send the file
         target_msg = replied if replied else cb.message
-        await upload_doc(target_msg, status_msg, 0, output_filename, output_path, caption=caption)
+
+        reply_markup = InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔙 Back to Home", callback_data="backToStart"),
+            InlineKeyboardButton("❌ Close", callback_data="closeMeh")
+        ]])
+
+        await upload_doc(target_msg, status_msg, 0, output_filename, output_path, caption=caption, reply_markup=reply_markup)
     except Exception as e:
         LOGGER.error(f"Translation Error: {e}")
         await status_msg.edit(f"❌ Error: {e}")
