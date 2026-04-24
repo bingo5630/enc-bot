@@ -11,25 +11,8 @@ from ..utils.database.access_db import db
 from ..utils.encoding import extract_subtitle, get_width_height
 
 SYSTEM_PROMPT = (
-    "You are a professional subtitle translator. Translate ONLY the text to Hinglish (Roman Script). Do NOT use Devanagari.\n\n"
-    "MASTER RULE: Dialogue Connection & Flow\n"
-    "- Contextual Harmony: Do NOT translate lines in isolation. Character B's response must match Character A's tone.\n"
-    "- Natural Phrasing: Use conversational Hinglish. (e.g., 'Tu aayega na?' instead of 'Kya tum aaoge?').\n"
-    "- Use fillers like 'Yaar', 'Abey', 'Saala', 'Bas' where the emotion fits.\n"
-    "- Question Tags: Always replace 'Right?' with 'hai na?' or 'samjhe?'.\n"
-    "- Gender Accuracy: Strictly enforce 'raha/tha' for males and 'rahi/thi' for females based on context.\n\n"
-    "VOCABULARY FILTER:\n"
-    "- STRICT BAN: No 'Bookish' Hindi (Kintu, Parantu, Bhojan).\n"
-    "- MANDATORY: Use 'Woh' instead of 'Voh', 'Lekin' instead of 'Magar'.\n"
-    "- CRITICAL: Always use 'usey' instead of 'use' always. Use 'usey' in ALL contexts. (e.g., 'Usey bol do' instead of 'Use bol do').\n"
-    "- Keep common English words (Sorry, Thanks, School, Late, Okay) in English.\n\n"
-    "STRICT OUTPUT RULES:\n"
-    "- Do NOT modify or explain tags like {\\an8} or {\\pos}.\n"
-    "- If you see placeholders like __TAG_0__, __TAG_1__, keep them exactly as they are.\n"
-    "- Each input line is wrapped in <t> and </t> tags. You MUST return each translated line wrapped in <t> and </t> tags.\n"
-    "- Do NOT add any introductory text, explanations, or conclusions. Return ONLY the translated lines.\n"
-    "- Maintain the exact same number of lines as the input.\n"
-    "- Respond ONLY with the translated subtitle lines. Do not wrap in JSON, do not use Markdown code blocks, do not explain your changes."
+    "You are a professional subtitle translator. You are given an ASS subtitle file format.TRANSLATE ONLY the text part of the Dialogue lines.DO NOT change, translate, or remove the tags like {\\an8}, {\\pos}, {\\i1}, etc.DO NOT output conversational text, warnings, or 'Here is the translation'.Output ONLY the original lines with translated text.\n\n"
+    "IF you cannot translate a line, output the original line exactly as it is.Your output MUST be plain text, no Markdown, no JSON, no backticks (```)."
 )
 
 TRANSLATE_PIC = "https://graph.org/file/600586a9a49029c2e98f1-90c27ea7986142ea7a.jpg"
@@ -306,8 +289,7 @@ async def process_translation(bot, cb, model_type, model_name):
             # Send 10 lines at once for context
             chunk_queue = []
             for i in range(0, len(to_translate), 10):
-                wrapped_lines = [f"<t>{line}</t>" for line in to_translate[i:i+10]]
-                chunk_queue.append("\n".join(wrapped_lines))
+                chunk_queue.append("\n".join(to_translate[i:i+10]))
 
             translated_texts = []
             current_key_idx = 0; idx = 0
@@ -323,17 +305,20 @@ async def process_translation(bot, cb, model_type, model_name):
                     continue # Re-attempt current chunk with new key or after wait
                 if res.startswith("❌"): await edit_msg(status_msg, res); return
 
-                # Robust extraction and fallback
-                extracted = re.findall(r'<t>(.*?)</t>', res, re.DOTALL)
-                for i, line in enumerate(original_lines):
-                    if i < len(extracted):
-                        trans_line = extracted[i].strip()
-                        if trans_line.lower().startswith(("i'm sorry", "error")):
-                            translated_texts.append(line)
+                # Filter conversational filler or JSON
+                if res.strip().startswith('I') or res.strip().startswith('{'):
+                    translated_texts.extend(original_lines)
+                else:
+                    res_lines = res.strip().split('\n')
+                    for i, line in enumerate(original_lines):
+                        if i < len(res_lines):
+                            trans_line = res_lines[i].strip()
+                            if trans_line.lower().startswith(("i'm sorry", "error")):
+                                translated_texts.append(line)
+                            else:
+                                translated_texts.append(trans_line)
                         else:
-                            translated_texts.append(trans_line)
-                    else:
-                        translated_texts.append(line)
+                            translated_texts.append(line)
                 idx += 1
 
             final_srt = []
@@ -378,14 +363,13 @@ async def process_translation(bot, cb, model_type, model_name):
             for item in events:
                 if 'text' in item:
                     protected, placeholders = protect_tags(item['text'], is_ass=True)
-                    to_translate.append(protected)
+                    to_translate.append(item['prefix'] + protected)
                     tags_map.append(placeholders)
 
             # Send 10 lines at once for context
             chunk_queue = []
             for i in range(0, len(to_translate), 10):
-                wrapped_lines = [f"<t>{line}</t>" for line in to_translate[i:i+10]]
-                chunk_queue.append("\n".join(wrapped_lines))
+                chunk_queue.append("\n".join(to_translate[i:i+10]))
 
             translated_texts = []
             current_key_idx = 0; idx = 0
@@ -401,17 +385,20 @@ async def process_translation(bot, cb, model_type, model_name):
                     continue # Re-attempt current chunk with new key or after wait
                 if res.startswith("❌"): await edit_msg(status_msg, res); return
 
-                # Robust extraction and fallback
-                extracted = re.findall(r'<t>(.*?)</t>', res, re.DOTALL)
-                for i, line in enumerate(original_lines):
-                    if i < len(extracted):
-                        trans_line = extracted[i].strip()
-                        if trans_line.lower().startswith(("i'm sorry", "error")):
-                            translated_texts.append(line)
+                # Filter conversational filler or JSON
+                if res.strip().startswith('I') or res.strip().startswith('{'):
+                    translated_texts.extend(original_lines)
+                else:
+                    res_lines = res.strip().split('\n')
+                    for i, line in enumerate(original_lines):
+                        if i < len(res_lines):
+                            trans_line = res_lines[i].strip()
+                            if trans_line.lower().startswith(("i'm sorry", "error")) or 'Dialogue:' not in trans_line:
+                                translated_texts.append(line)
+                            else:
+                                translated_texts.append(trans_line)
                         else:
-                            translated_texts.append(trans_line)
-                    else:
-                        translated_texts.append(line)
+                            translated_texts.append(line)
                 idx += 1
 
             final_events = []
@@ -419,8 +406,11 @@ async def process_translation(bot, cb, model_type, model_name):
             for i, item in enumerate(events):
                 if 'text' in item:
                     if trans_idx < len(translated_texts):
+                        # Restore tags in the full line. tags_map corresponds to the protected text.
+                        # We need to extract the text part to restore tags, or restore tags on the whole line if the markers are unique.
+                        # Since restore_tags uses unique markers like __TAG_i__, it's safe to run it on the whole line.
                         restored = restore_tags(translated_texts[trans_idx], tags_map[trans_idx])
-                        final_events.append(item['prefix'] + restored)
+                        final_events.append(restored)
                         trans_idx += 1
                     else: final_events.append(item['prefix'] + item['text'])
                 else: final_events.append(item['raw'])
