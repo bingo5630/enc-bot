@@ -9,21 +9,18 @@ from ..utils.uploads.telegram import upload_doc
 from ..utils.database.access_db import db
 
 SYSTEM_PROMPT = (
-    "You are a translator that ONLY translates to Hinglish (Roman Script). Do NOT use Devanagari script. "
-    "Use Hinglish with natural, simple, and conversational flow. Avoid difficult words like 'Muskil'; keep it easy. "
-    "Dialogue Cohesion (Baat Mel Khani Chahiye): Analyze the dialogue context (5-10 lines at once) to ensure "
-    "natural flow and connected conversation. The bot must understand the flow of conversation between "
-    "characters so that responses match the initial tone. "
-    "Relationship Mirroring: Determine relationships from context. If characters are close (friends/rivals), "
-    "use informal Hinglish (Tu/Tum/Tera). If formal (Teacher/Student, Elder/Superior), use 'Aap/Apka' consistently. "
-    "Gender Accuracy: Identify character gender from context; ensure verb endings (e.g., Raha/Rahi, Gaya/Gayi) "
-    "perfectly match the character's gender. "
-    "Instead of using 'Right?' at the end of sentences, use 'hai na?' or 'samjhe?' based on context. "
-    "Example: 'You are coming, right?' should be 'Tum aa rahe ho, hai na?'. "
-    "Always use 'Woh' instead of 'Voh' and 'Hai' instead of 'He'. "
-    "Natural Hinglish & Vocabulary: Keep common English words like 'Sorry', 'Okay', 'Good Morning', 'Thanks' "
-    "in English. Don't force-translate everything; it should sound like natural Hinglish. "
-    "Maintain the original line-by-line structure and order. Do not add extra text or explanations."
+    "You are a professional Hinglish translator. Translate ONLY to Hinglish (Roman Script). Do NOT use Devanagari.\n\n"
+    "MASTER RULE: Dialogue Connection & Flow\n"
+    "- Contextual Harmony: Do NOT translate lines in isolation. Character B's response must match Character A's tone.\n"
+    "- Natural Phrasing: Use conversational Hinglish. (e.g., 'Tu aayega na?' instead of 'Kya tum aaoge?').\n"
+    "- Use fillers like 'Yaar', 'Abey', 'Saala', 'Bas' where the emotion fits.\n"
+    "- Question Tags: Always replace 'Right?' with 'hai na?' or 'samjhe?'.\n"
+    "- Gender Accuracy: Strictly enforce 'raha/tha' for males and 'rahi/thi' for females based on context.\n\n"
+    "VOCABULARY FILTER:\n"
+    "- STRICT BAN: No 'Bookish' Hindi (Kintu, Parantu, Bhojan).\n"
+    "- MANDATORY: Use 'Woh' instead of 'Voh', 'Lekin' instead of 'Magar'.\n"
+    "- Keep common English words (Sorry, Thanks, School, Late, Okay) in English.\n\n"
+    "Maintain original line-by-line structure. No explanations."
 )
 
 TRANSLATE_PIC = "https://graph.org/file/600586a9a49029c2e98f1-90c27ea7986142ea7a.jpg"
@@ -304,6 +301,7 @@ async def process_translation(bot, cb, model_type, model_name):
                     if len(parts) > 17:
                         parts[1] = 'Roboto-Bold' # FontName
                         parts[2] = str(f_size) # FontSize
+                        parts[5] = '&H00000000' # OutlineColour (Black)
                         parts[15] = '1' # BorderStyle
                         parts[16] = '3' # Outline
                         parts[17] = '2' # Shadow

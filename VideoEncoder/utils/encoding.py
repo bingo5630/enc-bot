@@ -520,51 +520,61 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
         return None, "FFmpeg not found"
     print(f"DEBUG: Input: {filepath}, Output: {output_filepath}")
 
-    command = ['ffmpeg', '-hide_banner',
-               '-hwaccel', 'auto', '-y', '-copyts', '-vsync', 'cfr', '-sub_charenc', 'utf-8-sig', '-i', filepath]
-
-    input_count = 1
-    watermark_input_index = -1
-    if has_watermark:
-        command.extend(['-i', watermark_file])
-        watermark_input_index = input_count
-        input_count += 1
+    # Build Input list
+    # Input 0: Video
+    # Input 1: Thumbnail (Optional)
+    # Input 2: Watermark (Optional)
+    command = ['ffmpeg', '-hide_banner', '-hwaccel', 'auto', '-y', '-copyts', '-vsync', 'cfr', '-sub_charenc', 'utf-8-sig', '-i', filepath]
 
     if thumb_path:
         command.extend(['-i', thumb_path])
-        thumb_input_index = input_count
-        input_count += 1
-
-    # Filter Complex Logic
     if has_watermark:
-        # Base video is [0:v]
-        # Chain vf_list first
-        if vf_list:
-            filter_str = f"[0:v]{','.join(vf_list)}[vbase];"
-            filter_str += f"[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[wm];"
-            filter_str += f"[vbase][wm]overlay=W-w-10:10[v_out]"
-        else:
-            filter_str = f"[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[wm];"
-            filter_str += f"[0:v][wm]overlay=W-w-10:10[v_out]"
-        command.extend(['-filter_complex', filter_str])
-        # When using filter_complex, we must map the output of the filter
-        # And we need to ensure we don't map 0:v:0 later which would conflict
-        video_opts = video_opts.replace('-map 0:v:0', '-map [v_out]')
-    elif watermark:
-        command.extend(watermark.split())
+        command.extend(['-i', watermark_file])
 
-    command.extend((codec.split() + preset.split() + frame.split() + tunevideo.split() + aspect.split() + video_opts.split() + Crf.split()))
+    # Video Filter Logic
+    if has_watermark:
+        w_idx = 2 if thumb_path else 1
+        if vf_list:
+            filter_str = f"[0:v]{','.join(vf_list)}[vbase];[{w_idx}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[wm];[vbase][wm]overlay=W-w-10:10[v_out]"
+        else:
+            filter_str = f"[{w_idx}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[wm];[0:v][wm]overlay=W-w-10:10[v_out]"
+        command.extend(['-filter_complex', filter_str])
+        video_map_arg = ['-map', '[v_out]']
+    elif vf_list:
+        command.extend(['-vf', ",".join(vf_list)])
+        video_map_arg = ['-map', '0:v:0']
+    else:
+        video_map_arg = ['-map', '0:v:0']
+
+    # Remove duplicate mappings
+    video_opts = video_opts.replace('-map 0:v:0', '')
+
+    # Combine mapping
+    command.extend(video_map_arg)
+    command.extend(codec.split())
+    command.extend(preset.split())
+    command.extend(frame.split())
+    command.extend(tunevideo.split())
+    command.extend(aspect.split())
+    command.extend(video_opts.split())
+    command.extend(Crf.split())
 
     if v_bitrate:
         command.extend(v_bitrate.split())
 
-    command.extend((metadata.split() + adv_metadata + subtitles.split() + audio_opts.split() + channels.split()))
+    command.extend(metadata.split())
+    command.extend(adv_metadata)
+    command.extend(subtitles.split())
+    command.extend(audio_opts.split())
+    command.extend(channels.split())
 
     if thumb_path:
-        # Map thumb from thumb_input_index. Primary streams are already handled by video_opts/audio_opts
-        command.extend(['-map', '0', '-map', f'{thumb_input_index}:v', '-c:v:1', 'png', '-disposition:v:1', 'attached_pic'])
+        # Strict requested mapping: -map 0 -map 1 -c:v:1 png -disposition:v:1 attached_pic
+        # We mapped [v_out] or 0:v:0 as the first stream already.
+        # Now map the rest of 0, then map 1 for thumb.
+        command.extend(['-map', '0:a?', '-map', '0:s?', '-map', '1:v', '-c:v:1', 'png', '-disposition:v:1', 'attached_pic'])
     else:
-        command.extend(['-map', '0'])
+        command.extend(['-map', '0:a?', '-map', '0:s?'])
 
     command.extend(finish.split())
 
@@ -679,30 +689,36 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
         return None, "FFmpeg not found"
     print(f"DEBUG: Input: {filepath}, Output: {output_filepath}")
 
+    # Build Input list
+    # Input 0: Video
+    # Input 1: Thumbnail (Optional)
+    # Input 2: Watermark (Optional)
     command = [
         'ffmpeg', '-hide_banner',
         '-hwaccel', 'auto', '-y', '-copyts', '-vsync', 'cfr',
         '-sub_charenc', 'utf-8-sig', '-i', filepath
     ]
 
-    input_count = 1
-    if has_watermark:
-        command.extend(['-i', watermark_file])
-        watermark_input_index = input_count
-        input_count += 1
-
     if thumb_path:
         command.extend(['-i', thumb_path])
-        thumb_input_index = input_count
-        input_count += 1
+        thumb_input_index = 1
+    else:
+        thumb_input_index = -1
 
+    if has_watermark:
+        command.extend(['-i', watermark_file])
+        watermark_input_index = 2 if thumb_path else 1
+    else:
+        watermark_input_index = -1
+
+    # Filter & Mapping
     if has_watermark:
         filter_str = f"[0:v:0]{','.join(vf_list)}[vbase];"
         filter_str += f"[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[wm];"
         filter_str += f"[vbase][wm]overlay=W-w-10:10[v_out]"
-        command.extend(['-filter_complex', filter_str, '-map', '[v_out]', '-map', '0:a:0'])
+        command.extend(['-filter_complex', filter_str, '-map', '[v_out]'])
     else:
-        command.extend(['-vf', ",".join(vf_list), '-map', '0:v:0', '-map', '0:a:0'])
+        command.extend(['-vf', ",".join(vf_list), '-map', '0:v:0'])
 
     command.extend([
         '-c:v', 'libx264', '-preset', 'faster', '-crf', crf
@@ -711,9 +727,11 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     command.extend(['-c:a', 'copy'])
 
     if thumb_path:
-        command.extend(['-map', '0', '-map', f'{thumb_input_index}:v', '-c:v:1', 'png', '-disposition:v:1', 'attached_pic'])
+        # User requested mapping logic: -map 0 -map 1 -c:v:1 png -disposition:v:1 attached_pic
+        # Input 0: Video, Input 1: Thumbnail
+        command.extend(['-map', '0:a?', '-map', '0:s?', '-map', '1:v', '-c:v:1', 'png', '-disposition:v:1', 'attached_pic'])
     else:
-        command.extend(['-map', '0'])
+        command.extend(['-map', '0:a?', '-map', '0:s?'])
     command.extend(adv_metadata)
 
     print(f"FFMPEG COMMAND (hard_sub): {' '.join(command + [output_filepath])}")
@@ -778,21 +796,23 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
             crf = '22'
             v_bitrate = ['-b:v', '3M']
 
+        # Inputs: 0: Video, 1: Subtitle, 2: Thumbnail (Optional), 3: Watermark (Optional)
         command = [
             'ffmpeg', '-hide_banner',
             '-y', '-copyts', '-vsync', 'cfr', '-sub_charenc', 'utf-8-sig', '-i', filepath, '-sub_charenc', 'utf-8-sig', '-i', subtitles_path
         ]
 
-        input_count = 2
-        if has_watermark:
-            command.extend(['-i', watermark_file])
-            watermark_input_index = input_count
-            input_count += 1
-
         if thumb_path:
             command.extend(['-i', thumb_path])
-            thumb_input_index = input_count
-            input_count += 1
+            thumb_input_index = 2
+        else:
+            thumb_input_index = -1
+
+        if has_watermark:
+            command.extend(['-i', watermark_file])
+            watermark_input_index = 3 if thumb_path else 2
+        else:
+            watermark_input_index = -1
 
         if has_watermark:
             filter_str = ""
@@ -803,9 +823,9 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
             else:
                 filter_str += f"[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[wm];"
                 filter_str += f"[0:v:0][wm]overlay=W-w-10:10[v_out]"
-            command.extend(['-filter_complex', filter_str, '-map', '[v_out]', '-map', '0:a:0', '-map', '1:s'])
+            command.extend(['-filter_complex', filter_str, '-map', '[v_out]', '-map', '1:s'])
         else:
-            command.extend(['-vf', ",".join(vf_list), '-map', '0:v:0', '-map', '0:a:0', '-map', '1:s'])
+            command.extend(['-vf', ",".join(vf_list), '-map', '0:v:0', '-map', '1:s'])
 
         command.extend([
             '-c:v', 'libx264', '-preset', 'faster', '-crf', crf
@@ -814,29 +834,29 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
         command.extend(['-c:a', 'copy', '-c:s', 'copy'])
 
         if thumb_path:
-            command.extend(['-map', '0', '-map', '1:s', '-map', f'{thumb_input_index}:v', '-c:v:1', 'png', '-disposition:v:1', 'attached_pic'])
+            command.extend(['-map', '0:a?', '-map', '0:s?', '-map', '1:s', '-map', '2:v', '-c:v:1', 'png', '-disposition:v:1', 'attached_pic'])
         else:
-            command.extend(['-map', '0', '-map', '1:s'])
+            command.extend(['-map', '0:a?', '-map', '0:s?', '-map', '1:s'])
     else:
         command = [
             'ffmpeg', '-hide_banner',
             '-y', '-copyts', '-vsync', 'cfr', '-sub_charenc', 'utf-8-sig', '-i', filepath, '-sub_charenc', 'utf-8-sig', '-i', subtitles_path
         ]
 
-        input_count = 2
         if thumb_path:
             command.extend(['-i', thumb_path])
-            thumb_input_index = input_count
-            input_count += 1
+            thumb_input_index = 2
+        else:
+            thumb_input_index = -1
 
         if thumb_path:
             command.extend([
-                '-map', '0:v:0', '-map', '0:a:0', '-map', '1:s', '-map', f'{thumb_input_index}:v',
+                '-map', '0:v:0', '-map', '0:a?', '-map', '0:s?', '-map', '1:s', '-map', '2:v',
                 '-c', 'copy', '-c:v:1', 'png', '-disposition:v:1', 'attached_pic'
             ])
         else:
             command.extend([
-                '-map', '0:v:0', '-map', '0:a:0', '-map', '1:s',
+                '-map', '0:v:0', '-map', '0:a?', '-map', '0:s?', '-map', '1:s',
                 '-c', 'copy'
             ])
 
