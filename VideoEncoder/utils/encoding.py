@@ -440,8 +440,12 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
         # Ensure path is absolute and correctly escaped for FFmpeg subtitles filter
         subtitles_path = os.path.abspath(subtitles_path)
         escaped_sub_path = subtitles_path.replace(":", "\\:")
-        # Force FontSize=24, Outline=1, Shadow=0 as requested
-        vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize=24,Outline=1,Shadow=0'")
+        # Smart Subtitle Inheritance: Respect .ass file internal styles.
+        # Use force_style only if it's NOT an ASS file (e.g., SRT).
+        if subtitles_path.lower().endswith(".ass"):
+            vf_list.append(f"subtitles='{escaped_sub_path}'")
+        else:
+            vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize=24,Outline=1,Shadow=0'")
 
     if vf_list:
         watermark = "-vf " + ",".join(vf_list)
@@ -735,8 +739,11 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     # Ensure path is absolute and correctly escaped for FFmpeg subtitles filter
     subtitles_path = os.path.abspath(subtitles_path)
     escaped_sub_path = subtitles_path.replace(":", "\\:")
-    # Force FontSize=24, Outline=1, Shadow=0 as requested
-    vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize=24,Outline=1,Shadow=0'")
+    # Smart Subtitle Inheritance: Respect .ass file internal styles.
+    if subtitles_path.lower().endswith(".ass"):
+        vf_list.append(f"subtitles='{escaped_sub_path}'")
+    else:
+        vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize=24,Outline=1,Shadow=0'")
 
     # Thumbnail injection
     user_id = message.from_user.id

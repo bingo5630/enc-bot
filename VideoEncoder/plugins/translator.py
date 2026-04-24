@@ -8,6 +8,7 @@ from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from .. import LOGGER, download_dir
 from ..utils.uploads.telegram import upload_doc
 from ..utils.database.access_db import db
+from ..utils.encoding import extract_subtitle, get_width_height
 
 SYSTEM_PROMPT = (
     "You are a professional Hinglish translator. Translate ONLY to Hinglish (Roman Script). Do NOT use Devanagari.\n\n"
@@ -22,7 +23,9 @@ SYSTEM_PROMPT = (
     "- MANDATORY: Use 'Woh' instead of 'Voh', 'Lekin' instead of 'Magar'.\n"
     "- CRITICAL: Always use 'usey' instead of 'use' always. Use 'usey' in ALL contexts. (e.g., 'Usey bol do' instead of 'Use bol do').\n"
     "- Keep common English words (Sorry, Thanks, School, Late, Okay) in English.\n\n"
-    "Maintain original line-by-line structure. No explanations. You MUST return exactly the same number of lines as the input. DO NOT skip any lines or merge them."
+    "TAG PRESERVATION:\n"
+    "- If you see placeholders like [[TAG_0]], [[TAG_1]], keep them exactly as they are in the translated text.\n"
+    "- Maintain original line-by-line structure. No explanations. You MUST return exactly the same number of lines as the input. DO NOT skip any lines or merge them."
 )
 
 TRANSLATE_PIC = "https://graph.org/file/600586a9a49029c2e98f1-90c27ea7986142ea7a.jpg"
@@ -75,12 +78,47 @@ def parse_srt(content):
             parsed.append({'raw': block})
     return parsed
 
+def protect_tags(text, is_ass=True):
+    """Protects override tags from being translated by the AI."""
+    placeholders = []
+    if is_ass:
+        # Protect {\...} tags
+        tags = re.findall(r'\{[^\}]+\}', text)
+        for i, tag in enumerate(tags):
+            placeholder = f"[[TAG_{i}]]"
+            text = text.replace(tag, placeholder, 1)
+            placeholders.append(tag)
+    else:
+        # Protect <i>...</i> tags etc for SRT
+        tags = re.findall(r'<[^>]+>', text)
+        for i, tag in enumerate(tags):
+            placeholder = f"[[TAG_{i}]]"
+            text = text.replace(tag, placeholder, 1)
+            placeholders.append(tag)
+    return text, placeholders
+
+def restore_tags(text, placeholders):
+    """Restores protected tags back into the translated text."""
+    for i, tag in enumerate(placeholders):
+        placeholder = f"[[TAG_{i}]]"
+        text = text.replace(placeholder, tag, 1)
+    return text
+
 def parse_ass(content):
     lines = content.replace('\r\n', '\n').split('\n')
     header = []
     events = []
     in_events = False
+    playresx, playresy = 0, 0
+
     for line in lines:
+        if line.strip().startswith('PlayResX:'):
+            try: playresx = int(line.split(':')[1].strip())
+            except: pass
+        if line.strip().startswith('PlayResY:'):
+            try: playresy = int(line.split(':')[1].strip())
+            except: pass
+
         if line.strip().lower().startswith('[events]'):
             in_events = True
             header.append(line)
@@ -91,12 +129,12 @@ def parse_ass(content):
             if line.strip().startswith('Dialogue:'):
                 parts = line.split(',', 9)
                 if len(parts) == 10:
-                    events.append({'prefix': parts[0:9], 'text': parts[9]})
+                    events.append({'prefix': ",".join(parts[0:9]) + ",", 'text': parts[9]})
                 else:
                     events.append({'raw': line})
             else:
                 events.append({'raw': line})
-    return header, events
+    return header, events, playresx, playresy
 
 
 async def translate_groq(chunk_text, api_key):
@@ -125,16 +163,16 @@ async def translate_groq(chunk_text, api_key):
 async def translate_cmd_handler(bot: Client, message: Message):
     user_id = message.from_user.id
     if not message.reply_to_message:
-        await message.reply_text("❌ Please reply to a .ass or .srt file with /translate")
+        await message.reply_text("❌ Please reply to a video, .ass, or .srt file with /translate")
         return
 
     replied = message.reply_to_message
-    if not (replied.document and replied.document.file_name and replied.document.file_name.lower().endswith((".ass", ".srt"))):
-        await message.reply_text("❌ Please reply to a valid .ass or .srt file.")
+    is_video = (replied.video or (replied.document and replied.document.mime_type and replied.document.mime_type.startswith("video/")))
+    is_subtitle = (replied.document and replied.document.file_name and replied.document.file_name.lower().endswith((".ass", ".srt")))
+
+    if not (is_video or is_subtitle):
+        await message.reply_text("❌ Please reply to a valid video, .ass, or .srt file.")
         return
-
-
-    # Let's show the translate options directly.
 
     sent_msg = await message.reply_photo(
         photo=TRANSLATE_PIC,
@@ -143,14 +181,14 @@ async def translate_cmd_handler(bot: Client, message: Message):
         has_spoiler=True
     )
 
-    # Store file metadata indexed by a unique chat_message key to prevent collisions
     unique_key = f"{replied.chat.id}_{sent_msg.id}"
     translation_data[unique_key] = {
-        'file_id': replied.document.file_id,
-        'file_name': replied.document.file_name,
+        'file_id': replied.document.file_id if replied.document else replied.video.file_id,
+        'file_name': replied.document.file_name if replied.document else (replied.video.file_name or "video.mp4"),
         'chat_id': replied.chat.id,
         'message_id': replied.id,
-        'user_id': user_id
+        'user_id': user_id,
+        'is_video': is_video
     }
 
 @Client.on_message(filters.command("set_groq_api") & filters.private)
@@ -226,6 +264,19 @@ async def process_translation(bot, cb, model_type, model_name):
         file_name=os.path.join(download_dir, file_name)
     )
 
+    if file_data and file_data.get('is_video'):
+        await edit_msg(status_msg, "⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪ𝐧𝐠] : Extracting subtitles from video...")
+        extracted = await extract_subtitle(file_path)
+        if not os.path.exists(extracted):
+            await edit_msg(status_msg, f"❌ Subtitle extraction failed: {extracted}")
+            if os.path.exists(file_path): os.remove(file_path)
+            return
+        video_path = file_path # Keep track of video to get resolution later
+        file_path = extracted
+        file_name = os.path.basename(file_path)
+    else:
+        video_path = None
+
     # Clean up storage
     if unique_key in translation_data:
         del translation_data[unique_key]
@@ -240,9 +291,12 @@ async def process_translation(bot, cb, model_type, model_name):
         if is_srt:
             parsed_blocks = parse_srt(content)
             to_translate = []
+            tags_map = []
             for b in parsed_blocks:
                 if 'text' in b:
-                    to_translate.append(b['text'].replace('\n', '\\N'))
+                    protected, placeholders = protect_tags(b['text'].replace('\n', '\\N'), is_ass=False)
+                    to_translate.append(protected)
+                    tags_map.append(placeholders)
 
             # Send 10 lines at once for context
             chunk_queue = []
@@ -266,57 +320,48 @@ async def process_translation(bot, cb, model_type, model_name):
 
             final_srt = []
             trans_idx = 0
-            for b in parsed_blocks:
+            for i, b in enumerate(parsed_blocks):
                 if 'text' in b:
                     if trans_idx < len(translated_texts):
-                        translated_text = translated_texts[trans_idx].replace('\\N', '\n').replace('\\n', '\n')
+                        translated_text = restore_tags(translated_texts[trans_idx], tags_map[trans_idx])
+                        translated_text = translated_text.replace('\\N', '\n').replace('\\n', '\n')
                         final_srt.append(f"{b['index']}\n{b['timestamp']}\n{translated_text}")
                         trans_idx += 1
                     else: final_srt.append(f"{b['index']}\n{b['timestamp']}\n{b['text']}")
                 else: final_srt.append(b['raw'])
             translated_content = "\n\n".join(final_srt)
         else:
-            header, events = parse_ass(content); new_header = []
-            script_info_found = False; playresx_found = False; playresy_found = False; res_y = 1080
-            for line_h in header:
-                if line_h.strip().lower().startswith('[script info]'): script_info_found = True; new_header.append(line_h); continue
-                if line_h.strip().startswith('PlayResX:'): new_header.append('PlayResX: 1920'); playresx_found = True; continue
-                if line_h.strip().startswith('PlayResY:'):
-                    try: res_y = int(line_h.split(':')[1].strip())
-                    except: res_y = 1080
-                    new_header.append(f'PlayResY: {res_y}'); playresy_found = True; continue
-                new_header.append(line_h)
+            header, events, playresx, playresy = parse_ass(content)
 
-            if script_info_found:
-                if not playresy_found: new_header.insert(1, 'PlayResY: 1080'); res_y = 1080
-                if not playresx_found: new_header.insert(1, 'PlayResX: 1920')
+            # Smart Subtitle Inheritance: Scaling Logic
+            user_size = await db.get_user_font_size(user_id)
+            if video_path and playresy > 0:
+                _, v_height = get_width_height(video_path)
 
-            # Dynamic Fontsize Calculation: 1080p: 24, 720p: 50, 480p: 30
-            if res_y >= 1080: f_size = 24
-            elif res_y >= 720: f_size = 50
-            else: f_size = 30
-
-            final_header = []
-            for line_h in new_header:
-                if line_h.strip().startswith('Style:'):
-                    parts = line_h.split(',')
-                    if len(parts) > 17:
-                        parts[1] = 'Roboto-Bold' # FontName
-                        parts[2] = str(f_size) # FontSize
-                        parts[5] = '&H00000000' # OutlineColour (Black)
-                        parts[15] = '1' # BorderStyle
-                        parts[16] = '2' # Outline
-                        parts[17] = '1' # Shadow
-                        final_header.append(",".join(parts))
-                    else:
-                        final_header.append(line_h)
-                else:
-                    final_header.append(line_h)
-            header = final_header
+                new_header = []
+                for line in header:
+                    if line.strip().startswith('Style:'):
+                        parts = line.split(',')
+                        if len(parts) > 2:
+                            try:
+                                # NewFontSize = (OriginalFontSize * VideoHeight) / PlayResY
+                                # If user set a specific font size, use it as the base for scaling
+                                base_size = float(user_size) if user_size > 0 else float(parts[2])
+                                scaled_size = (base_size * v_height) / playresy
+                                parts[2] = str(round(scaled_size, 2))
+                                new_header.append(",".join(parts))
+                                continue
+                            except: pass
+                    new_header.append(line)
+                header = new_header
 
             to_translate = []
+            tags_map = []
             for item in events:
-                if 'text' in item: to_translate.append(item['text'])
+                if 'text' in item:
+                    protected, placeholders = protect_tags(item['text'], is_ass=True)
+                    to_translate.append(protected)
+                    tags_map.append(placeholders)
 
             # Send 10 lines at once for context
             chunk_queue = []
@@ -340,12 +385,13 @@ async def process_translation(bot, cb, model_type, model_name):
 
             final_events = []
             trans_idx = 0
-            for item in events:
+            for i, item in enumerate(events):
                 if 'text' in item:
                     if trans_idx < len(translated_texts):
-                        final_events.append(",".join(item['prefix']) + "," + translated_texts[trans_idx])
+                        restored = restore_tags(translated_texts[trans_idx], tags_map[trans_idx])
+                        final_events.append(item['prefix'] + restored)
                         trans_idx += 1
-                    else: final_events.append(",".join(item['prefix']) + "," + item['text'])
+                    else: final_events.append(item['prefix'] + item['text'])
                 else: final_events.append(item['raw'])
             translated_content = "\n".join(header) + "\n" + "\n".join(final_events)
         output_filename = os.path.splitext(file_name)[0] + "_Hinglish" + os.path.splitext(file_name)[1]
@@ -368,4 +414,5 @@ async def process_translation(bot, cb, model_type, model_name):
         await edit_msg(status_msg, f"❌ Error: {e}")
     finally:
         if os.path.exists(file_path): os.remove(file_path)
+        if video_path and os.path.exists(video_path): os.remove(video_path)
         if 'output_path' in locals() and os.path.exists(output_path): os.remove(output_path)
