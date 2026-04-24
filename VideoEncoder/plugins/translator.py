@@ -11,7 +11,7 @@ from ..utils.database.access_db import db
 from ..utils.encoding import extract_subtitle, get_width_height
 
 SYSTEM_PROMPT = (
-    "You are a professional Hinglish translator. Translate ONLY to Hinglish (Roman Script). Do NOT use Devanagari.\n\n"
+    "You are a professional subtitle translator. Translate ONLY the text to Hinglish (Roman Script). Do NOT use Devanagari.\n\n"
     "MASTER RULE: Dialogue Connection & Flow\n"
     "- Contextual Harmony: Do NOT translate lines in isolation. Character B's response must match Character A's tone.\n"
     "- Natural Phrasing: Use conversational Hinglish. (e.g., 'Tu aayega na?' instead of 'Kya tum aaoge?').\n"
@@ -23,9 +23,12 @@ SYSTEM_PROMPT = (
     "- MANDATORY: Use 'Woh' instead of 'Voh', 'Lekin' instead of 'Magar'.\n"
     "- CRITICAL: Always use 'usey' instead of 'use' always. Use 'usey' in ALL contexts. (e.g., 'Usey bol do' instead of 'Use bol do').\n"
     "- Keep common English words (Sorry, Thanks, School, Late, Okay) in English.\n\n"
-    "TAG PRESERVATION:\n"
-    "- If you see placeholders like [[TAG_0]], [[TAG_1]], keep them exactly as they are in the translated text.\n"
-    "- Maintain original line-by-line structure. No explanations. You MUST return exactly the same number of lines as the input. DO NOT skip any lines or merge them."
+    "STRICT OUTPUT RULES:\n"
+    "- Do NOT modify or explain tags like {\\an8} or {\\pos}.\n"
+    "- If you see placeholders like __TAG_0__, __TAG_1__, keep them exactly as they are.\n"
+    "- Each input line is wrapped in <t> and </t> tags. You MUST return each translated line wrapped in <t> and </t> tags.\n"
+    "- Do NOT add any introductory text, explanations, or conclusions. Return ONLY the translated lines.\n"
+    "- Maintain the exact same number of lines as the input."
 )
 
 TRANSLATE_PIC = "https://graph.org/file/600586a9a49029c2e98f1-90c27ea7986142ea7a.jpg"
@@ -85,14 +88,14 @@ def protect_tags(text, is_ass=True):
         # Protect {\...} tags
         tags = re.findall(r'\{[^\}]+\}', text)
         for i, tag in enumerate(tags):
-            placeholder = f"[[TAG_{i}]]"
+            placeholder = f"__TAG_{i}__"
             text = text.replace(tag, placeholder, 1)
             placeholders.append(tag)
     else:
         # Protect <i>...</i> tags etc for SRT
         tags = re.findall(r'<[^>]+>', text)
         for i, tag in enumerate(tags):
-            placeholder = f"[[TAG_{i}]]"
+            placeholder = f"__TAG_{i}__"
             text = text.replace(tag, placeholder, 1)
             placeholders.append(tag)
     return text, placeholders
@@ -100,7 +103,7 @@ def protect_tags(text, is_ass=True):
 def restore_tags(text, placeholders):
     """Restores protected tags back into the translated text."""
     for i, tag in enumerate(placeholders):
-        placeholder = f"[[TAG_{i}]]"
+        placeholder = f"__TAG_{i}__"
         text = text.replace(placeholder, tag, 1)
     return text
 
@@ -301,11 +304,13 @@ async def process_translation(bot, cb, model_type, model_name):
             # Send 10 lines at once for context
             chunk_queue = []
             for i in range(0, len(to_translate), 10):
-                chunk_queue.append("\n".join(to_translate[i:i+10]))
+                wrapped_lines = [f"<t>{line}</t>" for line in to_translate[i:i+10]]
+                chunk_queue.append("\n".join(wrapped_lines))
 
             translated_texts = []
             current_key_idx = 0; idx = 0
             while idx < len(chunk_queue):
+                original_lines = to_translate[idx*10 : (idx+1)*10]
                 chunk = chunk_queue[idx]; api_key = api_pool[current_key_idx]
                 await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : Translating chunk {idx+1}/{len(chunk_queue)}...")
                 res = await translate_groq(chunk, api_key)
@@ -315,8 +320,19 @@ async def process_translation(bot, cb, model_type, model_name):
                         await edit_msg(status_msg, f"⏳ All keys hit {res}. Waiting 60s..."); await asyncio.sleep(60); current_key_idx = 0
                     continue # Re-attempt current chunk with new key or after wait
                 if res.startswith("❌"): await edit_msg(status_msg, res); return
-                lines = res.split('\n')
-                translated_texts.extend(lines); idx += 1
+
+                # Robust extraction and fallback
+                extracted = re.findall(r'<t>(.*?)</t>', res, re.DOTALL)
+                for i, line in enumerate(original_lines):
+                    if i < len(extracted):
+                        trans_line = extracted[i].strip()
+                        if trans_line.lower().startswith(("i'm sorry", "error")):
+                            translated_texts.append(line)
+                        else:
+                            translated_texts.append(trans_line)
+                    else:
+                        translated_texts.append(line)
+                idx += 1
 
             final_srt = []
             trans_idx = 0
@@ -366,13 +382,15 @@ async def process_translation(bot, cb, model_type, model_name):
             # Send 10 lines at once for context
             chunk_queue = []
             for i in range(0, len(to_translate), 10):
-                chunk_queue.append("\n".join(to_translate[i:i+10]))
+                wrapped_lines = [f"<t>{line}</t>" for line in to_translate[i:i+10]]
+                chunk_queue.append("\n".join(wrapped_lines))
 
             translated_texts = []
             current_key_idx = 0; idx = 0
             while idx < len(chunk_queue):
+                original_lines = to_translate[idx*10 : (idx+1)*10]
                 chunk = chunk_queue[idx]; api_key = api_pool[current_key_idx]
-                await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : Translating chunk {idx+1}/{len(chunk_queue)}...")
+                await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪ𝐧𝐠] : Translating chunk {idx+1}/{len(chunk_queue)}...")
                 res = await translate_groq(chunk, api_key)
                 if res in ["429", "503"]:
                     current_key_idx += 1
@@ -380,8 +398,19 @@ async def process_translation(bot, cb, model_type, model_name):
                         await edit_msg(status_msg, f"⏳ All keys hit {res}. Waiting 60s..."); await asyncio.sleep(60); current_key_idx = 0
                     continue # Re-attempt current chunk with new key or after wait
                 if res.startswith("❌"): await edit_msg(status_msg, res); return
-                lines = res.split('\n')
-                translated_texts.extend(lines); idx += 1
+
+                # Robust extraction and fallback
+                extracted = re.findall(r'<t>(.*?)</t>', res, re.DOTALL)
+                for i, line in enumerate(original_lines):
+                    if i < len(extracted):
+                        trans_line = extracted[i].strip()
+                        if trans_line.lower().startswith(("i'm sorry", "error")):
+                            translated_texts.append(line)
+                        else:
+                            translated_texts.append(trans_line)
+                    else:
+                        translated_texts.append(line)
+                idx += 1
 
             final_events = []
             trans_idx = 0
