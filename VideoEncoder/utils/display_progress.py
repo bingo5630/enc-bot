@@ -3,6 +3,10 @@
 import asyncio
 import math
 import time
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .helper import edit_msg
 
 from .. import PROGRESS, LOGGER
 

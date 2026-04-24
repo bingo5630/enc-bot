@@ -9,6 +9,10 @@ import shutil
 import shlex
 import subprocess
 import time
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .helper import edit_msg
 
 from hachoir.metadata import extractMetadata
 from hachoir.parser import createParser

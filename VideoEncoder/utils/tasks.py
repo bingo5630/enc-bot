@@ -17,13 +17,17 @@ from .. import LOGGER, data, download_dir, video_mimetype
 from .database.access_db import db
 from .direct_link_generator import direct_link_generator
 from .display_progress import progress_for_pyrogram
-from .helper import delete_downloads, get_zip_folder, handle_encode, handle_extract, handle_url, handle_sub_extract, edit_msg
 from .uploads.drive import _get_file_id
 from .uploads.drive.download import Downloader
-from .encoding import get_media_streams
 from ..video_utils.audio_selector import AudioSelect
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .helper import delete_downloads, get_zip_folder, handle_encode, handle_extract, handle_url, handle_sub_extract, edit_msg
+    from .encoding import get_media_streams
 
 async def on_task_complete():
+    from .helper import delete_downloads
     delete_downloads()
     if not data:
         return
@@ -120,6 +124,7 @@ async def handle_tasks(message, mode, custom_name=None):
 
 
 async def tg_task(message, msg, quality=None, custom_name=None):
+    from .helper import handle_encode
     filepath = await handle_tg_down(message, msg)
     if not filepath:
         await edit_msg(msg, text="Download failed or no file found.")
@@ -129,6 +134,7 @@ async def tg_task(message, msg, quality=None, custom_name=None):
 
 
 async def sub_tg_task(message, msg):
+    from .helper import handle_sub_extract
     filepath = await handle_tg_down(message, msg)
     if not filepath:
         await edit_msg(msg, text="Download failed or no file found.")
@@ -137,6 +143,7 @@ async def sub_tg_task(message, msg):
 
 
 async def sub_url_task(message, msg):
+    from .helper import handle_sub_extract
     filepath = await handle_download_url(message, msg, False)
     if not filepath:
         return
@@ -144,6 +151,7 @@ async def sub_url_task(message, msg):
 
 
 async def interactive_task(message, msg, mode):
+    from .helper import edit_msg
     # message here is the video message which has subtitle_msg attached
     subtitle_msg = message.subtitle_msg
 
@@ -165,6 +173,8 @@ async def interactive_task(message, msg, mode):
 
 
 async def af_task(message, msg):
+    from .helper import handle_encode, edit_msg
+    from .encoding import get_media_streams
     filepath = await handle_tg_down(message, msg)
     if not filepath:
         await edit_msg(msg, text="Download failed or no file found.")
@@ -192,6 +202,7 @@ async def af_task(message, msg):
 
 
 async def url_task(message, msg):
+    from .helper import handle_encode, edit_msg
     filepath = await handle_download_url(message, msg, False)
     if not filepath:
         # Error handled in handle_download_url logic or implicit failure
@@ -201,6 +212,7 @@ async def url_task(message, msg):
 
 
 async def batch_task(message, msg):
+    from .helper import edit_msg, handle_encode
     if message.reply_to_message:
         filepath = await handle_tg_down(message, msg, mode='reply')
     else:
@@ -264,6 +276,7 @@ async def batch_task(message, msg):
 
 
 async def handle_download_url(message, msg, batch):
+    from .helper import handle_url, edit_msg
     url = message.text.split(None, 1)[1].strip()
     if 'drive.google.com' in url:
         file_id = _get_file_id(url)
@@ -304,6 +317,7 @@ async def handle_download_url(message, msg, batch):
 
 
 async def handle_tg_down(message, msg, mode='no_reply'):
+    from .helper import edit_msg, get_zip_folder, handle_extract
     c_time = time.time()
 
     # Determine what to download
