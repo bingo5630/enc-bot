@@ -28,7 +28,8 @@ SYSTEM_PROMPT = (
     "- If you see placeholders like __TAG_0__, __TAG_1__, keep them exactly as they are.\n"
     "- Each input line is wrapped in <t> and </t> tags. You MUST return each translated line wrapped in <t> and </t> tags.\n"
     "- Do NOT add any introductory text, explanations, or conclusions. Return ONLY the translated lines.\n"
-    "- Maintain the exact same number of lines as the input."
+    "- Maintain the exact same number of lines as the input.\n"
+    "- Respond ONLY with the translated subtitle lines. Do not wrap in JSON, do not use Markdown code blocks, do not explain your changes."
 )
 
 TRANSLATE_PIC = "https://graph.org/file/600586a9a49029c2e98f1-90c27ea7986142ea7a.jpg"
@@ -153,7 +154,8 @@ async def translate_groq(chunk_text, api_key):
                 response = await client.post(url, headers=headers, json=payload, timeout=60.0)
                 if response.status_code == 200:
                     data = response.json(); translated_text = data['choices'][0]['message']['content'].strip()
-                    translated_text = re.sub(r'```[a-z]*\n|```', '', translated_text)
+                    print(f"DEBUG Groq Response: {translated_text}")
+                    translated_text = translated_text.replace('```json', '').replace('```', '').strip()
                     await asyncio.sleep(5); return translated_text
                 elif response.status_code in [429, 503]:
                     return str(response.status_code)
