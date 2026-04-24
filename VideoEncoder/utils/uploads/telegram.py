@@ -5,11 +5,10 @@ import time
 from pyrogram.enums import ParseMode
 from ... import app, download_dir, log, LOGGER, ASSETS_DIR
 from ..database.access_db import db
-from ..display_progress import progress_for_pyrogram
-from ..encoding import get_duration, get_width_height
 
 
 async def upload_to_tg(new_file, message, msg, caption=None, reply_markup=None):
+    from ..encoding import get_duration, get_width_height
     # Variables
     c_time = time.time()
     filename = os.path.basename(new_file)
@@ -39,6 +38,7 @@ async def upload_to_tg(new_file, message, msg, caption=None, reply_markup=None):
 
 
 async def upload_video(message, msg, new_file, filename, c_time, thumb, duration, width, height, caption=None, reply_markup=None):
+    from ..display_progress import progress_for_pyrogram
     try:
         if thumb:
             print(f"DEBUG: Does file exist? {os.path.exists(thumb)}")
@@ -71,6 +71,7 @@ async def upload_video(message, msg, new_file, filename, c_time, thumb, duration
 
 
 async def upload_doc(message, msg, c_time, filename, new_file, thumb=None, caption=None, reply_markup=None):
+    from ..display_progress import progress_for_pyrogram
     try:
         if thumb:
             print(f"DEBUG: Does file exist? {os.path.exists(thumb)}")

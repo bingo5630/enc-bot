@@ -9,7 +9,6 @@ from pySmartDL import SmartDL
 
 from .. import all, everyone, owner, sudo_users, download_dir, encode_dir, LOGGER
 from .database.access_db import db
-from .encoding import encode, extract_subs, extract_subtitle, hard_sub, soft_code
 from .uploads import upload_worker
 from .uploads.telegram import upload_doc
 
@@ -80,6 +79,7 @@ async def handle_url(url, filepath, msg):
 
 
 async def handle_sub_extract(filepath, message, msg):
+    from .encoding import extract_subtitle
     await msg.edit("Processing... ⏳")
     result = await extract_subtitle(filepath)
     if os.path.isfile(result):
@@ -100,6 +100,7 @@ async def handle_sub_extract(filepath, message, msg):
 
 
 async def handle_encode(filepath, message, msg, audio_map=None, quality=None, custom_name=None):
+    from .encoding import encode, extract_subs
     sub_path = os.path.join(encode_dir, str(msg.id) + '.ass')
     new_file = None
     try:
@@ -167,6 +168,7 @@ async def handle_encode(filepath, message, msg, audio_map=None, quality=None, cu
 
 
 async def handle_interactive_encode(video_path, sub_path, message, msg, mode, quality=None):
+    from .encoding import encode, hard_sub, soft_code
     # Ensure sub_path is named correctly for encode if needed
     sub_dest = os.path.join(encode_dir, str(msg.id) + '.ass')
     if sub_path != sub_dest:

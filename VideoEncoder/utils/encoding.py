@@ -16,8 +16,6 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from .. import LOGGER, download_dir, encode_dir, ASSETS_DIR
 from .database.access_db import db
-from .display_progress import TimeFormatter
-from .helper import edit_msg
 
 def cleanup_temp_subs(msg_id=None):
     """Clear any previous subtitle cache or temporary .srt/.ass files.
@@ -203,6 +201,7 @@ async def get_metadata_flags(user_id):
     return flags
 
 async def encode(filepath, message, msg, audio_map=None, quality=None, custom_name=None):
+    from .helper import edit_msg
     cleanup_temp_subs(msg.id)
     filepath = os.path.abspath(filepath)
     ex = await db.get_extensions(message.from_user.id)
@@ -667,6 +666,7 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
 
 
 async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
+    from .helper import edit_msg
     cleanup_temp_subs(msg.id)
     filepath = os.path.abspath(filepath)
     subtitles_path = os.path.abspath(subtitles_path)
@@ -819,6 +819,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
 
 
 async def soft_code(filepath, subtitles_path, message, msg, quality=None):
+    from .helper import edit_msg
     cleanup_temp_subs(msg.id)
     filepath = os.path.abspath(filepath)
     subtitles_path = os.path.abspath(subtitles_path)
@@ -1057,6 +1058,7 @@ async def media_info(saved_file_path):
 
 
 async def handle_progress(proc, msg, message, filepath):
+    from .helper import edit_msg
     name = os.path.basename(filepath)
     COMPRESSION_START_TIME = time.time()
     total_time = get_duration(filepath)
