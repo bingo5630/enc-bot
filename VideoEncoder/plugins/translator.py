@@ -19,6 +19,7 @@ SYSTEM_PROMPT = (
     "VOCABULARY FILTER:\n"
     "- STRICT BAN: No 'Bookish' Hindi (Kintu, Parantu, Bhojan).\n"
     "- MANDATORY: Use 'Woh' instead of 'Voh', 'Lekin' instead of 'Magar'.\n"
+    "- Replace 'use' with 'usey' (e.g., 'Usey bol do' instead of 'Use bol do').\n"
     "- Keep common English words (Sorry, Thanks, School, Late, Okay) in English.\n\n"
     "Maintain original line-by-line structure. No explanations."
 )
@@ -348,7 +349,7 @@ async def process_translation(bot, cb, model_type, model_name):
             translated_content = "\n".join(header) + "\n" + "\n".join(final_events)
         output_filename = os.path.splitext(file_name)[0] + "_Hinglish" + os.path.splitext(file_name)[1]
         output_path = os.path.join(download_dir, output_filename)
-        with open(output_path, "w", encoding="utf-8-sig") as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             f.write(translated_content)
 
         caption = f"✅ Translated by AI (Hinglish)\nFile: <code>{output_filename}</code>"

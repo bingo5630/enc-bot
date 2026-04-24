@@ -312,11 +312,11 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
                 subtitles = ''
             else:
                 if ex == 'MP4':
-                    subtitles = '-c:s mov_text -c:t copy -map 0:t? -map 0:s?'
+                    subtitles = '-c:s mov_text -c:t copy -map 0:t?'
                 elif ex == 'AVI':
                     subtitles = ''
                 else:
-                    subtitles = '-c:s copy -c:t copy -map 0:t? -map 0:s?'
+                    subtitles = '-c:s copy -c:t copy -map 0:t?'
         else:
             subtitles = ''
 
@@ -524,7 +524,7 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
     # Input 0: Video
     # Input 1: Thumbnail (Optional)
     # Input 2: Watermark (Optional)
-    command = ['ffmpeg', '-hide_banner', '-hwaccel', 'auto', '-y', '-copyts', '-vsync', 'cfr', '-sub_charenc', 'utf-8-sig', '-i', filepath]
+    command = ['ffmpeg', '-hide_banner', '-hwaccel', 'auto', '-y', '-copyts', '-vsync', 'cfr', '-sub_charenc', 'UTF-8', '-i', filepath]
 
     if thumb_path:
         command.extend(['-i', thumb_path])
@@ -568,13 +568,19 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
     command.extend(audio_opts.split())
     command.extend(channels.split())
 
+    # Determine subtitle mapping based on hardsub setting
+    subtitle_map = ['-map', '0:s?'] if not h else []
+
     if thumb_path:
         # Strict requested mapping: -map 0 -map 1 -c:v:1 png -disposition:v:1 attached_pic
         # We mapped [v_out] or 0:v:0 as the first stream already.
         # Now map the rest of 0, then map 1 for thumb.
-        command.extend(['-map', '0:a?', '-map', '0:s?', '-map', '1:v', '-c:v:1', 'png', '-disposition:v:1', 'attached_pic'])
+        command.extend(['-map', '0:a?'])
+        command.extend(subtitle_map)
+        command.extend(['-map', '1:v', '-c:v:1', 'png', '-disposition:v:1', 'attached_pic'])
     else:
-        command.extend(['-map', '0:a?', '-map', '0:s?'])
+        command.extend(['-map', '0:a?'])
+        command.extend(subtitle_map)
 
     command.extend(finish.split())
 
@@ -696,7 +702,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     command = [
         'ffmpeg', '-hide_banner',
         '-hwaccel', 'auto', '-y', '-copyts', '-vsync', 'cfr',
-        '-sub_charenc', 'utf-8-sig', '-i', filepath
+        '-sub_charenc', 'UTF-8', '-i', filepath
     ]
 
     if thumb_path:
@@ -729,9 +735,9 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     if thumb_path:
         # User requested mapping logic: -map 0 -map 1 -c:v:1 png -disposition:v:1 attached_pic
         # Input 0: Video, Input 1: Thumbnail
-        command.extend(['-map', '0:a?', '-map', '0:s?', '-map', '1:v', '-c:v:1', 'png', '-disposition:v:1', 'attached_pic'])
+        command.extend(['-map', '0:a?', '-map', '1:v', '-c:v:1', 'png', '-disposition:v:1', 'attached_pic'])
     else:
-        command.extend(['-map', '0:a?', '-map', '0:s?'])
+        command.extend(['-map', '0:a?'])
     command.extend(adv_metadata)
 
     print(f"FFMPEG COMMAND (hard_sub): {' '.join(command + [output_filepath])}")
@@ -799,7 +805,7 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
         # Inputs: 0: Video, 1: Subtitle, 2: Thumbnail (Optional), 3: Watermark (Optional)
         command = [
             'ffmpeg', '-hide_banner',
-            '-y', '-copyts', '-vsync', 'cfr', '-sub_charenc', 'utf-8-sig', '-i', filepath, '-sub_charenc', 'utf-8-sig', '-i', subtitles_path
+            '-y', '-copyts', '-vsync', 'cfr', '-sub_charenc', 'UTF-8', '-i', filepath, '-sub_charenc', 'UTF-8', '-i', subtitles_path
         ]
 
         if thumb_path:
@@ -823,9 +829,9 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
             else:
                 filter_str += f"[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[wm];"
                 filter_str += f"[0:v:0][wm]overlay=W-w-10:10[v_out]"
-            command.extend(['-filter_complex', filter_str, '-map', '[v_out]', '-map', '1:s'])
+            command.extend(['-filter_complex', filter_str, '-map', '[v_out]'])
         else:
-            command.extend(['-vf', ",".join(vf_list), '-map', '0:v:0', '-map', '1:s'])
+            command.extend(['-vf', ",".join(vf_list), '-map', '0:v:0'])
 
         command.extend([
             '-c:v', 'libx264', '-preset', 'faster', '-crf', crf
@@ -834,13 +840,13 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
         command.extend(['-c:a', 'copy', '-c:s', 'copy'])
 
         if thumb_path:
-            command.extend(['-map', '0:a?', '-map', '0:s?', '-map', '1:s', '-map', '2:v', '-c:v:1', 'png', '-disposition:v:1', 'attached_pic'])
+            command.extend(['-map', '0:a?', '-map', '1:s', '-map', '2:v', '-c:v:1', 'png', '-disposition:v:1', 'attached_pic'])
         else:
-            command.extend(['-map', '0:a?', '-map', '0:s?', '-map', '1:s'])
+            command.extend(['-map', '0:a?', '-map', '1:s'])
     else:
         command = [
             'ffmpeg', '-hide_banner',
-            '-y', '-copyts', '-vsync', 'cfr', '-sub_charenc', 'utf-8-sig', '-i', filepath, '-sub_charenc', 'utf-8-sig', '-i', subtitles_path
+            '-y', '-copyts', '-vsync', 'cfr', '-sub_charenc', 'UTF-8', '-i', filepath, '-sub_charenc', 'UTF-8', '-i', subtitles_path
         ]
 
         if thumb_path:
@@ -851,12 +857,12 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
 
         if thumb_path:
             command.extend([
-                '-map', '0:v:0', '-map', '0:a?', '-map', '0:s?', '-map', '1:s', '-map', '2:v',
+                '-map', '0:v:0', '-map', '0:a?', '-map', '1:s', '-map', '2:v',
                 '-c', 'copy', '-c:v:1', 'png', '-disposition:v:1', 'attached_pic'
             ])
         else:
             command.extend([
-                '-map', '0:v:0', '-map', '0:a?', '-map', '0:s?', '-map', '1:s',
+                '-map', '0:v:0', '-map', '0:a?', '-map', '1:s',
                 '-c', 'copy'
             ])
 
