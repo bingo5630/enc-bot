@@ -26,7 +26,8 @@ along with this program. If not, see .'''
 
 @Client.on_message(filters.command('so' 'ur' 'ce'))
 async def g_s(_, message):
+    from .common import output
     try:
-        await message.reply(text=sauce, reply_markup=helper.output, disable_web_page_preview=True)
+        await message.reply(text=sauce, reply_markup=output, disable_web_page_preview=True)
     except RPCError:
         pass

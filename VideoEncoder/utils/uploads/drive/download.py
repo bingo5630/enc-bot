@@ -134,7 +134,7 @@ class Downloader(DriveAPI):
             fh.close()
 
     async def handle_drive(self, msg, url: str, custom_file_name: str, batch: bool):
-        from ...helper import edit_msg
+        from ...common import edit_msg
         file_id = _get_file_id(url)
         drive_file = self.service.files().get(fileId=file_id, fields="id, name, mimeType",
                                               supportsTeamDrives=True).execute()

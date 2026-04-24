@@ -1,4 +1,4 @@
-from ..utils.helper import edit_msg
+from ..utils.common import edit_msg
 
 
 import datetime
@@ -15,7 +15,8 @@ from ..utils.database.access_db import db
 from ..utils.settings import (AudioSettings, ExtraSettings, OpenSettings,
                               VideoSettings)
 from .start import showw_status, START_MSG, START_PIC
-from ..utils.helper import check_chat, output, start_but
+from ..utils.helper import check_chat
+from ..utils.common import output, start_but
 from ..video_utils.audio_selector import sessions
 
 

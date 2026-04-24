@@ -1,4 +1,4 @@
-from ..utils.helper import edit_msg
+from ..utils.common import edit_msg
 from VideoEncoder import LOGGER
 from asyncio import gather
 from psutil import cpu_percent, virtual_memory, disk_usage, net_io_counters

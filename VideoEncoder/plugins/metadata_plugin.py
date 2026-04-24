@@ -1,4 +1,4 @@
-from ..utils.helper import edit_msg
+from ..utils.common import edit_msg
 from VideoEncoder import LOGGER
 
 from pyrogram import Client, filters

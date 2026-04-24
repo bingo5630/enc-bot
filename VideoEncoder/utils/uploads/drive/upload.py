@@ -82,7 +82,7 @@ class Uploader(DriveAPI):
         return str(text)
 
     async def upload_to_drive(self, new_file, message, msg):
-        from ...helper import edit_msg
+        from ...common import edit_msg
         await edit_msg(msg, text="<code>Uploading...</code>")
         submit_thread(self.uploadFile, new_file, drive_dir)
         while not self._is_finished:

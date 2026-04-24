@@ -1,4 +1,4 @@
-from ..utils.helper import edit_msg
+from ..utils.common import edit_msg
 from VideoEncoder import LOGGER
 
 
@@ -20,7 +20,8 @@ from .. import botStartTime, download_dir, encode_dir
 from ..utils.database.access_db import db
 from ..utils.database.add_user import AddUserToDatabase
 from ..utils.display_progress import TimeFormatter, humanbytes
-from ..utils.helper import check_chat, delete_downloads, start_but
+from ..utils.helper import check_chat, delete_downloads
+from ..utils.common import start_but
 
 SIZE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
 

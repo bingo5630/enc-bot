@@ -11,7 +11,7 @@ SETTINGS_PIC = "https://graph.org/file/a232c9818402f81093feb-383081a21200f77ae8.
 
 # Settings
 async def OpenSettings(event: Message, user_id: int):
-    from .helper import edit_msg
+    from .common import edit_msg
     from .database.access_db import db
     from .database.add_user import AddUserToDatabase
     try:
@@ -41,7 +41,7 @@ async def OpenSettings(event: Message, user_id: int):
 
 # Video Settings
 async def VideoSettings(event: Message, user_id: int):
-    from .helper import edit_msg
+    from .common import edit_msg
     from .database.access_db import db
     try:
         ex = await db.get_extensions(user_id)
@@ -156,7 +156,7 @@ async def VideoSettings(event: Message, user_id: int):
 
 
 async def AudioSettings(event: Message, user_id: int):
-    from .helper import edit_msg
+    from .common import edit_msg
     from .database.access_db import db
     try:
 
@@ -253,7 +253,7 @@ async def AudioSettings(event: Message, user_id: int):
 
 
 async def ExtraSettings(event: Message, user_id: int):
-    from .helper import edit_msg
+    from .common import edit_msg
     from .database.access_db import db
     try:
         text = "Here's Your Subtitle Settings"

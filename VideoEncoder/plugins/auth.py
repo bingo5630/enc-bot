@@ -5,7 +5,8 @@ from pyrogram import Client, filters
 
 from .. import everyone, sudo_users
 from ..utils.database.access_db import db
-from ..utils.helper import check_chat, output
+from ..utils.helper import check_chat
+from ..utils.common import output
 
 
 @Client.on_message(filters.command(['addchat', 'add_chat']))

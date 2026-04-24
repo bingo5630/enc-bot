@@ -1,4 +1,4 @@
-from ..utils.helper import edit_msg
+from ..utils.common import edit_msg
 import asyncio
 from asyncio import Event, wait_for
 from time import time

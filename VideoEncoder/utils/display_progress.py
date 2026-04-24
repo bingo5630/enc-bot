@@ -8,7 +8,7 @@ from .. import PROGRESS, LOGGER
 
 
 async def progress_for_pyrogram(current, total, ud_type, message, start):
-    from .helper import edit_msg
+    from .common import edit_msg
     now = time.time()
     diff = now - start
     if round(diff % 5.00) == 0 or current == total:
