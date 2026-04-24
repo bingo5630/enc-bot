@@ -9,7 +9,6 @@ from pySmartDL import SmartDL
 
 from .. import all, everyone, owner, sudo_users, download_dir, encode_dir, LOGGER
 from .database.access_db import db
-from .display_progress import progress_for_url
 from .encoding import encode, extract_subs, extract_subtitle, hard_sub, soft_code
 from .uploads import upload_worker
 from .uploads.telegram import upload_doc
@@ -73,6 +72,7 @@ async def check_chat(message, chat):
 
 
 async def handle_url(url, filepath, msg):
+    from .display_progress import progress_for_url
     downloader = SmartDL(url, filepath, progress_bar=False, threads=10)
     downloader.start(blocking=False)
     while not downloader.isFinished():
