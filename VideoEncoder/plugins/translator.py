@@ -19,9 +19,9 @@ SYSTEM_PROMPT = (
     "VOCABULARY FILTER:\n"
     "- STRICT BAN: No 'Bookish' Hindi (Kintu, Parantu, Bhojan).\n"
     "- MANDATORY: Use 'Woh' instead of 'Voh', 'Lekin' instead of 'Magar'.\n"
-    "- Always use 'usey' instead of 'use'. Use 'usey' in ALL contexts. (e.g., 'Usey bol do' instead of 'Use bol do').\n"
+    "- CRITICAL: Always use 'usey' instead of 'use' always. Use 'usey' in ALL contexts. (e.g., 'Usey bol do' instead of 'Use bol do').\n"
     "- Keep common English words (Sorry, Thanks, School, Late, Okay) in English.\n\n"
-    "Maintain original line-by-line structure. No explanations."
+    "Maintain original line-by-line structure. No explanations. You MUST return exactly the same number of lines as the input. DO NOT skip any lines or merge them."
 )
 
 TRANSLATE_PIC = "https://graph.org/file/600586a9a49029c2e98f1-90c27ea7986142ea7a.jpg"

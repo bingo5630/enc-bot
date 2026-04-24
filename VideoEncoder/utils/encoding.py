@@ -18,6 +18,37 @@ from .. import LOGGER, download_dir, encode_dir, ASSETS_DIR
 from .database.access_db import db
 from .display_progress import TimeFormatter
 
+def cleanup_temp_subs(msg_id=None):
+    """Clear any previous subtitle cache or temporary .srt/.ass files.
+    If msg_id is provided, only deletes files for that specific job."""
+    if not os.path.exists(encode_dir):
+        return
+    for file in os.listdir(encode_dir):
+        if file.endswith((".srt", ".ass")):
+            if msg_id and str(msg_id) not in file:
+                continue
+            try:
+                os.remove(os.path.join(encode_dir, file))
+            except Exception as e:
+                LOGGER.error(f"Failed to delete temp subtitle {file}: {e}")
+
+def get_fps(filepath):
+    try:
+        cmd = [
+            'ffprobe', '-v', 'error', '-select_streams', 'v:0',
+            '-show_entries', 'stream=r_frame_rate', '-of',
+            'default=noprint_wrappers=1:nokey=1', filepath
+        ]
+        output = subprocess.check_output(cmd).decode('utf-8').strip()
+        if '/' in output:
+            num, den = map(int, output.split('/'))
+            if den == 0:
+                return 0
+            return round(num / den, 3)
+        return round(float(output), 3)
+    except Exception as e:
+        LOGGER.error(f"get_fps failed: {e}")
+        return 0
 
 def get_codec(filepath, channel='v:0'):
     try:
@@ -82,7 +113,15 @@ async def extract_subtitle(filepath):
     path, _ = os.path.splitext(filepath)
     output = f"{path}{ext}"
 
-    command = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-copyts', '-i', filepath, '-map', f'0:s:{sub_index}', output]
+    # Only remove the target file if it already exists
+    if os.path.exists(output):
+        try:
+            os.remove(output)
+        except:
+            pass
+
+    # Use strict rules: map 0:s:0, accurate_seek, copyts
+    command = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-accurate_seek', '-copyts', '-i', filepath, '-map', '0:s:0', output]
 
     proc = await asyncio.create_subprocess_exec(*command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     _, stderr = await proc.communicate()
@@ -97,7 +136,7 @@ async def extract_subtitle(filepath):
 
 
 async def extract_subs(filepath, msg, user_id):
-
+    cleanup_temp_subs(msg.id)
     path, extension = os.path.splitext(filepath)
     name = os.path.basename(path)
     check = get_codec(filepath, channel='s:0')
@@ -109,7 +148,8 @@ async def extract_subs(filepath, msg, user_id):
         output = os.path.join(encode_dir, str(msg.id) + '.ass')
 
     try:
-        subprocess.call(['ffmpeg', '-y', '-copyts', '-i', filepath, '-map', 's:0', output])
+        # Use strict rules: map 0:s:0, accurate_seek, copyts
+        subprocess.call(['ffmpeg', '-y', '-accurate_seek', '-copyts', '-i', filepath, '-map', '0:s:0', output])
         # mkvextract might not be in PATH on Windows, handle gracefully
         try:
             subprocess.call(['mkvextract', 'attachments', filepath, '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16',
@@ -162,6 +202,7 @@ async def get_metadata_flags(user_id):
     return flags
 
 async def encode(filepath, message, msg, audio_map=None, quality=None, custom_name=None):
+    cleanup_temp_subs(msg.id)
     filepath = os.path.abspath(filepath)
     ex = await db.get_extensions(message.from_user.id)
     path, extension = os.path.splitext(filepath)
@@ -398,8 +439,8 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
         # Ensure path is absolute and correctly escaped for FFmpeg subtitles filter
         subtitles_path = os.path.abspath(subtitles_path)
         escaped_sub_path = subtitles_path.replace(":", "\\:")
-        # Ensure selected_font is used and fallback to system font if it fails (handled by FFmpeg usually, but we set it)
-        vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize={font_size},Outline=2,Shadow=1'")
+        # Force FontSize=22 and original_size=1920x1080 as requested
+        vf_list.append(f"subtitles='{escaped_sub_path}':original_size=1920x1080:force_style='FontName={selected_font},FontSize=22,Outline=2,Shadow=1.5'")
 
     if vf_list:
         watermark = "-vf " + ",".join(vf_list)
@@ -524,7 +565,7 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
     # Input 0: Video
     # Input 1: Thumbnail (Optional)
     # Input 2: Watermark (Optional)
-    command = ['ffmpeg', '-hide_banner', '-hwaccel', 'auto', '-y', '-copyts', '-sub_charenc', 'UTF-8', '-i', filepath]
+    command = ['ffmpeg', '-hide_banner', '-hwaccel', 'auto', '-y', '-accurate_seek', '-copyts', '-sub_charenc', 'UTF-8', '-i', filepath]
 
     if thumb_path:
         command.extend(['-i', thumb_path])
@@ -551,7 +592,6 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
 
     # Combine mapping
     command.extend(video_map_arg)
-    command.extend(codec.split())
     command.extend(preset.split())
     command.extend(frame.split())
     command.extend(tunevideo.split())
@@ -568,15 +608,28 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
     command.extend(audio_opts.split())
     command.extend(channels.split())
 
-    # Determine subtitle mapping based on hardsub setting
-    subtitle_map = ['-map', '0:s?'] if not h else []
+    # Audio Mapping
+    if audio_map:
+        for idx in audio_map:
+            command.extend(['-map', f'0:{idx}'])
+        command.extend(['-disposition:a:0', 'default'])
+    else:
+        command.extend(['-map', '0:a?'])
+
+    # Subtitle Mapping
+    if not h:
+        command.extend(['-map', '0:s?'])
+        if subtitles:
+            command.extend(subtitles.split())
+        if ex != 'AVI':
+            command.extend(['-map', '0:t?'])
 
     if thumb_path:
-        # Simplified mapping: -map 0 -map 1 -c copy -c:v:1 mjpeg -disposition:v:1 attached_pic
-        command.extend(['-map', '0:a?', '-map', '0:s?'])
-        command.extend(['-map', '1:v', '-c:v:1', 'mjpeg', '-disposition:v:1', 'attached_pic'])
-    else:
-        command.extend(['-map', '0:a?', '-map', '0:s?'])
+        # User requested direct mapping: -map 0:v:0 -map 0:a -map 1:v:0 -c:v:1 mjpeg -disposition:v:1 attached_pic
+        # video_map_arg was already added.
+        command.extend(['-map', '1:v:0', '-c:v:1', 'mjpeg', '-disposition:v:1', 'attached_pic'])
+
+    command.extend(codec.split())
 
     command.extend(finish.split())
 
@@ -601,10 +654,19 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
             os.remove(output_filepath)
         return None, stderr_log
 
+    # FPS Verification
+    in_fps = get_fps(filepath)
+    out_fps = get_fps(output_filepath)
+    if out_fps != in_fps:
+         LOGGER.warning(f"FPS Mismatch! Source: {in_fps}, Output: {out_fps}")
+    if out_fps != 23.976:
+         LOGGER.warning(f"Output FPS is {out_fps}, not 23.976 as requested.")
+
     return output_filepath, stderr_log
 
 
 async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
+    cleanup_temp_subs(msg.id)
     filepath = os.path.abspath(filepath)
     subtitles_path = os.path.abspath(subtitles_path)
     ex = await db.get_extensions(message.from_user.id)
@@ -671,7 +733,8 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     # Ensure path is absolute and correctly escaped for FFmpeg subtitles filter
     subtitles_path = os.path.abspath(subtitles_path)
     escaped_sub_path = subtitles_path.replace(":", "\\:")
-    vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize={font_size},Outline=2,Shadow=1'")
+    # Force FontSize=22 and original_size=1920x1080 as requested
+    vf_list.append(f"subtitles='{escaped_sub_path}':original_size=1920x1080:force_style='FontName={selected_font},FontSize=22,Outline=2,Shadow=1.5'")
 
     # Thumbnail injection
     user_id = message.from_user.id
@@ -697,7 +760,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     # Input 2: Watermark (Optional)
     command = [
         'ffmpeg', '-hide_banner',
-        '-hwaccel', 'auto', '-y', '-copyts',
+        '-hwaccel', 'auto', '-y', '-accurate_seek', '-copyts',
         '-sub_charenc', 'UTF-8', '-i', filepath
     ]
 
@@ -718,22 +781,23 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
         filter_str = f"[0:v:0]{','.join(vf_list)}[vbase];"
         filter_str += f"[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[wm];"
         filter_str += f"[vbase][wm]overlay=W-w-10:10[v_out]"
-        command.extend(['-filter_complex', filter_str, '-map', '[v_out]'])
+        command.extend(['-filter_complex', filter_str])
+        video_map_arg = ['-map', '[v_out]']
     else:
-        command.extend(['-vf', ",".join(vf_list), '-map', '0:v:0'])
+        command.extend(['-vf', ",".join(vf_list)])
+        video_map_arg = ['-map', '0:v:0']
+
+    command.extend(video_map_arg)
 
     command.extend([
         '-c:v', 'libx264', '-preset', 'superfast', '-crf', crf, '-r', '24000/1001'
     ])
     command.extend(v_bitrate)
-    command.extend(['-c:a', 'copy'])
+    command.extend(['-c:a', 'copy', '-map', '0:a?'])
 
     if thumb_path:
-        # User requested mapping logic: -map 0 -map 1 -c:v:1 mjpeg -disposition:v:1 attached_pic
-        # Input 0: Video, Input 1: Thumbnail
-        command.extend(['-map', '0:a?', '-map', '1:v', '-c:v:1', 'mjpeg', '-disposition:v:1', 'attached_pic'])
-    else:
-        command.extend(['-map', '0:a?'])
+        # User requested direct mapping: -map 0:v:0 -map 0:a -map 1:v:0 -c:v:1 mjpeg -disposition:v:1 attached_pic
+        command.extend(['-map', '1:v:0', '-c:v:1', 'mjpeg', '-disposition:v:1', 'attached_pic'])
     command.extend(adv_metadata)
 
     print(f"FFMPEG COMMAND (hard_sub): {' '.join(command + [output_filepath])}")
@@ -748,10 +812,20 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
 
     if not os.path.isfile(output_filepath) or os.path.getsize(output_filepath) == 0:
         return None, stderr_log
+
+    # FPS Verification
+    in_fps = get_fps(filepath)
+    out_fps = get_fps(output_filepath)
+    if out_fps != in_fps:
+         LOGGER.warning(f"FPS Mismatch! Source: {in_fps}, Output: {out_fps}")
+    if out_fps != 23.976:
+         LOGGER.warning(f"Output FPS is {out_fps}, not 23.976 as requested.")
+
     return output_filepath, stderr_log
 
 
 async def soft_code(filepath, subtitles_path, message, msg, quality=None):
+    cleanup_temp_subs(msg.id)
     filepath = os.path.abspath(filepath)
     subtitles_path = os.path.abspath(subtitles_path)
     ex = await db.get_extensions(message.from_user.id)
@@ -801,7 +875,7 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
         # Inputs: 0: Video, 1: Subtitle, 2: Thumbnail (Optional), 3: Watermark (Optional)
         command = [
             'ffmpeg', '-hide_banner',
-            '-y', '-copyts', '-i', filepath,
+            '-y', '-accurate_seek', '-copyts', '-i', filepath,
             '-fix_sub_duration', '-sub_charenc', 'UTF-8', '-i', subtitles_path
         ]
 
@@ -826,24 +900,26 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
             else:
                 filter_str += f"[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[wm];"
                 filter_str += f"[0:v:0][wm]overlay=W-w-10:10[v_out]"
-            command.extend(['-filter_complex', filter_str, '-map', '[v_out]'])
+            command.extend(['-filter_complex', filter_str])
+            video_map_arg = ['-map', '[v_out]']
         else:
-            command.extend(['-vf', ",".join(vf_list), '-map', '0:v:0'])
+            command.extend(['-vf', ",".join(vf_list)])
+            video_map_arg = ['-map', '0:v:0']
+
+        command.extend(video_map_arg)
 
         command.extend([
             '-c:v', 'libx264', '-preset', 'superfast', '-crf', crf, '-r', '24000/1001'
         ])
         command.extend(v_bitrate)
-        command.extend(['-c:a', 'copy', '-c:s', 'copy'])
+        command.extend(['-c:a', 'copy', '-c:s', 'copy', '-map', '0:a?', '-map', '1:s'])
 
         if thumb_path:
-            command.extend(['-map', '0:a?', '-map', '1:s', '-map', '2:v', '-c:v:1', 'mjpeg', '-disposition:v:1', 'attached_pic'])
-        else:
-            command.extend(['-map', '0:a?', '-map', '1:s'])
+            command.extend(['-map', '2:v:0', '-c:v:1', 'mjpeg', '-disposition:v:1', 'attached_pic'])
     else:
         command = [
             'ffmpeg', '-hide_banner',
-            '-y', '-copyts', '-i', filepath,
+            '-y', '-accurate_seek', '-copyts', '-i', filepath,
             '-fix_sub_duration', '-sub_charenc', 'UTF-8', '-i', subtitles_path
         ]
 
@@ -854,8 +930,9 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
             thumb_input_index = -1
 
         if thumb_path:
+            command.extend(['-i', thumb_path])
             command.extend([
-                '-map', '0:v:0', '-map', '0:a?', '-map', '1:s', '-map', '2:v',
+                '-map', '0:v:0', '-map', '0:a?', '-map', '1:s', '-map', '2:v:0',
                 '-c', 'copy', '-c:v:1', 'mjpeg', '-disposition:v:1', 'attached_pic'
             ])
         else:
@@ -883,6 +960,15 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
 
     if not os.path.isfile(output_filepath) or os.path.getsize(output_filepath) == 0:
         return None, stderr_log
+
+    # FPS Verification
+    in_fps = get_fps(filepath)
+    out_fps = get_fps(output_filepath)
+    if out_fps != in_fps:
+         LOGGER.warning(f"FPS Mismatch! Source: {in_fps}, Output: {out_fps}")
+    if out_fps != 23.976:
+         LOGGER.warning(f"Output FPS is {out_fps}, not 23.976 as requested.")
+
     return output_filepath, stderr_log
 
 
