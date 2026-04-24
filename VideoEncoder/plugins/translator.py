@@ -19,7 +19,7 @@ SYSTEM_PROMPT = (
     "VOCABULARY FILTER:\n"
     "- STRICT BAN: No 'Bookish' Hindi (Kintu, Parantu, Bhojan).\n"
     "- MANDATORY: Use 'Woh' instead of 'Voh', 'Lekin' instead of 'Magar'.\n"
-    "- Use 'usey' instead of 'use' in ALL contexts. (e.g., 'Usey bol do' instead of 'Use bol do').\n"
+    "- Always use 'usey' instead of 'use'. Use 'usey' in ALL contexts. (e.g., 'Usey bol do' instead of 'Use bol do').\n"
     "- Keep common English words (Sorry, Thanks, School, Late, Okay) in English.\n\n"
     "Maintain original line-by-line structure. No explanations."
 )
@@ -290,8 +290,8 @@ async def process_translation(bot, cb, model_type, model_name):
                 if not playresy_found: new_header.insert(1, 'PlayResY: 1080'); res_y = 1080
                 if not playresx_found: new_header.insert(1, 'PlayResX: 1920')
 
-            # Dynamic Fontsize Calculation: 1080p: 44, 720p: 50, 480p: 30
-            if res_y >= 1080: f_size = 44
+            # Dynamic Fontsize Calculation: 1080p: 24, 720p: 50, 480p: 30
+            if res_y >= 1080: f_size = 24
             elif res_y >= 720: f_size = 50
             else: f_size = 30
 
@@ -305,7 +305,7 @@ async def process_translation(bot, cb, model_type, model_name):
                         parts[5] = '&H00000000' # OutlineColour (Black)
                         parts[15] = '1' # BorderStyle
                         parts[16] = '2' # Outline
-                        parts[17] = '1.5' # Shadow
+                        parts[17] = '1' # Shadow
                         final_header.append(",".join(parts))
                     else:
                         final_header.append(line_h)

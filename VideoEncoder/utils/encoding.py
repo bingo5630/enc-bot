@@ -281,7 +281,7 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
     elif p == 'm':
         preset = '-preset medium'
     else:
-        preset = '-preset slow'
+        preset = '-preset superfast'
 
     # Some Optional Things
     x265 = await db.get_hevc(message.from_user.id)
@@ -341,12 +341,12 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
     elif quality == '720p':
         font_size = 50
     elif quality == '1080p':
-        font_size = 44
+        font_size = 24
     else:
         # Check resolution setting
         r_db = await db.get_resolution(message.from_user.id)
         if r_db == '1080':
-            font_size = 44
+            font_size = 24
         elif r_db == '720':
             font_size = 50
         elif r_db in ['480', '576']:
@@ -355,7 +355,7 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
             # Analyze resolution
             _, height = get_width_height(filepath)
             if height >= 1080:
-                font_size = 44
+                font_size = 24
             elif height >= 720:
                 font_size = 50
             else:
@@ -399,7 +399,7 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
         subtitles_path = os.path.abspath(subtitles_path)
         escaped_sub_path = subtitles_path.replace(":", "\\:")
         # Ensure selected_font is used and fallback to system font if it fails (handled by FFmpeg usually, but we set it)
-        vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize={font_size},Outline=2,Shadow=1.5,BorderStyle=1,OutlineColour=&H00000000'")
+        vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize={font_size},Outline=2,Shadow=1'")
 
     if vf_list:
         watermark = "-vf " + ",".join(vf_list)
@@ -524,7 +524,7 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
     # Input 0: Video
     # Input 1: Thumbnail (Optional)
     # Input 2: Watermark (Optional)
-    command = ['ffmpeg', '-hide_banner', '-hwaccel', 'auto', '-y', '-copyts', '-avoid_negative_ts', 'make_zero', '-vsync', 'cfr', '-sub_charenc', 'UTF-8', '-i', filepath]
+    command = ['ffmpeg', '-hide_banner', '-hwaccel', 'auto', '-y', '-copyts', '-sub_charenc', 'UTF-8', '-i', filepath]
 
     if thumb_path:
         command.extend(['-i', thumb_path])
@@ -572,15 +572,11 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
     subtitle_map = ['-map', '0:s?'] if not h else []
 
     if thumb_path:
-        # Strict requested mapping: -map 0 -map 1 -c:v:1 mjpeg -disposition:v:1 attached_pic -atomic_write true
-        # We mapped [v_out] or 0:v:0 as the first stream already.
-        # Now map the rest of 0, then map 1 for thumb.
-        command.extend(['-map', '0:a?'])
-        command.extend(subtitle_map)
-        command.extend(['-map', '1:v', '-c:v:1', 'mjpeg', '-disposition:v:1', 'attached_pic', '-atomic_write', 'true'])
+        # Simplified mapping: -map 0 -map 1 -c copy -c:v:1 mjpeg -disposition:v:1 attached_pic
+        command.extend(['-map', '0:a?', '-map', '0:s?'])
+        command.extend(['-map', '1:v', '-c:v:1', 'mjpeg', '-disposition:v:1', 'attached_pic'])
     else:
-        command.extend(['-map', '0:a?'])
-        command.extend(subtitle_map)
+        command.extend(['-map', '0:a?', '-map', '0:s?'])
 
     command.extend(finish.split())
 
@@ -637,7 +633,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     if not quality:
         r_db = await db.get_resolution(message.from_user.id)
         if r_db == '1080':
-            font_size = 62
+            font_size = 24
         elif r_db == '720':
             font_size = 50
         elif r_db in ['480', '576']:
@@ -645,7 +641,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
         else:
             _, height = get_width_height(filepath)
             if height >= 1080:
-                font_size = 62
+                font_size = 24
             elif height >= 720:
                 font_size = 50
             else:
@@ -665,7 +661,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
             vf_list.append('scale=1920:1080')
             crf = '22'
             v_bitrate = ['-b:v', '3M']
-            font_size = 44
+            font_size = 24
         else:
             font_size = 50
 
@@ -675,7 +671,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     # Ensure path is absolute and correctly escaped for FFmpeg subtitles filter
     subtitles_path = os.path.abspath(subtitles_path)
     escaped_sub_path = subtitles_path.replace(":", "\\:")
-    vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize={font_size},Outline=2,Shadow=1.5,BorderStyle=1,OutlineColour=&H00000000'")
+    vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize={font_size},Outline=2,Shadow=1'")
 
     # Thumbnail injection
     user_id = message.from_user.id
@@ -701,7 +697,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     # Input 2: Watermark (Optional)
     command = [
         'ffmpeg', '-hide_banner',
-        '-hwaccel', 'auto', '-y', '-copyts', '-avoid_negative_ts', 'make_zero', '-vsync', 'cfr',
+        '-hwaccel', 'auto', '-y', '-copyts',
         '-sub_charenc', 'UTF-8', '-i', filepath
     ]
 
@@ -727,15 +723,15 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
         command.extend(['-vf', ",".join(vf_list), '-map', '0:v:0'])
 
     command.extend([
-        '-c:v', 'libx264', '-preset', 'faster', '-crf', crf, '-r', '24000/1001'
+        '-c:v', 'libx264', '-preset', 'superfast', '-crf', crf, '-r', '24000/1001'
     ])
     command.extend(v_bitrate)
     command.extend(['-c:a', 'copy'])
 
     if thumb_path:
-        # User requested mapping logic: -map 0 -map 1 -c:v:1 mjpeg -disposition:v:1 attached_pic -atomic_write true
+        # User requested mapping logic: -map 0 -map 1 -c:v:1 mjpeg -disposition:v:1 attached_pic
         # Input 0: Video, Input 1: Thumbnail
-        command.extend(['-map', '0:a?', '-map', '1:v', '-c:v:1', 'mjpeg', '-disposition:v:1', 'attached_pic', '-atomic_write', 'true'])
+        command.extend(['-map', '0:a?', '-map', '1:v', '-c:v:1', 'mjpeg', '-disposition:v:1', 'attached_pic'])
     else:
         command.extend(['-map', '0:a?'])
     command.extend(adv_metadata)
@@ -805,7 +801,8 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
         # Inputs: 0: Video, 1: Subtitle, 2: Thumbnail (Optional), 3: Watermark (Optional)
         command = [
             'ffmpeg', '-hide_banner',
-            '-y', '-copyts', '-avoid_negative_ts', 'make_zero', '-vsync', 'cfr', '-sub_charenc', 'UTF-8', '-i', filepath, '-sub_charenc', 'UTF-8', '-i', subtitles_path
+            '-y', '-copyts', '-i', filepath,
+            '-fix_sub_duration', '-sub_charenc', 'UTF-8', '-i', subtitles_path
         ]
 
         if thumb_path:
@@ -834,19 +831,20 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
             command.extend(['-vf', ",".join(vf_list), '-map', '0:v:0'])
 
         command.extend([
-            '-c:v', 'libx264', '-preset', 'faster', '-crf', crf, '-r', '24000/1001'
+            '-c:v', 'libx264', '-preset', 'superfast', '-crf', crf, '-r', '24000/1001'
         ])
         command.extend(v_bitrate)
         command.extend(['-c:a', 'copy', '-c:s', 'copy'])
 
         if thumb_path:
-            command.extend(['-map', '0:a?', '-map', '1:s', '-map', '2:v', '-c:v:1', 'mjpeg', '-disposition:v:1', 'attached_pic', '-atomic_write', 'true'])
+            command.extend(['-map', '0:a?', '-map', '1:s', '-map', '2:v', '-c:v:1', 'mjpeg', '-disposition:v:1', 'attached_pic'])
         else:
             command.extend(['-map', '0:a?', '-map', '1:s'])
     else:
         command = [
             'ffmpeg', '-hide_banner',
-            '-y', '-copyts', '-avoid_negative_ts', 'make_zero', '-vsync', 'cfr', '-sub_charenc', 'UTF-8', '-i', filepath, '-sub_charenc', 'UTF-8', '-i', subtitles_path
+            '-y', '-copyts', '-i', filepath,
+            '-fix_sub_duration', '-sub_charenc', 'UTF-8', '-i', subtitles_path
         ]
 
         if thumb_path:
@@ -858,7 +856,7 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
         if thumb_path:
             command.extend([
                 '-map', '0:v:0', '-map', '0:a?', '-map', '1:s', '-map', '2:v',
-                '-c', 'copy', '-c:v:1', 'mjpeg', '-disposition:v:1', 'attached_pic', '-atomic_write', 'true'
+                '-c', 'copy', '-c:v:1', 'mjpeg', '-disposition:v:1', 'attached_pic'
             ])
         else:
             command.extend([
