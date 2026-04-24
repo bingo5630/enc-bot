@@ -1,3 +1,4 @@
+from ..utils.helper import edit_msg
 from VideoEncoder import LOGGER
 
 
@@ -162,7 +163,7 @@ async def font_message(app, message):
     await AddUserToDatabase(app, message)
     reply = await message.reply_text('Restarting...')
     textx = f"Done Restart...✅"
-    await reply.edit_text(textx)
+    await edit_msg(reply, text=textx)
     try:
         exit()
     finally:
@@ -177,7 +178,7 @@ async def update_message(app, message):
     await AddUserToDatabase(app, message)
     reply = await message.reply_text('📶 Fetching Update...')
     textx = f"✅ Bot Updated"
-    await reply.edit_text(textx)
+    await edit_msg(reply, text=textx)
     try:
         await app.stop()
     finally:

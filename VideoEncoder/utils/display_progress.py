@@ -5,6 +5,7 @@ import math
 import time
 
 from .. import PROGRESS, LOGGER
+from .helper import edit_msg
 
 
 async def progress_for_pyrogram(current, total, ud_type, message, start):
@@ -29,7 +30,8 @@ async def progress_for_pyrogram(current, total, ud_type, message, start):
                 humanbytes(speed) + "/s",
                 estimated_total_time if estimated_total_time != '...' else "Calculating"
             )
-            await message.edit(
+            await edit_msg(
+                message,
                 text="{}\n{}".format(
                     ud_type,
                     tmp
@@ -54,10 +56,7 @@ async def progress_for_url(downloader, msg):
         humanbytes(total_length),
         speed,
         estimated_total_time)
-    try:
-        await msg.edit_text(progress_str)
-    except Exception:
-        pass
+    await edit_msg(msg, text=progress_str)
 
 
 def humanbytes(size):

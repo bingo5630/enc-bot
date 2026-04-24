@@ -1,3 +1,4 @@
+from ..utils.helper import edit_msg
 import os
 import asyncio
 import re
@@ -252,14 +253,14 @@ async def process_translation(bot, cb, model_type, model_name):
             current_key_idx = 0; idx = 0
             while idx < len(chunk_queue):
                 chunk = chunk_queue[idx]; api_key = api_pool[current_key_idx]
-                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : Translating chunk {idx+1}/{len(chunk_queue)}...")
+                await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : Translating chunk {idx+1}/{len(chunk_queue)}...")
                 res = await translate_groq(chunk, api_key)
                 if res in ["429", "503"]:
                     current_key_idx += 1
                     if current_key_idx >= len(api_pool):
-                        await status_msg.edit(f"⏳ All keys hit {res}. Waiting 60s..."); await asyncio.sleep(60); current_key_idx = 0
+                        await edit_msg(status_msg, f"⏳ All keys hit {res}. Waiting 60s..."); await asyncio.sleep(60); current_key_idx = 0
                     continue # Re-attempt current chunk with new key or after wait
-                if res.startswith("❌"): await status_msg.edit(res); return
+                if res.startswith("❌"): await edit_msg(status_msg, res); return
                 lines = res.split('\n')
                 translated_texts.extend(lines); idx += 1
 
@@ -326,14 +327,14 @@ async def process_translation(bot, cb, model_type, model_name):
             current_key_idx = 0; idx = 0
             while idx < len(chunk_queue):
                 chunk = chunk_queue[idx]; api_key = api_pool[current_key_idx]
-                await status_msg.edit(f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : Translating chunk {idx+1}/{len(chunk_queue)}...")
+                await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : Translating chunk {idx+1}/{len(chunk_queue)}...")
                 res = await translate_groq(chunk, api_key)
                 if res in ["429", "503"]:
                     current_key_idx += 1
                     if current_key_idx >= len(api_pool):
-                        await status_msg.edit(f"⏳ All keys hit {res}. Waiting 60s..."); await asyncio.sleep(60); current_key_idx = 0
+                        await edit_msg(status_msg, f"⏳ All keys hit {res}. Waiting 60s..."); await asyncio.sleep(60); current_key_idx = 0
                     continue # Re-attempt current chunk with new key or after wait
-                if res.startswith("❌"): await status_msg.edit(res); return
+                if res.startswith("❌"): await edit_msg(status_msg, res); return
                 lines = res.split('\n')
                 translated_texts.extend(lines); idx += 1
 
@@ -364,7 +365,7 @@ async def process_translation(bot, cb, model_type, model_name):
         await upload_doc(target_msg, status_msg, 0, output_filename, output_path, caption=caption, reply_markup=reply_markup)
     except Exception as e:
         LOGGER.error(f"Translation Error: {e}")
-        await status_msg.edit(f"❌ Error: {e}")
+        await edit_msg(status_msg, f"❌ Error: {e}")
     finally:
         if os.path.exists(file_path): os.remove(file_path)
         if 'output_path' in locals() and os.path.exists(output_path): os.remove(output_path)

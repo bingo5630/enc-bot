@@ -1,6 +1,5 @@
-
-
 from __future__ import print_function
+from ...helper import edit_msg
 
 import asyncio
 import json
@@ -11,7 +10,6 @@ from mimetypes import MimeTypes
 
 import requests
 from googleapiclient.http import MediaFileUpload
-from pyrogram.errors.exceptions.bad_request_400 import MessageNotModified
 
 from .... import app, drive_dir, index, log
 from . import DriveAPI
@@ -85,15 +83,12 @@ class Uploader(DriveAPI):
         return str(text)
 
     async def upload_to_drive(self, new_file, message, msg):
-        await msg.edit_text("<code>Uploading...</code>")
+        await edit_msg(msg, text="<code>Uploading...</code>")
         submit_thread(self.uploadFile, new_file, drive_dir)
         while not self._is_finished:
             if self._progress is not None:
-                try:
-                    await msg.edit(text=self._progress)
-                    await asyncio.sleep(4)
-                except MessageNotModified:
-                    pass
+                await edit_msg(msg, text=self._progress)
+                await asyncio.sleep(4)
         if self._output:
             ms = await app.send_message(chat_id=message.chat.id, text=self._output)
             await app.send_message(chat_id=log, text=self._output)

@@ -1,3 +1,4 @@
+from ..utils.helper import edit_msg
 from VideoEncoder import LOGGER
 
 
@@ -88,7 +89,7 @@ async def run_code(client, message):
     r = [html.escape(str(i).strip('\n')) for i in r]
     r = '\n'.join([f'<code>{i}</code>' for i in r])
     r = r.strip() or 'undefined'
-    await reply.edit_text('Type[py]\n<code>{}</code>\nState[Executed]\nOutput \\\n{}'.format(escaped_code, r))
+    await edit_msg(reply, text='Type[py]\n<code>{}</code>\nState[Executed]\nOutput \\\n{}'.format(escaped_code, r))
 
 
 @Client.on_message(filters.command('sh'))
@@ -123,4 +124,4 @@ async def run_shell(client, message):
         await reply.delete()
         await message.reply_document(f, caption=f'<b>Exit Code:</b> <code>{returncode}</code>')
     else:
-        await reply.edit_text(text)
+        await edit_msg(reply, text=text)

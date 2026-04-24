@@ -1,3 +1,4 @@
+from ..utils.helper import edit_msg
 from VideoEncoder import LOGGER
 from asyncio import gather
 from psutil import cpu_percent, virtual_memory, disk_usage, net_io_counters
@@ -124,7 +125,7 @@ async def status_pages(client, query: CallbackQuery):
         ])
 
         try:
-            await query.message.edit(text=msg, reply_markup=buttons)
+            await edit_msg(query.message, text=msg, reply_markup=buttons)
             await query.answer("Refreshed!")
         except Exception as e:
             await query.answer(f"Error: {e}")

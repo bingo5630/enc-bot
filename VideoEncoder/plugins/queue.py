@@ -1,3 +1,4 @@
+from ..utils.helper import edit_msg
 from VideoEncoder import LOGGER
 
 
@@ -67,7 +68,7 @@ async def queue_answer(app, callback_query):
     taskpos = pos+1
     size = len(data)
     tasktitle = await get_title(pos)
-    await callback_query.edit_message_text(f"<b>{taskpos} of {size}</b>:\n\n{tasktitle}", reply_markup=InlineKeyboardMarkup(map(pos)))
+    await edit_msg(callback_query, text=f"<b>{taskpos} of {size}</b>:\n\n{tasktitle}", reply_markup=InlineKeyboardMarkup(map(pos)))
 
 
 @Client.on_message(filters.command(['queue']))
@@ -83,10 +84,10 @@ async def queue_message(app, message):
             pos = i-1
             taskpos = i
             tasktitle = await get_title(pos)
-            await msg.edit(
+            await edit_msg(msg,
                 text=f"<b>{taskpos} of {size}</b>:\n\n{tasktitle}", reply_markup=InlineKeyboardMarkup(map(0)))
     else:
-        await msg.edit('🥱 No Active Encodes.')
+        await edit_msg(msg, '🥱 No Active Encodes.')
 
 
 @Client.on_message(filters.command('clear'))

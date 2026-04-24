@@ -1,3 +1,4 @@
+from ..utils.helper import edit_msg
 
 
 import datetime
@@ -38,13 +39,15 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
             link = f"https://t.me/{user.username}" if user.username else f"tg://user?id={user.id}"
             mention = f"<a href='{link}'>{name}</a>"
             try:
-                await cb.message.edit_media(
+                await edit_msg(
+                    cb.message,
                     media=InputMediaPhoto(START_PIC, caption=START_MSG.format(mention=mention), has_spoiler=True),
                     reply_markup=start_but
                 )
             except Exception as e:
                 LOGGER.error(f"Error in backToStart: {e}")
-                await cb.message.edit_caption(
+                await edit_msg(
+                    cb.message,
                     caption=START_MSG.format(mention=mention),
                     reply_markup=start_but
                 )
@@ -349,7 +352,7 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
                     json.dump(statusMsg, f, indent=2)
                     os.remove('VideoEncoder/utils/extras/downloads/process.txt')
                     try:
-                        await cb.message.edit_text("🚦🚦 Process Cancelled 🚦🚦")
+                        await edit_msg(cb.message, text="🚦🚦 Process Cancelled 🚦🚦")
                         chat_id = log
                         utc_now = datetime.datetime.utcnow()
                         ist_now = utc_now + \
@@ -403,12 +406,13 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
                 ]
             ]
             try:
-                await cb.message.edit_media(
+                await edit_msg(
+                    cb.message,
                     media=InputMediaPhoto(WATERMARK_PIC, caption=how_to_text, has_spoiler=True),
                     reply_markup=InlineKeyboardMarkup(buttons)
                 )
             except:
-                await cb.message.edit_caption(caption=how_to_text, reply_markup=InlineKeyboardMarkup(buttons))
+                await edit_msg(cb.message, caption=how_to_text, reply_markup=InlineKeyboardMarkup(buttons))
 
         elif cb.data == "back_watermark":
             user_id = cb.from_user.id
@@ -430,12 +434,13 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
                 ]
             ]
             try:
-                await cb.message.edit_media(
+                await edit_msg(
+                    cb.message,
                     media=InputMediaPhoto(WATERMARK_PIC, caption=text, has_spoiler=True),
                     reply_markup=InlineKeyboardMarkup(buttons)
                 )
             except:
-                await cb.message.edit_caption(caption=text, reply_markup=InlineKeyboardMarkup(buttons))
+                await edit_msg(cb.message, caption=text, reply_markup=InlineKeyboardMarkup(buttons))
 
         # Metadata
         elif cb.data == "metadata_on":
@@ -478,7 +483,8 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
                 ]
             ]
             try:
-                await cb.message.edit_media(
+                await edit_msg(
+                    cb.message,
                     media=InputMediaPhoto(
                         "https://graph.org/file/a232c9818402f81093feb-383081a21200f77ae8.jpg",
                         caption=how_to_text,
@@ -487,7 +493,7 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
                     reply_markup=InlineKeyboardMarkup(buttons)
                 )
             except:
-                await cb.message.edit_caption(caption=how_to_text, reply_markup=InlineKeyboardMarkup(buttons))
+                await edit_msg(cb.message, caption=how_to_text, reply_markup=InlineKeyboardMarkup(buttons))
 
         elif cb.data == "metadata_back":
             await update_metadata_msg(cb)
@@ -548,13 +554,14 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
                 ]
             ])
             try:
-                await cb.message.edit_media(
+                await edit_msg(
+                    cb.message,
                     media=InputMediaPhoto(START_PIC, caption=help_text, has_spoiler=True),
                     reply_markup=help_buttons
                 )
             except Exception as e:
                 LOGGER.error(f"Error in {cb.data}: {e}")
-                await cb.message.edit_caption(caption=help_text, reply_markup=help_buttons)
+                await edit_msg(cb.message, caption=help_text, reply_markup=help_buttons)
 
     except Exception as e:
         LOGGER.error(f"Error in callback_handlers: {e}")

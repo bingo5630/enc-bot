@@ -8,8 +8,7 @@ from datetime import datetime
 from urllib.parse import unquote_plus
 
 from httpx import delete
-from pyrogram.errors.exceptions.bad_request_400 import (MessageIdInvalid,
-                                                        MessageNotModified)
+from pyrogram.errors.exceptions.bad_request_400 import MessageIdInvalid
 from pyrogram.parser import html as pyrogram_html
 from pyrogram.types import Message
 from requests.utils import unquote
@@ -18,7 +17,7 @@ from .. import LOGGER, data, download_dir, video_mimetype
 from .database.access_db import db
 from .direct_link_generator import direct_link_generator
 from .display_progress import progress_for_pyrogram
-from .helper import delete_downloads, get_zip_folder, handle_encode, handle_extract, handle_url, handle_sub_extract
+from .helper import delete_downloads, get_zip_folder, handle_encode, handle_extract, handle_url, handle_sub_extract, edit_msg
 from .uploads.drive import _get_file_id
 from .uploads.drive.download import Downloader
 from .encoding import get_media_streams
@@ -104,12 +103,10 @@ async def handle_tasks(message, mode, custom_name=None):
             await interactive_task(message, msg, mode)
         else:
             await batch_task(message, msg)
-    except MessageNotModified:
-        pass
     except IndexError:
         return
     except MessageIdInvalid:
-        await msg.edit('Download Cancelled!')
+        await edit_msg(msg, text='Download Cancelled!')
     except FileNotFoundError:
         LOGGER.error('[FileNotFoundError]: Maybe due to cancel, hmm')
         import traceback
@@ -125,16 +122,16 @@ async def handle_tasks(message, mode, custom_name=None):
 async def tg_task(message, msg, quality=None, custom_name=None):
     filepath = await handle_tg_down(message, msg)
     if not filepath:
-        await msg.edit("Download failed or no file found.")
+        await edit_msg(msg, text="Download failed or no file found.")
         return
-    await msg.edit('Encoding...')
+    await edit_msg(msg, text='Encoding...')
     await handle_encode(filepath, message, msg, quality=quality, custom_name=custom_name)
 
 
 async def sub_tg_task(message, msg):
     filepath = await handle_tg_down(message, msg)
     if not filepath:
-        await msg.edit("Download failed or no file found.")
+        await edit_msg(msg, text="Download failed or no file found.")
         return
     await handle_sub_extract(filepath, message, msg)
 
@@ -151,18 +148,18 @@ async def interactive_task(message, msg, mode):
     subtitle_msg = message.subtitle_msg
 
     # Download subtitle
-    await msg.edit("Downloading Subtitle...")
+    await edit_msg(msg, text="Downloading Subtitle...")
     sub_path = await subtitle_msg.download(file_name=os.path.join(download_dir, ""))
 
     # Download video
-    await msg.edit("Downloading Video...")
+    await edit_msg(msg, text="Downloading Video...")
     video_path = await handle_tg_down(message, msg)
 
     if not video_path or not sub_path:
-        await msg.edit("Download failed.")
+        await edit_msg(msg, text="Download failed.")
         return
 
-    await msg.edit("Processing...")
+    await edit_msg(msg, text="Processing...")
     from .helper import handle_interactive_encode
     await handle_interactive_encode(video_path, sub_path, message, msg, mode)
 
@@ -170,13 +167,13 @@ async def interactive_task(message, msg, mode):
 async def af_task(message, msg):
     filepath = await handle_tg_down(message, msg)
     if not filepath:
-        await msg.edit("Download failed or no file found.")
+        await edit_msg(msg, text="Download failed or no file found.")
         return
 
     # Probe for streams
     streams = get_media_streams(filepath)
     if not streams:
-         await msg.edit("Could not retrieve media streams.")
+         await edit_msg(msg, text="Could not retrieve media streams.")
          return
 
     selector = AudioSelect(message._client, message)
@@ -199,7 +196,7 @@ async def url_task(message, msg):
     if not filepath:
         # Error handled in handle_download_url logic or implicit failure
         return
-    await msg.edit_text("Encoding...")
+    await edit_msg(msg, text="Encoding...")
     await handle_encode(filepath, message, msg)
 
 
@@ -209,31 +206,31 @@ async def batch_task(message, msg):
     else:
         filepath = await handle_download_url(message, msg, True)
     if not filepath:
-        await msg.edit('NO ZIP FOUND!')
+        await edit_msg(msg, text='NO ZIP FOUND!')
     if os.path.isfile(filepath):
         path = await get_zip_folder(filepath)
         await handle_extract(filepath)
         if not os.path.isdir(path):
-            await msg.edit('extract failed!')
+            await edit_msg(msg, text='extract failed!')
             return
         filepath = path
     if os.path.isdir(filepath):
         path = filepath
     else:
-        await msg.edit('Something went wrong, hell!')
+        await edit_msg(msg, text='Something went wrong, hell!')
         return
-    await msg.edit('<b>📕 Encode Started!</b>')
+    await edit_msg(msg, text='<b>📕 Encode Started!</b>')
     sentfiles = []
     # Encode
     for dirpath, subdir, files_ in sorted(os.walk(path)):
         for i in sorted(files_):
             msg_ = await message.reply('Encoding')
             filepath = os.path.join(dirpath, i)
-            await msg.edit('Encode Started!\nEncoding: <code>{}</code>'.format(i))
+            await edit_msg(msg, text='Encode Started!\nEncoding: <code>{}</code>'.format(i))
             try:
                 url = await handle_encode(filepath, message, msg_)
             except Exception as e:
-                await msg_.edit(str(e) + '\n\n Continuing...')
+                await edit_msg(msg_, text=str(e) + '\n\n Continuing...')
                 continue
             else:
                 sentfiles.append((i, url))
@@ -263,7 +260,7 @@ async def batch_task(message, msg):
     thing = await message.reply_text(text, quote=quote, disable_web_page_preview=True)
     if first_index is None:
         first_index = thing
-    await msg.edit('Encoded Files! Links: {}'.format(first_index.link), disable_web_page_preview=True)
+    await edit_msg(msg, text='Encoded Files! Links: {}'.format(first_index.link), disable_web_page_preview=True)
 
 
 async def handle_download_url(message, msg, batch):

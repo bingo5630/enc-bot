@@ -1,3 +1,4 @@
+from ..utils.helper import edit_msg
 from VideoEncoder import LOGGER
 
 from pyrogram import Client, filters
@@ -91,7 +92,8 @@ async def update_metadata_msg(cb: CallbackQuery):
     ]
 
     try:
-        await cb.message.edit_media(
+        await edit_msg(
+            cb.message,
             media=InputMediaPhoto(
                 "https://graph.org/file/3f313447e012a34252704-c4fdaa14a9a0ae0a4b.jpg",
                 caption=text,
@@ -101,7 +103,7 @@ async def update_metadata_msg(cb: CallbackQuery):
         )
     except:
         try:
-            await cb.message.edit_caption(caption=text, reply_markup=InlineKeyboardMarkup(buttons))
+            await edit_msg(cb.message, caption=text, reply_markup=InlineKeyboardMarkup(buttons))
         except:
             pass
 

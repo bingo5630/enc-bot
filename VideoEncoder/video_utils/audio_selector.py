@@ -1,3 +1,4 @@
+from ..utils.helper import edit_msg
 import asyncio
 from asyncio import Event, wait_for
 from time import time
@@ -61,7 +62,7 @@ class AudioSelect:
 
         if self._is_cancelled:
             if self._reply:
-                await self._reply.edit('Task has been cancelled!')
+                await edit_msg(self._reply, 'Task has been cancelled!')
             return -1, -1
 
         if self._reply:
@@ -87,7 +88,7 @@ class AudioSelect:
         if not self._reply:
             self._reply = await self.message.reply(text, reply_markup=buttons.build_menu(4))
         else:
-            await self._reply.edit(text, reply_markup=buttons.build_menu(4))
+            await edit_msg(self._reply, text, reply_markup=buttons.build_menu(4))
         await self._create_streams_view()
 
     async def _create_streams_view(self):
@@ -97,7 +98,7 @@ class AudioSelect:
         text += f'\n\nTime Out: {TimeFormatter(180 - (time()-self._time))}'
 
         if self.stream_view_msg and self.stream_view_msg.text != text:
-            await self.stream_view_msg.edit(text)
+            await edit_msg(self.stream_view_msg, text)
         elif not self.stream_view_msg:
              self.stream_view_msg = await self.message.reply(text)
 

@@ -1,3 +1,4 @@
+from ..utils.helper import edit_msg
 import asyncio
 import json
 from pyrogram import filters
@@ -40,4 +41,4 @@ async def speedtest_handler(_, message):
         await message.reply_photo(photo=result['share'], caption=caption, has_spoiler=True)
     except Exception as e:
         LOGGER.error(e)
-        await msg.edit(f'Failed running speedtest: {e}')
+        await edit_msg(msg, f'Failed running speedtest: {e}')

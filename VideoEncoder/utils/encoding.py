@@ -17,6 +17,7 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from .. import LOGGER, download_dir, encode_dir, ASSETS_DIR
 from .database.access_db import db
 from .display_progress import TimeFormatter
+from .helper import edit_msg
 
 def cleanup_temp_subs(msg_id=None):
     """Clear any previous subtitle cache or temporary .srt/.ass files.
@@ -439,8 +440,8 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
         # Ensure path is absolute and correctly escaped for FFmpeg subtitles filter
         subtitles_path = os.path.abspath(subtitles_path)
         escaped_sub_path = subtitles_path.replace(":", "\\:")
-        # Force FontSize=22 and original_size=1920x1080 as requested
-        vf_list.append(f"subtitles='{escaped_sub_path}':original_size=1920x1080:force_style='FontName={selected_font},FontSize=22,Outline=2,Shadow=1.5'")
+        # Force FontSize=24, Outline=1, Shadow=0 as requested
+        vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize=24,Outline=1,Shadow=0'")
 
     if vf_list:
         watermark = "-vf " + ",".join(vf_list)
@@ -733,8 +734,8 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     # Ensure path is absolute and correctly escaped for FFmpeg subtitles filter
     subtitles_path = os.path.abspath(subtitles_path)
     escaped_sub_path = subtitles_path.replace(":", "\\:")
-    # Force FontSize=22 and original_size=1920x1080 as requested
-    vf_list.append(f"subtitles='{escaped_sub_path}':original_size=1920x1080:force_style='FontName={selected_font},FontSize=22,Outline=2,Shadow=1.5'")
+    # Force FontSize=24, Outline=1, Shadow=0 as requested
+    vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize=24,Outline=1,Shadow=0'")
 
     # Thumbnail injection
     user_id = message.from_user.id
@@ -776,16 +777,9 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     else:
         watermark_input_index = -1
 
-    # Filter & Mapping
-    if has_watermark:
-        filter_str = f"[0:v:0]{','.join(vf_list)}[vbase];"
-        filter_str += f"[{watermark_input_index}:v]colorkey=0x000000:0.1:0.1,scale=iw*0.15:-1[wm];"
-        filter_str += f"[vbase][wm]overlay=W-w-10:10[v_out]"
-        command.extend(['-filter_complex', filter_str])
-        video_map_arg = ['-map', '[v_out]']
-    else:
-        command.extend(['-vf', ",".join(vf_list)])
-        video_map_arg = ['-map', '0:v:0']
+    # Filter & Mapping - Simplified to prioritize sync
+    command.extend(['-vf', ",".join(vf_list)])
+    video_map_arg = ['-map', '0:v:0']
 
     command.extend(video_map_arg)
 
@@ -1144,16 +1138,14 @@ async def handle_progress(proc, msg, message, filepath):
                     f"   ‣ 𝐒𝐩𝐞𝐞𝐝 : {round(speed_mb_s, 2)} MB/s"
                 )
 
-                try:
-                    await msg.edit(
-                        text=status_text,
-                        reply_markup=InlineKeyboardMarkup([[
-                            InlineKeyboardButton('ᴄᴀɴᴄᴇʟ', callback_data='cancel'),
-                            InlineKeyboardButton('sᴛᴀᴛs', callback_data='stats')
-                        ]])
-                    )
-                    last_update_time = now
-                except:
-                    pass
+                await edit_msg(
+                    msg,
+                    text=status_text,
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton('ᴄᴀɴᴄᴇʟ', callback_data='cancel'),
+                        InlineKeyboardButton('sᴛᴀᴛs', callback_data='stats')
+                    ]])
+                )
+                last_update_time = now
 
     return stderr_buffer

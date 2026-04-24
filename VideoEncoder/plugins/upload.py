@@ -1,3 +1,4 @@
+from ..utils.helper import edit_msg
 from VideoEncoder import LOGGER
 
 
@@ -32,7 +33,7 @@ async def docupload(client, message):
     try:
         await upload_doc(message, reply, c_time, filename, file)
     except Exception as e:
-        await reply.edit('Error while uploading! {}'.format(e))
+        await edit_msg(reply, 'Error while uploading! {}'.format(e))
     else:
         await reply.delete()
 
@@ -60,7 +61,7 @@ async def videoupload(client, message):
         await upload_video(message, reply, file, filename,
                            c_time, thumb, duration, width, height)
     except Exception as e:
-        await reply.edit('Error while uploading! {}'.format(e))
+        await edit_msg(reply, 'Error while uploading! {}'.format(e))
     else:
         await reply.delete()
 
@@ -80,7 +81,7 @@ async def driveupload(client, message):
         u = Uploader()
         await u.upload_to_drive(new_file, message, reply)
     except:
-        await reply.edit('Error while uploading!')
+        await edit_msg(reply, 'Error while uploading!')
     else:
         await reply.delete()
 

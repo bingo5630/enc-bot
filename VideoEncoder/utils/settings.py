@@ -1,12 +1,13 @@
 
 import asyncio
 
-from pyrogram.errors import FloodWait, MessageNotModified
+from pyrogram.errors import FloodWait
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, InputMediaPhoto
 
 from .. import LOGGER
 from .database.access_db import db
 from .database.add_user import AddUserToDatabase
+from .helper import edit_msg
 
 SETTINGS_PIC = "https://graph.org/file/a232c9818402f81093feb-383081a21200f77ae8.jpg"
 
@@ -21,24 +22,20 @@ async def OpenSettings(event: Message, user_id: int):
                 "ʙᴀᴄᴋ", callback_data="backToStart")]
         ]
         try:
-            await event.edit_media(
+            await edit_msg(
+                event,
                 media=InputMediaPhoto(SETTINGS_PIC, caption=text, has_spoiler=True),
                 reply_markup=InlineKeyboardMarkup(buttons)
             )
         except:
-            await event.edit_caption(caption=text, reply_markup=InlineKeyboardMarkup(buttons))
+            await edit_msg(event, caption=text, reply_markup=InlineKeyboardMarkup(buttons))
 
     except FloodWait as e:
         await asyncio.sleep(e.x)
         await OpenSettings(event, user_id)
-    except MessageNotModified:
-        pass
     except Exception as e:
         LOGGER.error(f"Error in OpenSettings: {e}")
-        try:
-            await event.edit_caption(caption=f"An error occurred in OpenSettings: {e}")
-        except:
-            pass
+        await edit_msg(event, caption=f"An error occurred in OpenSettings: {e}")
 
 
 # Video Settings
@@ -139,24 +136,20 @@ async def VideoSettings(event: Message, user_id: int):
         ]
 
         try:
-            await event.edit_media(
+            await edit_msg(
+                event,
                 media=InputMediaPhoto(SETTINGS_PIC, caption=text, has_spoiler=True),
                 reply_markup=InlineKeyboardMarkup(buttons)
             )
         except:
-            await event.edit_caption(caption=text, reply_markup=InlineKeyboardMarkup(buttons))
+            await edit_msg(event, caption=text, reply_markup=InlineKeyboardMarkup(buttons))
 
     except FloodWait as e:
         await asyncio.sleep(e.x)
         await VideoSettings(event, user_id)
-    except MessageNotModified:
-        pass
     except Exception as e:
         LOGGER.error(f"Error in VideoSettings: {e}")
-        try:
-            await event.edit_caption(caption=f"An error occurred in VideoSettings: {e}")
-        except:
-            pass
+        await edit_msg(event, caption=f"An error occurred in VideoSettings: {e}")
 
 
 async def AudioSettings(event: Message, user_id: int):
@@ -238,24 +231,20 @@ async def AudioSettings(event: Message, user_id: int):
         ]
 
         try:
-            await event.edit_media(
+            await edit_msg(
+                event,
                 media=InputMediaPhoto(SETTINGS_PIC, caption=text, has_spoiler=True),
                 reply_markup=InlineKeyboardMarkup(buttons)
             )
         except:
-            await event.edit_caption(caption=text, reply_markup=InlineKeyboardMarkup(buttons))
+            await edit_msg(event, caption=text, reply_markup=InlineKeyboardMarkup(buttons))
 
     except FloodWait as e:
         await asyncio.sleep(e.x)
         await AudioSettings(event, user_id)
-    except MessageNotModified:
-        pass
     except Exception as e:
         LOGGER.error(f"Error in AudioSettings: {e}")
-        try:
-            await event.edit_caption(caption=f"An error occurred in AudioSettings: {e}")
-        except:
-            pass
+        await edit_msg(event, caption=f"An error occurred in AudioSettings: {e}")
 
 
 async def ExtraSettings(event: Message, user_id: int):
@@ -273,21 +262,17 @@ async def ExtraSettings(event: Message, user_id: int):
         ]
 
         try:
-            await event.edit_media(
+            await edit_msg(
+                event,
                 media=InputMediaPhoto(SETTINGS_PIC, caption=text, has_spoiler=True),
                 reply_markup=InlineKeyboardMarkup(buttons)
             )
         except:
-            await event.edit_caption(caption=text, reply_markup=InlineKeyboardMarkup(buttons))
+            await edit_msg(event, caption=text, reply_markup=InlineKeyboardMarkup(buttons))
 
     except FloodWait as e:
         await asyncio.sleep(e.x)
         await ExtraSettings(event, user_id)
-    except MessageNotModified:
-        pass
     except Exception as e:
         LOGGER.error(f"Error in ExtraSettings: {e}")
-        try:
-            await event.edit_caption(caption=f"An error occurred in ExtraSettings: {e}")
-        except:
-            pass
+        await edit_msg(event, caption=f"An error occurred in ExtraSettings: {e}")

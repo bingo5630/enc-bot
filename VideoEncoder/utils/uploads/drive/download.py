@@ -1,6 +1,5 @@
-
-
 from __future__ import print_function
+from ...helper import edit_msg
 
 import asyncio
 import io
@@ -18,7 +17,6 @@ except ImportError:
 
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload
-from pyrogram.errors.exceptions.bad_request_400 import MessageNotModified
 
 from .... import download_dir as dir
 from ...display_progress import TimeFormatter, humanbytes
@@ -142,20 +140,17 @@ class Downloader(DriveAPI):
                                               supportsTeamDrives=True).execute()
         if drive_file['mimeType'] == G_DRIVE_DIR_MIME_TYPE:
             if not batch:
-                await msg.edit('use /batch instead.')
+                await edit_msg(msg, 'use /batch instead.')
                 raise IndexError
         self._name = self.name(file_id)
         submit_thread(self.download, file_id, custom_file_name)
         while not self._is_finished:
             if self._progress:
-                try:
-                    await msg.edit(text=self._progress)
-                    await asyncio.sleep(4)
-                except MessageNotModified:
-                    pass
+                await edit_msg(msg, text=self._progress)
+                await asyncio.sleep(4)
         if isinstance(self._output, HttpError):
             out = f'[Error]: {self._output._get_reason()}'
-            await msg.edit(text=out)
+            await edit_msg(msg, text=out)
             return None
         return 'Done'
 
