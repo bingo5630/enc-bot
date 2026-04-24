@@ -11,8 +11,11 @@ from ..utils.database.access_db import db
 from ..utils.encoding import extract_subtitle, get_width_height
 
 SYSTEM_PROMPT = (
-    "You are a professional subtitle translator. You are given an ASS subtitle file format.TRANSLATE ONLY the text part of the Dialogue lines.DO NOT change, translate, or remove the tags like {\\an8}, {\\pos}, {\\i1}, etc.DO NOT output conversational text, warnings, or 'Here is the translation'.Output ONLY the original lines with translated text.\n\n"
-    "IF you cannot translate a line, output the original line exactly as it is.Your output MUST be plain text, no Markdown, no JSON, no backticks (```)."
+    "You are a professional Anime Translator. Translate the ASS file into natural Hinglish.\n"
+    "STRICT SPELLING: Always use 'usey' (instead of use/usne) and 'isey' (instead of ise/isme). Follow the glossary rules for 'kaise', 'waise'.\n"
+    "GENDER CONTEXT: Analyze character names and scene context. If the speaker is female, use feminine grammar (e.g., 'kar rahi hoon'). If male, use masculine (e.g., 'kar raha hoon'). Accuracy is mandatory.\n"
+    "TAG PROTECTION: Do NOT translate or touch tags like {\\an8}, {\\pos}, \\N, {\\i1}.\n"
+    "UTF-8: Output must be in UTF-8 to support Hindi characters."
 )
 
 TRANSLATE_PIC = "https://graph.org/file/600586a9a49029c2e98f1-90c27ea7986142ea7a.jpg"
@@ -139,6 +142,8 @@ async def translate_groq(chunk_text, api_key):
                     data = response.json(); translated_text = data['choices'][0]['message']['content'].strip()
                     print(f"DEBUG Groq Response: {translated_text}")
                     translated_text = translated_text.replace('```json', '').replace('```', '').strip()
+                    if translated_text.strip() == chunk_text.strip():
+                        return "RETRY_REQUIRED"
                     await asyncio.sleep(5); return translated_text
                 elif response.status_code in [429, 503]:
                     return str(response.status_code)
@@ -245,7 +250,7 @@ async def process_translation(bot, cb, model_type, model_name):
             return
 
     await cb.message.delete()
-    status_msg = await bot.send_message(user_id, "⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : 𝐑𝐞𝐚𝐝𝐢𝐧𝐠 𝐟𝐢𝐥𝐞 𝐚𝐧𝐝 𝐬𝐭ᴀ𝐫ᴛɪ𝐧𝐠 ᴛ𝐫𝐚𝐧𝐬𝐥𝐚ᴛɪ𝐨𝐧...")
+    status_msg = await bot.send_message(user_id, "⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪ𝐧𝐠] : 𝐑𝐞𝐚𝐝𝐢𝐧𝐠 𝐟𝐢𝐥𝐞 𝐚𝐧𝐝 𝐬𝐭ᴀ𝐫ᴛɪ𝐧𝐠 ᴛ𝐫𝐚𝐧𝐬𝐥𝐚ᴛɪ𝐨𝐧...")
 
     file_path = await bot.download_media(
         message=file_id,
@@ -292,17 +297,21 @@ async def process_translation(bot, cb, model_type, model_name):
                 chunk_queue.append("\n".join(to_translate[i:i+10]))
 
             translated_texts = []
-            current_key_idx = 0; idx = 0
+            current_key_idx = 0; idx = 0; retries = 0
             while idx < len(chunk_queue):
                 original_lines = to_translate[idx*10 : (idx+1)*10]
                 chunk = chunk_queue[idx]; api_key = api_pool[current_key_idx]
-                await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪɴ𝐠] : Translating chunk {idx+1}/{len(chunk_queue)}...")
+                await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪ𝐧𝐠] : Translating chunk {idx+1}/{len(chunk_queue)}...")
                 res = await translate_groq(chunk, api_key)
-                if res in ["429", "503"]:
-                    current_key_idx += 1
-                    if current_key_idx >= len(api_pool):
-                        await edit_msg(status_msg, f"⏳ All keys hit {res}. Waiting 60s..."); await asyncio.sleep(60); current_key_idx = 0
-                    continue # Re-attempt current chunk with new key or after wait
+                if res == "RETRY_REQUIRED" or res in ["429", "503"]:
+                    retries += 1
+                    if retries > 3:
+                        translated_texts.extend(original_lines)
+                        idx += 1; retries = 0; continue
+                    current_key_idx = (current_key_idx + 1) % len(api_pool)
+                    if current_key_idx == 0:
+                        await edit_msg(status_msg, f"⏳ All keys failed/ratelimited. Waiting 30s..."); await asyncio.sleep(30)
+                    continue
                 if res.startswith("❌"): await edit_msg(status_msg, res); return
 
                 # Filter conversational filler or JSON
@@ -319,7 +328,7 @@ async def process_translation(bot, cb, model_type, model_name):
                                 translated_texts.append(trans_line)
                         else:
                             translated_texts.append(line)
-                idx += 1
+                idx += 1; retries = 0
 
             final_srt = []
             trans_idx = 0
@@ -336,34 +345,12 @@ async def process_translation(bot, cb, model_type, model_name):
         else:
             header, events, playresx, playresy = parse_ass(content)
 
-            # Smart Subtitle Inheritance: Scaling Logic
-            user_size = await db.get_user_font_size(user_id)
-            if video_path and playresy > 0:
-                _, v_height = get_width_height(video_path)
-
-                new_header = []
-                for line in header:
-                    if line.strip().startswith('Style:'):
-                        parts = line.split(',')
-                        if len(parts) > 2:
-                            try:
-                                # NewFontSize = (OriginalFontSize * VideoHeight) / PlayResY
-                                # If user set a specific font size, use it as the base for scaling
-                                base_size = float(user_size) if user_size > 0 else float(parts[2])
-                                scaled_size = (base_size * v_height) / playresy
-                                parts[2] = str(round(scaled_size, 2))
-                                new_header.append(",".join(parts))
-                                continue
-                            except: pass
-                    new_header.append(line)
-                header = new_header
-
             to_translate = []
             tags_map = []
             for item in events:
                 if 'text' in item:
                     protected, placeholders = protect_tags(item['text'], is_ass=True)
-                    to_translate.append(item['prefix'] + protected)
+                    to_translate.append(protected)
                     tags_map.append(placeholders)
 
             # Send 10 lines at once for context
@@ -372,17 +359,21 @@ async def process_translation(bot, cb, model_type, model_name):
                 chunk_queue.append("\n".join(to_translate[i:i+10]))
 
             translated_texts = []
-            current_key_idx = 0; idx = 0
+            current_key_idx = 0; idx = 0; retries = 0
             while idx < len(chunk_queue):
                 original_lines = to_translate[idx*10 : (idx+1)*10]
                 chunk = chunk_queue[idx]; api_key = api_pool[current_key_idx]
                 await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪ𝐧𝐠] : Translating chunk {idx+1}/{len(chunk_queue)}...")
                 res = await translate_groq(chunk, api_key)
-                if res in ["429", "503"]:
-                    current_key_idx += 1
-                    if current_key_idx >= len(api_pool):
-                        await edit_msg(status_msg, f"⏳ All keys hit {res}. Waiting 60s..."); await asyncio.sleep(60); current_key_idx = 0
-                    continue # Re-attempt current chunk with new key or after wait
+                if res == "RETRY_REQUIRED" or res in ["429", "503"]:
+                    retries += 1
+                    if retries > 3:
+                        translated_texts.extend(original_lines)
+                        idx += 1; retries = 0; continue
+                    current_key_idx = (current_key_idx + 1) % len(api_pool)
+                    if current_key_idx == 0:
+                        await edit_msg(status_msg, f"⏳ All keys failed/ratelimited. Waiting 30s..."); await asyncio.sleep(30)
+                    continue
                 if res.startswith("❌"): await edit_msg(status_msg, res); return
 
                 # Filter conversational filler or JSON
@@ -393,24 +384,23 @@ async def process_translation(bot, cb, model_type, model_name):
                     for i, line in enumerate(original_lines):
                         if i < len(res_lines):
                             trans_line = res_lines[i].strip()
-                            if trans_line.lower().startswith(("i'm sorry", "error")) or 'Dialogue:' not in trans_line:
+                            if trans_line.lower().startswith(("i'm sorry", "error")):
                                 translated_texts.append(line)
                             else:
                                 translated_texts.append(trans_line)
                         else:
                             translated_texts.append(line)
-                idx += 1
+                idx += 1; retries = 0
 
             final_events = []
             trans_idx = 0
             for i, item in enumerate(events):
                 if 'text' in item:
                     if trans_idx < len(translated_texts):
-                        # Restore tags in the full line. tags_map corresponds to the protected text.
-                        # We need to extract the text part to restore tags, or restore tags on the whole line if the markers are unique.
-                        # Since restore_tags uses unique markers like __TAG_i__, it's safe to run it on the whole line.
+                        # Restore tags in the translated text
                         restored = restore_tags(translated_texts[trans_idx], tags_map[trans_idx])
-                        final_events.append(restored)
+                        # Recombine with original prefix
+                        final_events.append(item['prefix'] + restored)
                         trans_idx += 1
                     else: final_events.append(item['prefix'] + item['text'])
                 else: final_events.append(item['raw'])

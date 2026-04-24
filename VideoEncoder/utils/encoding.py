@@ -371,8 +371,9 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
 #        f'x=40:y=40'
 #    ])
 
-    # Font Selection - Locked to Roboto-Bold
-    selected_font = 'Roboto-Bold'
+    # Font Selection - Locked to Roboto Medium for Dialogues
+    selected_font = 'Roboto Medium'
+    os_font = 'Arial'
 
     # Font Size override or calculation based on resolution
     user_size = await db.get_user_font_size(message.from_user.id)
@@ -383,12 +384,12 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
     elif quality == '720p':
         font_size = 50
     elif quality == '1080p':
-        font_size = 24
+        font_size = 26
     else:
         # Check resolution setting
         r_db = await db.get_resolution(message.from_user.id)
         if r_db == '1080':
-            font_size = 24
+            font_size = 26
         elif r_db == '720':
             font_size = 50
         elif r_db in ['480', '576']:
@@ -397,7 +398,7 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
             # Analyze resolution
             _, height = get_width_height(filepath)
             if height >= 1080:
-                font_size = 24
+                font_size = 26
             elif height >= 720:
                 font_size = 50
             else:
@@ -445,7 +446,8 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
         if subtitles_path.lower().endswith(".ass"):
             vf_list.append(f"subtitles='{escaped_sub_path}'")
         else:
-            vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize=24,Outline=1,Shadow=0'")
+            # Force Roboto Medium (Size 26) for Dialogues
+            vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize=26,Outline=1,Shadow=0'")
 
     if vf_list:
         watermark = "-vf " + ",".join(vf_list)
@@ -686,8 +688,9 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
 
     adv_metadata = await get_metadata_flags(message.from_user.id)
 
-    # Font Selection - Locked to Roboto-Bold
-    selected_font = 'Roboto-Bold'
+    # Font Selection - Locked to Roboto Medium for Dialogues
+    selected_font = 'Roboto Medium'
+    os_font = 'Arial'
 
     # Quality logic for hard_sub
     vf_list = []
@@ -701,7 +704,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     if not quality:
         r_db = await db.get_resolution(message.from_user.id)
         if r_db == '1080':
-            font_size = 24
+            font_size = 26
         elif r_db == '720':
             font_size = 50
         elif r_db in ['480', '576']:
@@ -709,7 +712,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
         else:
             _, height = get_width_height(filepath)
             if height >= 1080:
-                font_size = 24
+                font_size = 26
             elif height >= 720:
                 font_size = 50
             else:
@@ -729,7 +732,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
             vf_list.append('scale=1920:1080')
             crf = '22'
             v_bitrate = ['-b:v', '3M']
-            font_size = 24
+            font_size = 26
         else:
             font_size = 50
 
@@ -743,7 +746,8 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     if subtitles_path.lower().endswith(".ass"):
         vf_list.append(f"subtitles='{escaped_sub_path}'")
     else:
-        vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize=24,Outline=1,Shadow=0'")
+        # Force Roboto Medium (Size 26) for Dialogues
+        vf_list.append(f"subtitles='{escaped_sub_path}':force_style='FontName={selected_font},FontSize=26,Outline=1,Shadow=0'")
 
     # Thumbnail injection
     user_id = message.from_user.id
