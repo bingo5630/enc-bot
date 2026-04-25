@@ -10,19 +10,28 @@ from ..utils.uploads.telegram import upload_doc
 from ..utils.database.access_db import db
 from ..utils.encoding import extract_subtitle, get_width_height
 
-SYSTEM_PROMPT = (
-    "You are a professional Anime Subtitle Translator. Translate the ASS file into Natural, Friendly Hinglish.\n"
-    "SIMPLIFY SENTENCES: Avoid heavy words like 'madhyamik pathshala' or 'niji'. Use simple Hinglish.\n"
-    "Example: Instead of 'Niji madhyamik pathshala mein daalunga', use 'Private high school mein daal dunga'.\n\n"
-    "STRICT SPELLING RULES:\n"
-    "- Use 'usey' instead of 'use' or 'ise'.\n"
-    "- Use 'isey' instead of 'ise'.\n"
-    "- Use 'arey' instead of 'are'.\n"
-    "- Use 'jaa' instead of 'ja' (e.g., 'jaa raha hoon').\n\n"
-    "NO GERMAN/FOREIGN WORDS: Use only Hindi and English. No 'künstlich' or other odd translations.\n"
-    "GENDER & CONTEXT: Keep grammar accurate to the character's gender (raha hai/rahi hai).\n"
-    "TAG PROTECTION: Never modify {\\an8}, {\\pos}, \\N. Keep line breaks (\\N) where they are.\n"
-    "UTF-8: Output must be in UTF-8 to support Hindi characters."
+ANALYZER_PROMPT = (
+    "You are a Context & Speaker Analyzer for Anime. Your job is to identify the speakers and their gender for the provided lines.\n"
+    "RULES:\n"
+    "- Identify the Speaker: Look at the name provided (e.g., Eri, Ogino).\n"
+    "- Determine Gender: 'Eri' is Female. 'Ogino' is Male.\n"
+    "- Key Term Correction: If you see 'mosquito' in a context related to pharmaceuticals or stinging, identify it as a 'Wasp'.\n"
+    "- Output Format: Provide a brief summary of speakers and their genders for the chunk."
+)
+
+TRANSLATOR_PROMPT = (
+    "You are a Professional Anime Subtitle Translator. Your persona is 'Anime Fury'.\n"
+    "Translate into Natural, Cool Hinglish using the context provided.\n\n"
+    "STRICT RULES:\n"
+    "1. SHORT & PUNCHY: Keep lines simple. No long sentences. If a line is >8-10 words, shorten it. Translate the vibe, not word-for-word.\n"
+    "   - Bad: 'Main soch raha hoon ki agle saal apni beti ko ek niji madhyamik pathshala mein daalunga.'\n"
+    "   - Good: 'Soch raha hoon agle saal beti ko private school bhej doon.'\n"
+    "2. TU/TERA LOGIC: Use 'Tu/Tujhe/Tera' for casual scenes. Use 'Tum' ONLY if the conversation is strictly formal.\n"
+    "3. GENDER CORRECTION: Use feminine verbs (rahi hai/kiya) for Eri and masculine (raha hai/kiya) for Ogino.\n"
+    "4. MANDATORY SPELLING: Use 'isey' (not ise), 'usey' (not use), 'arey' (not are), 'jaa' (not ja).\n"
+    "5. BAN LIST: No 'pathshala', 'madhyamik', 'prakriti', 'künstlich'. Use 'school', 'high school', 'nature', 'artificial'.\n"
+    "6. TAG PROTECTION: Never modify {\\an8}, {\\pos}, \\N. Keep line breaks (\\N) where they are.\n"
+    "7. NO MARKDOWN: Output only the translated text, one line per original line. No JSON, no backticks."
 )
 
 TRANSLATE_PIC = "https://graph.org/file/600586a9a49029c2e98f1-90c27ea7986142ea7a.jpg"
@@ -126,7 +135,8 @@ def parse_ass(content):
             if line.strip().startswith('Dialogue:'):
                 parts = line.split(',', 9)
                 if len(parts) == 10:
-                    events.append({'prefix': ",".join(parts[0:9]) + ",", 'text': parts[9]})
+                    name = parts[4].strip()
+                    events.append({'prefix': ",".join(parts[0:9]) + ",", 'text': parts[9], 'name': name})
                 else:
                     events.append({'raw': line})
             else:
@@ -134,30 +144,66 @@ def parse_ass(content):
     return header, events, playresx, playresy
 
 
-async def translate_groq(chunk_text, api_key):
+async def translate_groq(chunk_text, api_key, prompt=TRANSLATOR_PROMPT, context=None):
     if not chunk_text.strip(): return chunk_text
-    model_name = "llama-3.3-70b-versatile"
+
+    # Model pool for failover
+    models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"]
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    payload = {"model": model_name, "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": chunk_text}], "temperature": 0.2}
+
+    system_content = prompt
+    if context:
+        system_content += f"\n\nCONTEXT FROM ANALYZER:\n{context}"
 
     async with httpx.AsyncClient() as client:
-        for attempt in range(2):
-            try:
-                response = await client.post(url, headers=headers, json=payload, timeout=60.0)
-                if response.status_code == 200:
-                    data = response.json(); translated_text = data['choices'][0]['message']['content'].strip()
-                    print(f"DEBUG Groq Response: {translated_text}")
-                    translated_text = translated_text.replace('```json', '').replace('```', '').strip()
-                    if translated_text.strip() == chunk_text.strip():
-                        return "RETRY_REQUIRED"
-                    await asyncio.sleep(5); return translated_text
-                elif response.status_code in [429, 503]:
-                    return str(response.status_code)
-                else: return f"❌ Groq Error: {response.status_code} - {response.text}"
-            except Exception as e:
-                if attempt == 0: await asyncio.sleep(2); continue
-                return f"❌ Groq Error: {str(e)}"
+        for model_name in models:
+            for attempt in range(2):
+                try:
+                    payload = {
+                        "model": model_name,
+                        "messages": [
+                            {"role": "system", "content": system_content},
+                            {"role": "user", "content": chunk_text}
+                        ],
+                        "temperature": 0.2
+                    }
+                    response = await client.post(url, headers=headers, json=payload, timeout=60.0)
+
+                    if response.status_code == 200:
+                        data = response.json()
+                        translated_text = data['choices'][0]['message']['content'].strip()
+                        translated_text = translated_text.replace('```json', '').replace('```', '').strip()
+
+                        if translated_text.strip() == chunk_text.strip() and prompt == TRANSLATOR_PROMPT:
+                            # If it's a translation and nothing changed, retry
+                            await asyncio.sleep(2)
+                            continue
+
+                        # Mandatory 3-second delay after successful API call
+                        await asyncio.sleep(3)
+                        return translated_text
+
+                    elif response.status_code == 429:
+                        # Rate limit: Wait 5 seconds and switch model
+                        LOGGER.warning(f"Groq 429 Rate Limit for {model_name}. Waiting 5s and switching model...")
+                        await asyncio.sleep(5)
+                        break # Break inner loop to try next model
+
+                    elif response.status_code == 503:
+                        await asyncio.sleep(5)
+                        continue
+                    else:
+                        return f"❌ Groq Error: {response.status_code} - {response.text}"
+
+                except Exception as e:
+                    if attempt == 0:
+                        await asyncio.sleep(2)
+                        continue
+                    LOGGER.error(f"Groq API Exception for {model_name}: {e}")
+                    break # Try next model
+
+        return "RETRY_REQUIRED"
 
 @Client.on_message(filters.command("translate") & filters.private)
 async def translate_cmd_handler(bot: Client, message: Message):
@@ -308,9 +354,21 @@ async def process_translation(bot, cb, model_type, model_name):
             while idx < len(chunk_queue):
                 original_lines = to_translate[idx*10 : (idx+1)*10]
                 chunk = chunk_queue[idx]; api_key = api_pool[current_key_idx]
-                await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪ𝐧𝐠] : Translating chunk {idx+1}/{len(chunk_queue)}...")
-                res = await translate_groq(chunk, api_key)
-                if res == "RETRY_REQUIRED" or res in ["429", "503"]:
+                await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪ𝐧𝐠] : Analyzing & Translating chunk {idx+1}/{len(chunk_queue)}...")
+
+                # Step 1: Analyze
+                context = await translate_groq(chunk, api_key, prompt=ANALYZER_PROMPT)
+                if context == "RETRY_REQUIRED":
+                    retries += 1
+                    if retries > 3:
+                        idx += 1; retries = 0; continue
+                    current_key_idx = (current_key_idx + 1) % len(api_pool)
+                    continue
+
+                # Step 2: Translate
+                res = await translate_groq(chunk, api_key, prompt=TRANSLATOR_PROMPT, context=context)
+
+                if res == "RETRY_REQUIRED":
                     retries += 1
                     if retries > 3:
                         translated_texts.extend(original_lines)
@@ -329,6 +387,10 @@ async def process_translation(bot, cb, model_type, model_name):
                     for i, line in enumerate(original_lines):
                         if i < len(res_lines):
                             trans_line = res_lines[i].strip()
+                            # If we passed chunk_named, the AI might output "Speaker: Translation"
+                            if ": " in trans_line:
+                                trans_line = trans_line.split(": ", 1)[1]
+
                             if trans_line.lower().startswith(("i'm sorry", "error")):
                                 translated_texts.append(line)
                             else:
@@ -354,25 +416,46 @@ async def process_translation(bot, cb, model_type, model_name):
 
             to_translate = []
             tags_map = []
+            names_map = []
             for item in events:
                 if 'text' in item:
                     protected, placeholders = protect_tags(item['text'], is_ass=True)
                     to_translate.append(protected)
                     tags_map.append(placeholders)
+                    names_map.append(item.get('name', ''))
 
             # Send 10 lines at once for context
             chunk_queue = []
+            chunk_with_names = []
             for i in range(0, len(to_translate), 10):
                 chunk_queue.append("\n".join(to_translate[i:i+10]))
+                named_lines = []
+                for j in range(i, min(i+10, len(to_translate))):
+                    named_lines.append(f"{names_map[j]}: {to_translate[j]}")
+                chunk_with_names.append("\n".join(named_lines))
 
             translated_texts = []
             current_key_idx = 0; idx = 0; retries = 0
             while idx < len(chunk_queue):
                 original_lines = to_translate[idx*10 : (idx+1)*10]
-                chunk = chunk_queue[idx]; api_key = api_pool[current_key_idx]
-                await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪ𝐧𝐠] : Translating chunk {idx+1}/{len(chunk_queue)}...")
-                res = await translate_groq(chunk, api_key)
-                if res == "RETRY_REQUIRED" or res in ["429", "503"]:
+                chunk = chunk_queue[idx]
+                chunk_named = chunk_with_names[idx]
+                api_key = api_pool[current_key_idx]
+                await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪ𝐧𝐠] : Analyzing & Translating chunk {idx+1}/{len(chunk_queue)}...")
+
+                # Step 1: Analyze
+                context = await translate_groq(chunk_named, api_key, prompt=ANALYZER_PROMPT)
+                if context == "RETRY_REQUIRED":
+                    retries += 1
+                    if retries > 3:
+                        idx += 1; retries = 0; continue
+                    current_key_idx = (current_key_idx + 1) % len(api_pool)
+                    continue
+
+                # Step 2: Translate (Pass named chunk for speaker context)
+                res = await translate_groq(chunk_named, api_key, prompt=TRANSLATOR_PROMPT, context=context)
+
+                if res == "RETRY_REQUIRED":
                     retries += 1
                     if retries > 3:
                         translated_texts.extend(original_lines)
@@ -391,6 +474,10 @@ async def process_translation(bot, cb, model_type, model_name):
                     for i, line in enumerate(original_lines):
                         if i < len(res_lines):
                             trans_line = res_lines[i].strip()
+                            # If we passed chunk_named, the AI might output "Speaker: Translation"
+                            if ": " in trans_line:
+                                trans_line = trans_line.split(": ", 1)[1]
+
                             if trans_line.lower().startswith(("i'm sorry", "error")):
                                 translated_texts.append(line)
                             else:
