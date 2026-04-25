@@ -11,10 +11,17 @@ from ..utils.database.access_db import db
 from ..utils.encoding import extract_subtitle, get_width_height
 
 SYSTEM_PROMPT = (
-    "You are a professional Anime Translator. Translate the ASS file into natural Hinglish.\n"
-    "STRICT SPELLING: Always use 'usey' (instead of use/usne) and 'isey' (instead of ise/isme). Follow the glossary rules for 'kaise', 'waise'.\n"
-    "GENDER CONTEXT: Analyze character names and scene context. If the speaker is female, use feminine grammar (e.g., 'kar rahi hoon'). If male, use masculine (e.g., 'kar raha hoon'). Accuracy is mandatory.\n"
-    "TAG PROTECTION: Do NOT translate or touch tags like {\\an8}, {\\pos}, \\N, {\\i1}.\n"
+    "You are a professional Anime Subtitle Translator. Translate the ASS file into Natural, Friendly Hinglish.\n"
+    "SIMPLIFY SENTENCES: Avoid heavy words like 'madhyamik pathshala' or 'niji'. Use simple Hinglish.\n"
+    "Example: Instead of 'Niji madhyamik pathshala mein daalunga', use 'Private high school mein daal dunga'.\n\n"
+    "STRICT SPELLING RULES:\n"
+    "- Use 'usey' instead of 'use' or 'ise'.\n"
+    "- Use 'isey' instead of 'ise'.\n"
+    "- Use 'arey' instead of 'are'.\n"
+    "- Use 'jaa' instead of 'ja' (e.g., 'jaa raha hoon').\n\n"
+    "NO GERMAN/FOREIGN WORDS: Use only Hindi and English. No 'künstlich' or other odd translations.\n"
+    "GENDER & CONTEXT: Keep grammar accurate to the character's gender (raha hai/rahi hai).\n"
+    "TAG PROTECTION: Never modify {\\an8}, {\\pos}, \\N. Keep line breaks (\\N) where they are.\n"
     "UTF-8: Output must be in UTF-8 to support Hindi characters."
 )
 
@@ -99,15 +106,15 @@ def parse_ass(content):
     header = []
     events = []
     in_events = False
-    playresx, playresy = 0, 0
+    playresx, playresy = 640, 360 # Locked resolution
 
     for line in lines:
         if line.strip().startswith('PlayResX:'):
-            try: playresx = int(line.split(':')[1].strip())
-            except: pass
+            header.append(f"PlayResX: {playresx}")
+            continue
         if line.strip().startswith('PlayResY:'):
-            try: playresy = int(line.split(':')[1].strip())
-            except: pass
+            header.append(f"PlayResY: {playresy}")
+            continue
 
         if line.strip().lower().startswith('[events]'):
             in_events = True

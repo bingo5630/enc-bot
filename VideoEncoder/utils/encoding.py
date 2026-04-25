@@ -17,6 +17,14 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from .. import LOGGER, download_dir, encode_dir, ASSETS_DIR
 from .common import edit_msg
 
+def check_hinglish_subtitle(video_path):
+    path, _ = os.path.splitext(video_path)
+    for ext in ['.ass', '.srt']:
+        hinglish_path = path + "_Hinglish" + ext
+        if os.path.exists(hinglish_path) and os.path.getsize(hinglish_path) > 0:
+            return os.path.abspath(hinglish_path)
+    return None
+
 def cleanup_temp_subs(msg_id=None):
     """Clear any previous subtitle cache or temporary .srt/.ass files.
     If msg_id is provided, only deletes files for that specific job."""
@@ -220,6 +228,12 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
 
     output_filepath = output_filepathh
     subtitles_path = os.path.join(encode_dir, str(msg.id) + '.ass')
+
+    # Prioritize translated Hinglish subtitle
+    hinglish_sub = check_hinglish_subtitle(filepath)
+    if hinglish_sub:
+        LOGGER.info(f"Found Hinglish subtitle: {hinglish_sub}")
+        subtitles_path = hinglish_sub
 
     assert(output_filepath != filepath)
 
@@ -440,7 +454,9 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
     if h:
         # Ensure path is absolute and correctly escaped for FFmpeg subtitles filter
         subtitles_path = os.path.abspath(subtitles_path)
-        escaped_sub_path = subtitles_path.replace(":", "\\:")
+        # Robust escaping for FFmpeg subtitles filter: escape backslashes then colons then single quotes
+        escaped_sub_path = subtitles_path.replace("\\", "\\\\").replace(":", "\\:").replace("'", "'\\\\\\''")
+
         # Smart Subtitle Inheritance: Respect .ass file internal styles.
         # Use force_style only if it's NOT an ASS file (e.g., SRT).
         if subtitles_path.lower().endswith(".ass"):
@@ -676,6 +692,12 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     from .database.access_db import db
     cleanup_temp_subs(msg.id)
     filepath = os.path.abspath(filepath)
+
+    # Prioritize translated Hinglish subtitle
+    hinglish_sub = check_hinglish_subtitle(filepath)
+    if hinglish_sub:
+        subtitles_path = hinglish_sub
+
     subtitles_path = os.path.abspath(subtitles_path)
     ex = await db.get_extensions(message.from_user.id)
     path, extension = os.path.splitext(filepath)
@@ -741,7 +763,9 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
 
     # Ensure path is absolute and correctly escaped for FFmpeg subtitles filter
     subtitles_path = os.path.abspath(subtitles_path)
-    escaped_sub_path = subtitles_path.replace(":", "\\:")
+    # Robust escaping for FFmpeg subtitles filter
+    escaped_sub_path = subtitles_path.replace("\\", "\\\\").replace(":", "\\:").replace("'", "'\\\\\\''")
+
     # Smart Subtitle Inheritance: Respect .ass file internal styles.
     if subtitles_path.lower().endswith(".ass"):
         vf_list.append(f"subtitles='{escaped_sub_path}'")
@@ -834,6 +858,12 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
     from .database.access_db import db
     cleanup_temp_subs(msg.id)
     filepath = os.path.abspath(filepath)
+
+    # Prioritize translated Hinglish subtitle
+    hinglish_sub = check_hinglish_subtitle(filepath)
+    if hinglish_sub:
+        subtitles_path = hinglish_sub
+
     subtitles_path = os.path.abspath(subtitles_path)
     ex = await db.get_extensions(message.from_user.id)
     path, extension = os.path.splitext(filepath)

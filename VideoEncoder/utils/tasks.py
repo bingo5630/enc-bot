@@ -111,6 +111,10 @@ async def handle_encode(filepath, message, msg, audio_map=None, quality=None, cu
 async def handle_interactive_encode(video_path, sub_path, message, msg, mode, quality=None):
     from .encoding import encode, hard_sub, soft_code
     from .uploads import upload_worker
+
+    video_path = os.path.abspath(video_path)
+    sub_path = os.path.abspath(sub_path)
+
     # Ensure sub_path is named correctly for encode if needed
     sub_dest = os.path.join(encode_dir, str(msg.id) + '.ass')
     if sub_path != sub_dest:
