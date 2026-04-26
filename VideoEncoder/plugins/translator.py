@@ -158,7 +158,7 @@ async def call_groq(system_prompt, user_content, api_key, temperature=0.2):
                 translated_text = translated_text.replace('```json', '').replace('```', '').strip()
                 if translated_text.strip() == user_content.strip():
                     return "RETRY_REQUIRED"
-                await asyncio.sleep(3); return translated_text
+                return translated_text
             elif response.status_code in [429, 503]:
                 return str(response.status_code)
             else: return f"❌ Groq Error: {response.status_code} - {response.text}"
@@ -167,7 +167,8 @@ async def call_groq(system_prompt, user_content, api_key, temperature=0.2):
 
 async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg):
     translated_texts = []
-    current_trans_idx = 1 if len(api_pool) > 1 else 0
+    # Local pool for round-robin rotation
+    pool = list(api_pool)
     idx = 0
 
     while idx < len(chunk_queue):
@@ -175,41 +176,55 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
         chunk = chunk_queue[idx]
         style_guide = ""
 
-        # STAGE 1: THE ANALYZER (Strictly Key 1 Only, rotate to Key 2 if 429)
-        analyzer_idx = 0
+        # STAGE 1: THE ANALYZER
+        keys_tried = 0
         while not style_guide:
-            api_key = api_pool[analyzer_idx]
-            await edit_msg(status_msg, f"⏳ [𝐒𝐭𝐚𝐠𝐞 𝟏: 𝐀𝐧𝐚𝐥𝐲𝐳𝐞𝐫] : Processing batch {idx+1}/{len(chunk_queue)}...")
+            api_key = pool[0]
+            await edit_msg(status_msg, f"⏳ [𝐒𝐭𝐚𝐠𝐞 𝟏: 𝐀𝐧𝐚𝐥𝐲𝐳𝐞𝐫] : Batch {idx+1}/{len(chunk_queue)} (Key: {api_key[:6]}...)")
             res = await call_groq(ANALYZER_PROMPT, chunk, api_key)
 
             if res in ["429", "503", "RETRY_REQUIRED"]:
-                analyzer_idx = (analyzer_idx + 1) % len(api_pool)
+                # Always rotate on rate limit or retry req
+                pool.append(pool.pop(0))
+                keys_tried += 1
+                if keys_tried >= len(pool):
+                    await edit_msg(status_msg, f"⚠️ All {len(pool)} keys rate-limited. Sleeping 10s... (Batch {idx+1}/{len(chunk_queue)})")
+                    await asyncio.sleep(10)
+                    keys_tried = 0
                 continue
-            if res.startswith("❌"): return res, None
-            style_guide = res
 
-        # STAGE 2: THE TRANSLATOR (Key 2 and onwards)
+            if res.startswith("❌"): return res, None
+
+            style_guide = res
+            # Success - Rotate anyway for Stage 2 to load balance
+            pool.append(pool.pop(0))
+            keys_tried = 0
+
+        # STAGE 2: THE TRANSLATOR
         translated_chunk_lines = []
         temp = 0.2
+        keys_tried = 0
         while not translated_chunk_lines:
-            # Ensure we are not using the analyzer key for translation if possible
-            if current_trans_idx == 0 and len(api_pool) > 1:
-                current_trans_idx = 1
-
-            api_key = api_pool[current_trans_idx]
-            await edit_msg(status_msg, f"⏳ [𝐒𝐭𝐚𝐠𝐞 𝟐: 𝐓𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐨𝐫] : Processing batch {idx+1}/{len(chunk_queue)}...")
+            api_key = pool[0]
+            await edit_msg(status_msg, f"⏳ [𝐒𝐭𝐚𝐠𝐞 𝟐: 𝐓𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐨𝐫] : Batch {idx+1}/{len(chunk_queue)} (Key: {api_key[:6]}..., Temp: {temp})")
             res = await call_groq(TRANSLATOR_PROMPT, f"Style Guide:\n{style_guide}\n\nLines to Translate:\n{chunk}", api_key, temperature=temp)
 
             if res in ["429", "503", "RETRY_REQUIRED"]:
-                current_trans_idx = (current_trans_idx + 1) % len(api_pool)
+                pool.append(pool.pop(0))
+                keys_tried += 1
+                if keys_tried >= len(pool):
+                    await edit_msg(status_msg, f"⚠️ All {len(pool)} keys rate-limited. Sleeping 10s... (Batch {idx+1}/{len(chunk_queue)})")
+                    await asyncio.sleep(10)
+                    keys_tried = 0
                 continue
+
             if res.startswith("❌"): return res, None
 
             # Anti-Lazy Shield & Cleanup
             res_lines = [l.strip() for l in res.strip().split('\n') if l.strip()]
-
-            # Verification: If output is significantly shorter or mostly English
             is_failing = False
+
+            # Check length: if output is significantly shorter than input
             if len(res_lines) < len(original_lines) * 0.7:
                 is_failing = True
 
@@ -217,20 +232,29 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
             for i, line in enumerate(original_lines):
                 if i < len(res_lines):
                     trans_line = re.sub(r'^\s*\[.*?\]:\s*', '', res_lines[i]).strip()
-                    # Check similarity (Anti-Lazy Shield)
+                    # Similarity check (Anti-Lazy Shield)
                     if SequenceMatcher(None, line.lower(), trans_line.lower()).ratio() >= 0.8:
                         is_failing = True
                         break
                     temp_lines.append(trans_line)
                 else:
+                    # Pad missing lines if not completely failing
                     temp_lines.append(line)
 
             if is_failing:
-                current_trans_idx = (current_trans_idx + 1) % len(api_pool)
-                temp = 0.6 # High creativity for retry
+                pool.append(pool.pop(0))
+                keys_tried += 1
+                temp = min(temp + 0.2, 1.0) # Increase creativity on failure
+                await edit_msg(status_msg, f"🔄 Lazy response detected. Retrying batch {idx+1} with temp {temp}...")
+                if keys_tried >= len(pool):
+                    await asyncio.sleep(5)
+                    keys_tried = 0
                 continue
 
             translated_chunk_lines = temp_lines
+            # Success - Rotate anyway for next chunk
+            pool.append(pool.pop(0))
+            keys_tried = 0
 
         translated_texts.extend(translated_chunk_lines)
         idx += 1
