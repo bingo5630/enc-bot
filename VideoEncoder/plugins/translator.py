@@ -20,6 +20,10 @@ ANALYZER_PROMPT = (
 
 TRANSLATOR_PROMPT = (
     "You are a professional Anime Subtitle Translator. Use the provided context to translate lines into short, cool Hinglish (Anime Fury Style).\n\n"
+    "STRICT RULES:\n"
+    "- 100% TRANSLATION: EVERY SINGLE LINE must be translated. You are NOT allowed to return the original English text.\n"
+    "- FALLBACK: If a line is hard to translate, translate its meaning into simple Hinglish.\n"
+    "- VIBE OVER LITERAL: Use common Hinglish equivalents for phrases (e.g., 'I won\'t let you escape' -> 'Main tujhe bachne nahi doonga').\n"
     "LINGUISTIC RULES:\n"
     "- SHORT & PUNCHY: Keep it simple. If a line is more than 8-10 words, shorten it. Translate the 'vibe'.\n"
     "- SPELLING: Use 'isey' (never ise), 'usey' (never use), 'arey' (never are), 'jaa' (never ja).\n"
@@ -140,85 +144,110 @@ def parse_ass(content):
     return header, events, playresx, playresy
 
 
-async def call_groq(system_prompt, user_content, api_key):
+async def call_groq(client, system_prompt, user_content, api_key, creative_retry=False):
     if not user_content.strip(): return user_content
     model_name = "llama-3.3-70b-versatile"
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    payload = {"model": model_name, "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_content}], "temperature": 0.2}
 
-    async with httpx.AsyncClient() as client:
-        for attempt in range(2):
-            try:
-                response = await client.post(url, headers=headers, json=payload, timeout=60.0)
-                if response.status_code == 200:
-                    data = response.json(); translated_text = data['choices'][0]['message']['content'].strip()
-                    print(f"DEBUG Groq Response: {translated_text}")
-                    translated_text = translated_text.replace('```json', '').replace('```', '').strip()
-                    if translated_text.strip() == user_content.strip():
-                        return "RETRY_REQUIRED"
-                    await asyncio.sleep(3); return translated_text
-                elif response.status_code in [429, 503]:
-                    return str(response.status_code)
-                else: return f"❌ Groq Error: {response.status_code} - {response.text}"
-            except Exception as e:
-                if attempt == 0: await asyncio.sleep(2); continue
-                return f"❌ Groq Error: {str(e)}"
+    final_system_prompt = system_prompt
+    if creative_retry:
+        final_system_prompt += "\n\nIMPORTANT: Your previous output was identical to the input. Translate this more creatively into Hinglish, ensuring NO original English words remain."
 
-async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg):
-    translated_texts = []
-    current_key_idx = 0; idx = 0; retries = 0
-    while idx < len(chunk_queue):
-        original_lines = to_translate[idx*10 : (idx+1)*10]
-        chunk = chunk_queue[idx]; api_key = api_pool[current_key_idx]
+    payload = {"model": model_name, "messages": [{"role": "system", "content": final_system_prompt}, {"role": "user", "content": user_content}], "temperature": 0.4 if creative_retry else 0.2}
 
-        await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪ𝐧𝐠] : Analyzing chunk {idx+1}/{len(chunk_queue)}...")
-        context_res = await call_groq(ANALYZER_PROMPT, chunk, api_key)
+    for attempt in range(2):
+        try:
+            response = await client.post(url, headers=headers, json=payload, timeout=60.0)
+            if response.status_code == 200:
+                data = response.json(); translated_text = data['choices'][0]['message']['content'].strip()
+                translated_text = translated_text.replace('```json', '').replace('```', '').strip()
+                await asyncio.sleep(3); return translated_text
+            elif response.status_code in [429, 503]:
+                return str(response.status_code)
+            else: return f"❌ Groq Error: {response.status_code} - {response.text}"
+        except Exception as e:
+            if attempt == 0: await asyncio.sleep(2); continue
+            return f"❌ Groq Error: {str(e)}"
 
-        if context_res in ["RETRY_REQUIRED", "429", "503"]:
-            retries += 1
-            if retries > 3:
-                translated_texts.extend(original_lines)
-                idx += 1; retries = 0; continue
-            current_key_idx = (current_key_idx + 1) % len(api_pool)
-            if current_key_idx == 0:
-                await edit_msg(status_msg, f"⏳ All keys failed/ratelimited. Waiting 30s..."); await asyncio.sleep(30)
-            continue
-        if context_res.startswith("❌"):
-            return context_res, None
+async def process_chunk_with_retry(client, idx, chunk, original_lines, api_pool, semaphore, status_msg):
+    async with semaphore:
+        current_key_idx = idx % len(api_pool)
+        retries = 0
+        while retries < len(api_pool) * 2:
+            api_key = api_pool[current_key_idx]
 
-        await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪ𝐧𝐠] : Translating chunk {idx+1}/{len(chunk_queue)}...")
-        res = await call_groq(TRANSLATOR_PROMPT, f"Context:\n{context_res}\n\nLines to Translate:\n{chunk}", api_key)
+            # Step 1: Analyzer
+            context_res = await call_groq(client, ANALYZER_PROMPT, chunk, api_key)
+            if context_res in ["429", "503"]:
+                current_key_idx = (current_key_idx + 1) % len(api_pool)
+                retries += 1; continue
+            if context_res.startswith("❌"): return original_lines
 
-        if res in ["RETRY_REQUIRED", "429", "503"]:
-            retries += 1
-            if retries > 3:
-                translated_texts.extend(original_lines)
-                idx += 1; retries = 0; continue
-            current_key_idx = (current_key_idx + 1) % len(api_pool)
-            continue
-        if res.startswith("❌"):
-            return res, None
+            # Step 2: Translator
+            res = await call_groq(client, TRANSLATOR_PROMPT, f"Context:\n{context_res}\n\nLines to Translate:\n{chunk}", api_key)
 
-        # Filter conversational filler or JSON
-        if res.strip().startswith(('I ', 'As ', '{')):
-            translated_texts.extend(original_lines)
-        else:
+            if res in ["429", "503"]:
+                current_key_idx = (current_key_idx + 1) % len(api_pool)
+                retries += 1; continue
+
+            if res.startswith("❌"):
+                return original_lines
+
+            # Check if output is identical to input chunk (the core translation part)
+            # res is already stripped of markdown and speaker names are about to be stripped
+            # We check the raw response lines against input lines
             res_lines = res.strip().split('\n')
+            is_lazy = True
             for i, line in enumerate(original_lines):
                 if i < len(res_lines):
-                    trans_line = res_lines[i].strip()
-                    # Strip speaker name if present: e.g. [Eri]: Hello -> Hello
-                    trans_line = re.sub(r'^\[.*?\]:\s*', '', trans_line).strip()
-
-                    if trans_line.lower().startswith(("i'm sorry", "error")):
-                        translated_texts.append(line)
-                    else:
-                        translated_texts.append(trans_line)
+                    trans_line = re.sub(r'^\[.*?\]:\s*', '', res_lines[i].strip()).strip()
+                    if trans_line != line:
+                        is_lazy = False; break
                 else:
-                    translated_texts.append(line)
-        idx += 1; retries = 0
-    return None, translated_texts
+                    is_lazy = False; break
+
+            if is_lazy:
+                # Creative retry
+                res = await call_groq(client, TRANSLATOR_PROMPT, f"Context:\n{context_res}\n\nLines to Translate:\n{chunk}", api_key, creative_retry=True)
+                if res in ["429", "503"] or res.startswith("❌"):
+                    return original_lines
+                res_lines = res.strip().split('\n')
+
+            # Processing response
+            translated_chunk = []
+            if res.strip().startswith(('I ', 'As ', '{')):
+                return original_lines
+
+            for i, line in enumerate(original_lines):
+                if i < len(res_lines):
+                    trans_line = re.sub(r'^\[.*?\]:\s*', '', res_lines[i].strip()).strip()
+                    if trans_line.lower().startswith(("i'm sorry", "error")):
+                        translated_chunk.append(line)
+                    else:
+                        translated_chunk.append(trans_line)
+                else:
+                    translated_chunk.append(line)
+            return translated_chunk
+        return original_lines
+
+async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg):
+    semaphore = asyncio.Semaphore(len(api_pool) * 2)
+    tasks = []
+
+    async with httpx.AsyncClient() as client:
+        for idx, chunk in enumerate(chunk_queue):
+            original_lines = to_translate[idx*10 : (idx+1)*10]
+            tasks.append(process_chunk_with_retry(client, idx, chunk, original_lines, api_pool, semaphore, status_msg))
+
+        await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪ𝐧𝐠] : Translating {len(chunk_queue)} chunks in parallel...")
+        results = await asyncio.gather(*tasks)
+
+    final_translated_texts = []
+    for res in results:
+        final_translated_texts.extend(res)
+
+    return None, final_translated_texts
 
 @Client.on_message(filters.command("translate") & filters.private)
 async def translate_cmd_handler(bot: Client, message: Message):

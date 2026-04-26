@@ -27,7 +27,7 @@ SIZE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
 
 START_PIC = "https://graph.org/file/a43e51fdee6998d7074e0-c9255fe3e80803a9a9.jpg"
 FORCE_PIC = "https://graph.org/file/a0947a8895736ff574666-422dfa95e7395c7142.jpg"
-START_MSG = "<b>ʜᴇʏ!!, {mention} ~\n\nYou woke me up!\n\n<blockquote expandable>I was having such a great dream about world domination... err, I mean, serving you efficiently.\n\nReady to start the show? Send me a video file and let's roll!</blockquote></b>"
+START_MSG = "<b>ʜᴇʏ!!, {mention} ~\nYou woke me up!\n\n<blockquote expandable>I was having such a great dream about world domination... err, I mean, serving you efficiently.\n\nReady to start the show? Send me a video file and let's roll!</blockquote></b>"
 
 
 def uptime():
