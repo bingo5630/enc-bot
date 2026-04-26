@@ -3,6 +3,7 @@ from VideoEncoder import LOGGER
 
 from pyrogram import Client, filters
 from pyrogram.types import Message
+import asyncio
 
 from .. import all
 from ..utils.database.access_db import db
@@ -26,12 +27,16 @@ async def settings_handler(bot: Client, event: Message):
     c = await check_chat(event, chat='Both')
     if not c:
         return
-    await AddUserToDatabase(bot, event)
+
+    # Run AddUserToDatabase in background to avoid blocking
+    asyncio.create_task(AddUserToDatabase(bot, event))
+
     editable = await event.reply_photo(
         photo="https://graph.org/file/a232c9818402f81093feb-383081a21200f77ae8.jpg",
         caption="Please Wait ...",
         has_spoiler=True
     )
+    # OpenSettings handles its own database calls asynchronously
     await OpenSettings(editable, user_id=event.from_user.id)
 
 
@@ -40,7 +45,7 @@ async def settings_viewer(bot: Client, event: Message):
     c = await check_chat(event, chat='Both')
     if c is None:
         return
-    await AddUserToDatabase(bot, event)
+    asyncio.create_task(AddUserToDatabase(bot, event))
     # User ID
     if event.reply_to_message:
         user_id = event.reply_to_message.from_user.id

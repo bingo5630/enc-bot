@@ -20,7 +20,7 @@ async def OpenSettings(event: Message, user_id: int):
             [InlineKeyboardButton("ᴠɪᴅᴇᴏ", callback_data="VideoSettings"), InlineKeyboardButton(
                 "ᴀᴜᴅɪᴏ", callback_data="AudioSettings")],
             [InlineKeyboardButton("ᴇxᴛʀᴀs", callback_data="ExtraSettings"), InlineKeyboardButton(
-                "ʙᴀᴄᴋ", callback_data="backToStart")]
+                "ʙᴀᴄᴋ", callback_data="main_menu")]
         ]
         try:
             await edit_msg(

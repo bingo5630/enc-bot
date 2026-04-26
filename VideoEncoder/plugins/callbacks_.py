@@ -6,7 +6,7 @@ import json
 import os
 import asyncio
 
-from pyrogram import Client
+from pyrogram import Client, filters
 from pyrogram.types import CallbackQuery, InputMediaPhoto, InlineKeyboardButton, InlineKeyboardMarkup
 
 from .. import app, download_dir, log, owner, sudo_users, LOGGER
@@ -16,9 +16,33 @@ from ..utils.settings import (AudioSettings, ExtraSettings, OpenSettings,
                               VideoSettings)
 from .start import showw_status, START_MSG, START_PIC
 from ..utils.helper import check_chat
-from ..utils.common import output, start_but
+from ..utils.common import output, start_but, HELP_TEXT
 from ..video_utils.audio_selector import sessions
 
+
+@app.on_callback_query(filters.regex("main_menu"))
+async def back_to_start(bot: Client, cb: CallbackQuery):
+    user = cb.from_user
+    name = f"{user.first_name} {user.last_name}" if user.last_name else user.first_name
+    link = f"https://t.me/{user.username}" if user.username else f"tg://user?id={user.id}"
+    mention = f"<a href='{link}'>{name}</a>"
+    try:
+        await edit_msg(
+            cb.message,
+            media=InputMediaPhoto(START_PIC, caption=START_MSG.format(mention=mention), has_spoiler=True),
+            reply_markup=start_but
+        )
+    except Exception as e:
+        LOGGER.error(f"Error in backToStart: {e}")
+        await edit_msg(
+            cb.message,
+            caption=START_MSG.format(mention=mention),
+            reply_markup=start_but
+        )
+
+@app.on_callback_query(filters.regex("close_msg"))
+async def delete_msg(bot: Client, cb: CallbackQuery):
+    await cb.message.delete()
 
 @app.on_callback_query()
 async def callback_handlers(bot: Client, cb: CallbackQuery):
@@ -29,33 +53,9 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
         from .metadata_plugin import update_metadata_msg
         from .translator import process_translation
 
-        # Close Button
-
-        if cb.data == "closeMeh":
-            await cb.message.delete(True)
-
-        elif cb.data == "backToStart":
-            user = cb.from_user
-            name = f"{user.first_name} {user.last_name}" if user.last_name else user.first_name
-            link = f"https://t.me/{user.username}" if user.username else f"tg://user?id={user.id}"
-            mention = f"<a href='{link}'>{name}</a>"
-            try:
-                await edit_msg(
-                    cb.message,
-                    media=InputMediaPhoto(START_PIC, caption=START_MSG.format(mention=mention), has_spoiler=True),
-                    reply_markup=start_but
-                )
-            except Exception as e:
-                LOGGER.error(f"Error in backToStart: {e}")
-                await edit_msg(
-                    cb.message,
-                    caption=START_MSG.format(mention=mention),
-                    reply_markup=start_but
-                )
-
         # Settings
 
-        elif cb.data == "VideoSettings":
+        if cb.data == "VideoSettings":
             await VideoSettings(cb.message, user_id=cb.from_user.id)
 
         elif cb.data == "OpenSettings":
@@ -399,11 +399,11 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
             how_to_text = "<b>\"ᴅᴇᴋʜᴏ ʙʜᴀɪ, ᴡᴀᴛᴇʀᴍᴀʀᴋ ʟᴀɢᴀɴᴀ ɪs ʟɪᴋᴇ ᴀᴘɴɪ ɢᴀᴀᴅɪ ᴘᴇ ɴᴀᴀᴍ ʟɪᴋʜᴡᴀɴᴀ! ʙᴀs sᴇᴛ ʙᴜᴛᴛᴏɴ ᴅᴀʙᴀᴏ, ᴘʜᴏᴛᴏ ʙʜᴇᴊᴏ, ᴀᴜʀ ʙᴏᴍ! ᴀʙ ᴄʜᴏʀ ʙʜɪ ᴅᴀʀᴇɴɢᴇ ᴛᴇʀɪ ᴠɪᴅᴇᴏ ᴄʜᴜʀᴀɴᴇ sᴇ. ʜᴇʜᴇʜᴇ...\"</b>"
             buttons = [
                 [
-                    InlineKeyboardButton("🏠 ʜᴏᴍᴇ", callback_data="backToStart"),
+                    InlineKeyboardButton("🏠 ʜᴏᴍᴇ", callback_data="main_menu"),
                     InlineKeyboardButton("🔙 ʙᴀᴄᴋ", callback_data="back_watermark")
                 ],
                 [
-                    InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="closeMeh")
+                    InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="close_msg")
                 ]
             ]
             try:
@@ -428,7 +428,7 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
                 btn_row1,
                 [
                     InlineKeyboardButton("🗑️ ʀᴇᴍᴏᴠᴇ ᴡᴀᴛᴇʀᴍᴀʀᴋ", callback_data="del_watermark"),
-                    InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="closeMeh")
+                    InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_msg")
                 ],
                 [
                     InlineKeyboardButton("❓ ʜᴏᴡ ᴛᴏ sᴇᴛ ᴡᴀᴛᴇʀᴍᴀʀᴋ", callback_data="how_watermark")
@@ -476,11 +476,11 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
                         "ᴜꜱᴇ ᴛʜᴇꜱᴇ ᴄᴏᴍᴍᴀɴᴅꜱ ᴛᴏ ᴇɴʀɪᴄʜ ʏᴏᴜʀ ᴍᴇᴅɪᴀ ᴡɪᴛʜ ᴀᴅᴅɪᴛɪᴏɴᴀʟ ᴍᴇᴛᴀᴅᴀᴛᴀ ɪɴꜰᴏʀᴍᴀᴛɪᴏɴ!"
             buttons = [
                 [
-                    InlineKeyboardButton("🏠 ʜᴏᴍᴇ", callback_data="backToStart"),
+                    InlineKeyboardButton("🏠 ʜᴏᴍᴇ", callback_data="main_menu"),
                     InlineKeyboardButton("🔙 ʙᴀᴄᴋ", callback_data="metadata_back")
                 ],
                 [
-                    InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="closeMeh")
+                    InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="close_msg")
                 ]
             ]
             try:
@@ -537,32 +537,21 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
             await cb.message.delete()
 
         elif cb.data in ["how_to_translate", "help_callback"]:
-            help_text = "<blockquote><b>How to Translate - Step by Step Guide:</b></blockquote>\n" \
-                        "<blockquote expandable>➼ <b>Step 1: Get Groq Key</b>\n" \
-                        "[Click here to Create Groq API Key](https://console.groq.com/keys) and add it using /set_groq_api.\n\n" \
-                        "➼ <b>Step 2: Upload Your File</b>\n" \
-                        "Send your .ass or subtitle file directly to the bot.\n\n" \
-                        "➼ <b>Step 3: Select the Engine</b>\n" \
-                        "Choose the high-stability Groq engine for lightning-fast results.\n\n" \
-                        "➼ <b>Step 4: Wait for Processing</b>\n" \
-                        "The bot will split your file into micro-chunks to ensure high-quality Hinglish translation. Once done, you'll receive the translated file.</blockquote>\n\n" \
-                        "<b>Note:</b> The bot now uses an optimized Groq-Only architecture for 100% stability!"
-
             help_buttons = InlineKeyboardMarkup([
                 [
-                    InlineKeyboardButton("🔙 Back to Home", callback_data="backToStart"),
-                    InlineKeyboardButton("❌ Close", callback_data="closeMeh")
+                    InlineKeyboardButton("🔙 Back to Home", callback_data="main_menu"),
+                    InlineKeyboardButton("❌ Close", callback_data="close_msg")
                 ]
             ])
             try:
                 await edit_msg(
                     cb.message,
-                    media=InputMediaPhoto(START_PIC, caption=help_text, has_spoiler=True),
+                    media=InputMediaPhoto(START_PIC, caption=HELP_TEXT, has_spoiler=True),
                     reply_markup=help_buttons
                 )
             except Exception as e:
                 LOGGER.error(f"Error in {cb.data}: {e}")
-                await edit_msg(cb.message, caption=help_text, reply_markup=help_buttons)
+                await edit_msg(cb.message, caption=HELP_TEXT, reply_markup=help_buttons)
 
     except Exception as e:
         LOGGER.error(f"Error in callback_handlers: {e}")

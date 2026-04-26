@@ -50,25 +50,12 @@ async def start_message(app, message):
 
 @Client.on_message(filters.command('help'))
 async def help_message(app, message):
+    from ..utils.common import HELP_TEXT
     c = await check_chat(message, chat='Both')
     if not c:
         return
     await AddUserToDatabase(app, message)
-    msg = """<blockquote><b>How to Translate - Step by Step Guide:</b></blockquote>
-<blockquote expandable>➼ <b>Step 1: Get Groq Key</b>
-[Click here to Create Groq API Key](https://console.groq.com/keys) and add it using /set_groq_api.
-
-➼ <b>Step 2: Upload Your File</b>
-Send your .ass or subtitle file directly to the bot.
-
-➼ <b>Step 3: Select the Engine</b>
-Choose the high-stability Groq engine for lightning-fast results.
-
-➼ <b>Step 4: Wait for Processing</b>
-The bot will split your file into micro-chunks to ensure high-quality Hinglish translation. Once done, you'll receive the translated file.</blockquote>
-
-<b>Note:</b> The bot now uses an optimized Groq-Only architecture for 100% stability!"""
-    await message.reply_photo(photo=START_PIC, caption=msg, reply_markup=start_but, has_spoiler=True)
+    await message.reply_photo(photo=START_PIC, caption=HELP_TEXT, reply_markup=start_but, has_spoiler=True)
 
 
 @Client.on_message(filters.command('stats'))
