@@ -5,24 +5,22 @@ from pyrogram.errors import FloodWait
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, InputMediaPhoto
 
 from .. import LOGGER
-from .common import edit_msg
-from .database.access_db import db
 
 
 SETTINGS_PIC = "https://graph.org/file/a232c9818402f81093feb-383081a21200f77ae8.jpg"
 
 # Settings
 async def OpenSettings(event: Message, user_id: int):
+    from .common import edit_msg
+    from .database.access_db import db
+    from .database.add_user import AddUserToDatabase
     try:
-        text = "<b>⚙️ Settings Menu - Configure Your Bot:</b>"
+        text = "Settings of the Bot"
         buttons = [
-            [
-                InlineKeyboardButton("❓ ʜᴏᴡ ᴛᴏ ᴛʀᴀɴsʟᴀᴛᴇ", callback_data="how_to_translate"),
-                InlineKeyboardButton("🖼️ ᴡᴀᴛᴇʀᴍᴀʀᴋ", callback_data="back_watermark")
-            ],
-            [
-                InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="closeMeh")
-            ]
+            [InlineKeyboardButton("ᴠɪᴅᴇᴏ", callback_data="VideoSettings"), InlineKeyboardButton(
+                "ᴀᴜᴅɪᴏ", callback_data="AudioSettings")],
+            [InlineKeyboardButton("ᴇxᴛʀᴀs", callback_data="ExtraSettings"), InlineKeyboardButton(
+                "ʙᴀᴄᴋ", callback_data="backToStart")]
         ]
         try:
             await edit_msg(
@@ -43,6 +41,8 @@ async def OpenSettings(event: Message, user_id: int):
 
 # Video Settings
 async def VideoSettings(event: Message, user_id: int):
+    from .common import edit_msg
+    from .database.access_db import db
     try:
         ex = await db.get_extensions(user_id)
         if ex == 'MP4':
@@ -135,7 +135,7 @@ async def VideoSettings(event: Message, user_id: int):
              InlineKeyboardButton(f"ᴀsᴘᴇᴄᴛ: {'16:9' if ((await db.get_aspect(user_id)) is True) else 'sᴏᴜʀᴄᴇ'}", callback_data="triggeraspect")],
             [InlineKeyboardButton(f"ᴄᴀʙᴀᴄ {'☑️' if ((await db.get_cabac(user_id)) is True) else ''}", callback_data="triggercabac"),
              InlineKeyboardButton(f"ʀᴇғʀᴀᴍᴇ: {reframe}", callback_data="triggerreframe")],
-            [InlineKeyboardButton("ʙᴀᴄᴋ", callback_data="OpenSettings"), InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="closeMeh")]
+            [InlineKeyboardButton("ʙᴀᴄᴋ", callback_data="OpenSettings")]
         ]
 
         try:
@@ -156,6 +156,8 @@ async def VideoSettings(event: Message, user_id: int):
 
 
 async def AudioSettings(event: Message, user_id: int):
+    from .common import edit_msg
+    from .database.access_db import db
     try:
 
         a = await db.get_audio(user_id)
@@ -230,7 +232,7 @@ async def AudioSettings(event: Message, user_id: int):
                 f"{sample}", callback_data="triggersamplerate")],
             [InlineKeyboardButton("ʙɪᴛʀᴀᴛᴇ", callback_data="Watermark"), InlineKeyboardButton(
                 f"{bitrate}", callback_data="triggerbitrate")],
-            [InlineKeyboardButton("ʙᴀᴄᴋ", callback_data="OpenSettings"), InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="closeMeh")]
+            [InlineKeyboardButton("ʙᴀᴄᴋ", callback_data="OpenSettings")]
         ]
 
         try:
@@ -251,6 +253,8 @@ async def AudioSettings(event: Message, user_id: int):
 
 
 async def ExtraSettings(event: Message, user_id: int):
+    from .common import edit_msg
+    from .database.access_db import db
     try:
         text = "Here's Your Subtitle Settings"
         buttons = [
@@ -261,7 +265,7 @@ async def ExtraSettings(event: Message, user_id: int):
              InlineKeyboardButton(f"{'ᴅᴏᴄᴜᴍᴇɴᴛ' if ((await db.get_upload_as_doc(user_id)) is True) else 'ᴠɪᴅᴇᴏ'}", callback_data="triggerUploadMode")],
             [InlineKeyboardButton("ᴡᴀᴛᴇʀᴍᴀʀᴋ sᴇᴛᴛɪɴɢs", callback_data="Watermark")],
             [InlineKeyboardButton(f"ᴍᴇᴛᴀᴅᴀᴛᴀ {'☑️' if ((await db.get_metadata_w(user_id)) is True) else ''}", callback_data="triggerMetadata"), InlineKeyboardButton(f"ᴠɪᴅᴇᴏ {'☑️' if ((await db.get_watermark(user_id)) is True) else ''}", callback_data="triggerVideo")],
-            [InlineKeyboardButton("ʙᴀᴄᴋ", callback_data="OpenSettings"), InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="closeMeh")]
+            [InlineKeyboardButton("ʙᴀᴄᴋ", callback_data="OpenSettings")]
         ]
 
         try:
