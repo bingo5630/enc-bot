@@ -22,8 +22,6 @@ from ..video_utils.audio_selector import sessions
 
 @app.on_callback_query()
 async def callback_handlers(bot: Client, cb: CallbackQuery):
-    await cb.answer()
-    print(f"Button pressed: {cb.data}")
     try:
         # Import plugins on demand to avoid circular imports if any
         from .watermark import watermark_sessions, WATERMARK_PIC

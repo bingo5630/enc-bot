@@ -3,8 +3,6 @@ import os
 import asyncio
 import re
 import httpx
-import time
-from difflib import SequenceMatcher
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from .. import LOGGER, download_dir
@@ -12,27 +10,22 @@ from ..utils.uploads.telegram import upload_doc
 from ..utils.database.access_db import db
 from ..utils.encoding import extract_subtitle, get_width_height
 
-BATCH_SIZE = 5
-
 ANALYZER_PROMPT = (
-    "Analyze the following anime subtitle lines and provide a simple 'Style Guide' for this batch.\n"
-    "Identify:\n"
-    "1. Gender: Identify speaker gender (Male uses 'Raha', Female uses 'Rahi').\n"
-    "2. Respect Level: Elder/Boss uses 'Aap', Peers/Friends uses 'Tu/Tera'.\n"
-    "3. Key Terms: Context check for specific terms (e.g., 'Wasp' should be 'Bhirad').\n"
-    "Instructions for Style Guide: Output a simple line like: 'Gender: Male, Respect: Tu/Tera, Key Terms: Wasp=Bhirad, Avoid Shuddh Hindi, Keep it conversational'."
+    "Analyze the following anime subtitle lines. Identify:\n"
+    "1. Speaker and their gender (Eri is female, Ogino is male).\n"
+    "2. Technical terms (Mitsuoka Pharmaceuticals). IMPORTANT: The insect is a WASP, not a mosquito.\n"
+    "3. Scene tone (Formal or Casual).\n"
+    "Provide context for each line to assist translation."
 )
 
 TRANSLATOR_PROMPT = (
-    "You are a professional Anime Subtitle Translator. Use the provided Style Guide to translate lines into short, cool Hinglish (Anime Fury Style).\n\n"
-    "CORE RULE: Use colloquial Hinglish. Strictly ban 'Khed', 'Anumati', 'Pratiksha'. Use 'Sorry', 'Permission', 'Wait'. Casual youth slang only.\n\n"
+    "You are a professional Anime Subtitle Translator. Use the provided context to translate lines into short, cool Hinglish (Anime Fury Style).\n\n"
     "LINGUISTIC RULES:\n"
-    "- SHORT & PUNCHY: Keep it simple. Translate the 'vibe'.\n"
-    "- NO SHUDDH HINDI: Avoid formal Hindi words. Use Hinglish equivalents.\n"
-    "- NO ENGLISH SENTENCES: Ensure it's Hinglish, not just plain English.\n"
-    "- SPELLING: Always use 'isey' (NOT 'ise'), 'usey' (NOT 'use'), 'arey' (NOT 'arre').\n"
-    "- PRESERVE 'Oh': DO NOT change 'Oh' to 'Arey'. Keep 'Oh' as it is (e.g., 'Oh, tumhe ye pasand aaya').\n"
-    "- GENDER & RESPECT: Follow the Style Guide for 'Raha/Rahi' and 'Aap/Tu'.\n\n"
+    "- SHORT & PUNCHY: Keep it simple. If a line is more than 8-10 words, shorten it. Translate the 'vibe'.\n"
+    "- SPELLING: Use 'isey' (never ise), 'usey' (never use), 'arey' (never are), 'jaa' (never ja).\n"
+    "- VOCABULARY: No 'pathshala', 'madhyamik', 'prakriti', 'künstlich'. Use 'school', 'high school', 'nature', 'artificial'.\n"
+    "- GENDER: Eri uses feminine verbs (rahi hai/kiya), Ogino uses masculine (raha hai/kiya).\n"
+    "- TU/TERA: Strictly use 'Tu/Tujhe/Tera' for casual scenes. Use 'Tum' ONLY for formal conversations.\n\n"
     "PROTECTION:\n"
     "- Do NOT modify ASS tags like {\\an8}, {\\pos} or line breaks \\N.\n\n"
     "OUTPUT: UTF-8 plain text only. One translated line per input line. No extra text, no Markdown, no JSON."
@@ -41,33 +34,8 @@ TRANSLATOR_PROMPT = (
 TRANSLATE_PIC = "https://graph.org/file/600586a9a49029c2e98f1-90c27ea7986142ea7a.jpg"
 TRANSLATE_TEXT = "✨ ᴄʜᴏᴏsᴇ ʏᴏᴜʀ ᴛʀᴀɴsʟᴀᴛɪᴏɴ ᴇɴɢɪɴᴇ ✨\nᴘʟᴇᴀsᴇ sᴇʟᴇᴄᴛ ᴀ ᴍᴏᴅᴇʟ ᴛᴏ sᴛᴀʀᴛ ʜɪɴɢʟɪsʜ ᴛʀᴀɴsʟᴀᴛɪᴏɴ."
 
-# Global Client for connection pooling
-GROQ_CLIENT = httpx.AsyncClient(timeout=60.0)
-
-# Track rate-limited keys: {api_key: ban_expiration_timestamp}
-BANNED_KEYS = {}
-
 # Temporary storage for file metadata linked to message ID
 translation_data = {}
-
-# Sequential Processing and Global Backoff Variables
-GROQ_LOCK = asyncio.Lock()
-GLOBAL_BACKOFF = 10
-
-def blacklist_key(api_key, retry_after_header=0):
-    """Marks a key as banned for at least 10 minutes or Retry-After duration."""
-    duration = int(retry_after_header) if int(retry_after_header) > 0 else 600
-    BANNED_KEYS[api_key] = time.time() + duration
-    LOGGER.warning(f"Key {api_key[:6]}... blacklisted for {duration}s")
-
-def is_key_banned(api_key):
-    """Checks if a key is currently banned."""
-    if api_key in BANNED_KEYS:
-        if time.time() < BANNED_KEYS[api_key]:
-            return True
-        else:
-            del BANNED_KEYS[api_key]
-    return False
 
 SETUP_GUIDE_TEXT = (
     "✨ ʜᴏᴡ ᴛᴏ sᴇᴛ ᴜᴘ ʏᴏᴜʀ ᴛʀᴀɴsʟᴀᴛɪᴏɴ ᴇɴɢɪɴᴇ ✨\n\n"
@@ -172,161 +140,84 @@ def parse_ass(content):
     return header, events, playresx, playresy
 
 
-async def call_groq(system_prompt, user_content, api_key, temperature=0.2, status_msg=None):
-    if not user_content.strip(): return user_content, 0
-    global GLOBAL_BACKOFF
+async def call_groq(system_prompt, user_content, api_key):
+    if not user_content.strip(): return user_content
     model_name = "llama-3.3-70b-versatile"
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    payload = {"model": model_name, "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_content}], "temperature": temperature}
+    payload = {"model": model_name, "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_content}], "temperature": 0.2}
 
-    async with GROQ_LOCK:
-        try:
-            response = await GROQ_CLIENT.post(url, headers=headers, json=payload)
-            if response.status_code == 200:
-                GLOBAL_BACKOFF = 10 # Reset backoff on success
-                data = response.json()
-                translated_text = data['choices'][0]['message']['content'].strip()
-                translated_text = translated_text.replace('```json', '').replace('```', '').strip()
-                if translated_text.strip() == user_content.strip():
-                    return "RETRY_REQUIRED", 0
-                return translated_text, 0
-            elif response.status_code in [429, 503]:
-                header_retry = response.headers.get("Retry-After")
-                if header_retry and int(header_retry) > 0:
-                    retry_after = int(header_retry)
-                else:
-                    retry_after = GLOBAL_BACKOFF
-                    GLOBAL_BACKOFF *= 2 # Exponential backoff
-
-                msg = f"Rate limited! Waiting for {retry_after} seconds..."
-                print(msg)
-                if status_msg:
-                    try: await edit_msg(status_msg, f"⚠️ {msg}")
-                    except: pass
-                await asyncio.sleep(retry_after)
-                return str(response.status_code), retry_after
-            else:
-                return f"❌ Groq Error: {response.status_code} - {response.text}", 0
-        except Exception as e:
-            return f"❌ Groq Error: {str(e)}", 0
+    async with httpx.AsyncClient() as client:
+        for attempt in range(2):
+            try:
+                response = await client.post(url, headers=headers, json=payload, timeout=60.0)
+                if response.status_code == 200:
+                    data = response.json(); translated_text = data['choices'][0]['message']['content'].strip()
+                    print(f"DEBUG Groq Response: {translated_text}")
+                    translated_text = translated_text.replace('```json', '').replace('```', '').strip()
+                    if translated_text.strip() == user_content.strip():
+                        return "RETRY_REQUIRED"
+                    await asyncio.sleep(3); return translated_text
+                elif response.status_code in [429, 503]:
+                    return str(response.status_code)
+                else: return f"❌ Groq Error: {response.status_code} - {response.text}"
+            except Exception as e:
+                if attempt == 0: await asyncio.sleep(2); continue
+                return f"❌ Groq Error: {str(e)}"
 
 async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg):
     translated_texts = []
-    idx = 0
-    pool = list(api_pool)
-
-    async def get_next_key():
-        nonlocal pool
-        while True:
-            for _ in range(len(pool)):
-                if not is_key_banned(pool[0]):
-                    return pool[0]
-                pool.append(pool.pop(0))
-
-            # All keys banned
-            if BANNED_KEYS:
-                earliest_expiry = min(BANNED_KEYS.values())
-                wait_time = max(5, int(earliest_expiry - time.time()) + 1)
-            else:
-                wait_time = 5
-            await edit_msg(status_msg, f"⚠️ All API keys rate-limited. Sleeping {wait_time}s...")
-            await asyncio.sleep(wait_time)
-
+    current_key_idx = 0; idx = 0; retries = 0
     while idx < len(chunk_queue):
-        original_lines = to_translate[idx*BATCH_SIZE : (idx+1)*BATCH_SIZE]
-        chunk = chunk_queue[idx]
-        style_guide = ""
+        original_lines = to_translate[idx*10 : (idx+1)*10]
+        chunk = chunk_queue[idx]; api_key = api_pool[current_key_idx]
 
-        # STAGE 1: THE BRAIN (Unified Rotation Analysis)
-        while not style_guide:
-            api_key = await get_next_key()
-            await edit_msg(status_msg, f"⏳ [𝐒𝐭𝐚𝐠𝐞 𝟏: 𝐀𝐧𝐚𝐥𝐲𝐳𝐞𝐫] : Batch {idx+1}/{len(chunk_queue)} (Key: {api_key[:6]}...)")
-            res, retry_after = await call_groq(ANALYZER_PROMPT, chunk, api_key, status_msg=status_msg)
+        await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪ𝐧𝐠] : Analyzing chunk {idx+1}/{len(chunk_queue)}...")
+        context_res = await call_groq(ANALYZER_PROMPT, chunk, api_key)
 
-            if res in ["429", "503"]:
-                blacklist_key(api_key, retry_after)
-                pool.append(pool.pop(0))
-                continue
+        if context_res in ["RETRY_REQUIRED", "429", "503"]:
+            retries += 1
+            if retries > 3:
+                translated_texts.extend(original_lines)
+                idx += 1; retries = 0; continue
+            current_key_idx = (current_key_idx + 1) % len(api_pool)
+            if current_key_idx == 0:
+                await edit_msg(status_msg, f"⏳ All keys failed/ratelimited. Waiting 30s..."); await asyncio.sleep(30)
+            continue
+        if context_res.startswith("❌"):
+            return context_res, None
 
-            if res == "RETRY_REQUIRED":
-                pool.append(pool.pop(0))
-                await asyncio.sleep(5)
-                continue
+        await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪ𝐧𝐠] : Translating chunk {idx+1}/{len(chunk_queue)}...")
+        res = await call_groq(TRANSLATOR_PROMPT, f"Context:\n{context_res}\n\nLines to Translate:\n{chunk}", api_key)
 
-            if res.startswith("❌"): return res, None
+        if res in ["RETRY_REQUIRED", "429", "503"]:
+            retries += 1
+            if retries > 3:
+                translated_texts.extend(original_lines)
+                idx += 1; retries = 0; continue
+            current_key_idx = (current_key_idx + 1) % len(api_pool)
+            continue
+        if res.startswith("❌"):
+            return res, None
 
-            style_guide = res
-            pool.append(pool.pop(0)) # Rotate after success to balance load
+        # Filter conversational filler or JSON
+        if res.strip().startswith(('I ', 'As ', '{')):
+            translated_texts.extend(original_lines)
+        else:
+            res_lines = res.strip().split('\n')
+            for i, line in enumerate(original_lines):
+                if i < len(res_lines):
+                    trans_line = res_lines[i].strip()
+                    # Strip speaker name if present: e.g. [Eri]: Hello -> Hello
+                    trans_line = re.sub(r'^\[.*?\]:\s*', '', trans_line).strip()
 
-        # STAGE 2: THE HANDS (Unified Rotation Translation)
-        translated_chunk_lines = []
-        temp = 0.2
-        while not translated_chunk_lines:
-            api_key = await get_next_key()
-            await edit_msg(status_msg, f"⏳ [𝐒𝐭𝐚𝐠𝐞 𝟐: 𝐓𝐫𝐚𝐧𝐬𝐥𝐚ᴛ𝐨𝐫] : Batch {idx+1}/{len(chunk_queue)} (Key: {api_key[:6]}..., Temp: {temp})")
-            res, retry_after = await call_groq(TRANSLATOR_PROMPT, f"Style Guide:\n{style_guide}\n\nLines to Translate:\n{chunk}", api_key, temperature=temp, status_msg=status_msg)
-
-            if res in ["429", "503"]:
-                blacklist_key(api_key, retry_after)
-                pool.append(pool.pop(0))
-                continue
-
-            if res == "RETRY_REQUIRED":
-                pool.append(pool.pop(0))
-                await asyncio.sleep(5)
-                continue
-
-            if res.startswith("❌"): return res, None
-
-            # Quality Guard (Anti-Lazy Shield) & Cleanup
-            res_lines = [l.strip() for l in res.strip().split('\n') if l.strip()]
-            is_failing = False
-
-            # 1. Strict Line Count Check
-            if len(res_lines) != len(original_lines):
-                is_failing = True
-
-            # 2. Auxiliary Verb Detection (Anti-Lazy)
-            aux_verbs = [r'\bthe\b', r'\bwas\b', r'\bwere\b']
-
-            temp_lines = []
-            if not is_failing:
-                for i, line in enumerate(original_lines):
-                    trans_line = re.sub(r'^\s*\[.*?\]:\s*', '', res_lines[i]).strip()
-
-                    # 3. Identity Check (identical to source)
-                    if SequenceMatcher(None, line.lower(), trans_line.lower()).ratio() >= 0.8:
-                        is_failing = True
-                        break
-
-                    # 4. English Auxiliary Verb Check
-                    for verb in aux_verbs:
-                        if re.search(verb, trans_line.lower()):
-                            is_failing = True
-                            break
-                    if is_failing: break
-
-                    temp_lines.append(trans_line)
-
-            if is_failing:
-                pool.append(pool.pop(0))
-                temp = min(temp + 0.2, 1.0)
-                await edit_msg(status_msg, f"🔄 Lazy response detected. Retrying batch {idx+1} with temp {temp}...")
-                await asyncio.sleep(5)
-                continue
-
-            translated_chunk_lines = temp_lines
-            pool.append(pool.pop(0))
-
-            # TEST MODE: Preview first 10 lines of the first batch
-            if idx == 0:
-                preview = "\n".join(translated_chunk_lines[:10])
-                LOGGER.info(f"--- TEST MODE PREVIEW (Batch 1) ---\n{preview}\n----------------------------------")
-
-        translated_texts.extend(translated_chunk_lines)
-        idx += 1
-
+                    if trans_line.lower().startswith(("i'm sorry", "error")):
+                        translated_texts.append(line)
+                    else:
+                        translated_texts.append(trans_line)
+                else:
+                    translated_texts.append(line)
+        idx += 1; retries = 0
     return None, translated_texts
 
 @Client.on_message(filters.command("translate") & filters.private)
@@ -470,11 +361,11 @@ async def process_translation(bot, cb, model_type, model_name):
                     tags_map.append(placeholders)
                     names.append("") # SRT doesn't have speaker info in header
 
-            # Send BATCH_SIZE lines at once for context
+            # Send 10 lines at once for context
             chunk_queue = []
-            for i in range(0, len(to_translate), BATCH_SIZE):
+            for i in range(0, len(to_translate), 10):
                 lines_with_names = []
-                for j in range(i, min(i+BATCH_SIZE, len(to_translate))):
+                for j in range(i, min(i+10, len(to_translate))):
                     name_prefix = f"[{names[j]}]: " if names[j] else ""
                     lines_with_names.append(f"{name_prefix}{to_translate[j]}")
                 chunk_queue.append("\n".join(lines_with_names))
@@ -509,11 +400,11 @@ async def process_translation(bot, cb, model_type, model_name):
                     tags_map.append(placeholders)
                     names.append(item.get('name', ''))
 
-            # Send BATCH_SIZE lines at once for context
+            # Send 10 lines at once for context
             chunk_queue = []
-            for i in range(0, len(to_translate), BATCH_SIZE):
+            for i in range(0, len(to_translate), 10):
                 lines_with_names = []
-                for j in range(i, min(i+BATCH_SIZE, len(to_translate))):
+                for j in range(i, min(i+10, len(to_translate))):
                     name_prefix = f"[{names[j]}]: " if names[j] else ""
                     lines_with_names.append(f"{name_prefix}{to_translate[j]}")
                 chunk_queue.append("\n".join(lines_with_names))
