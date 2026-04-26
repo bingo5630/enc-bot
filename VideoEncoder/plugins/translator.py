@@ -3,6 +3,7 @@ import os
 import asyncio
 import re
 import httpx
+from difflib import SequenceMatcher
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from .. import LOGGER, download_dir
@@ -11,21 +12,23 @@ from ..utils.database.access_db import db
 from ..utils.encoding import extract_subtitle, get_width_height
 
 ANALYZER_PROMPT = (
-    "Analyze the following anime subtitle lines. Identify:\n"
-    "1. Speaker and their gender (Eri is female, Ogino is male).\n"
-    "2. Technical terms (Mitsuoka Pharmaceuticals). IMPORTANT: The insect is a WASP, not a mosquito.\n"
-    "3. Scene tone (Formal or Casual).\n"
-    "Provide context for each line to assist translation."
+    "Analyze the following anime subtitle lines and provide a simple 'Style Guide' for this batch.\n"
+    "Identify:\n"
+    "1. Gender of speakers (Eri is female, Ogino is male).\n"
+    "2. Tone (Informal/Tu or Formal/Tum).\n"
+    "Instructions for Style Guide: Output a simple line like: 'Gender: Male, Tone: Informal/Tu, Avoid Shuddh Hindi, Keep it conversational'."
 )
 
 TRANSLATOR_PROMPT = (
-    "You are a professional Anime Subtitle Translator. Use the provided context to translate lines into short, cool Hinglish (Anime Fury Style).\n\n"
+    "You are a professional Anime Subtitle Translator. Use the provided Style Guide to translate lines into short, cool Hinglish (Anime Fury Style).\n\n"
+    "CORE RULE: Use colloquial Hinglish. 'Mujhe khed hai' is forbidden—use 'Sorry bhai'. 'Anumati' is forbidden—use 'Permission'. Casual youth slang only.\n\n"
     "LINGUISTIC RULES:\n"
-    "- SHORT & PUNCHY: Keep it simple. If a line is more than 8-10 words, shorten it. Translate the 'vibe'.\n"
+    "- SHORT & PUNCHY: Keep it simple. Translate the 'vibe'.\n"
+    "- NO SHUDDH HINDI: Avoid formal Hindi words. Use Hinglish equivalents.\n"
+    "- NO ENGLISH SENTENCES: Ensure it's Hinglish, not just plain English.\n"
     "- SPELLING: Use 'isey' (never ise), 'usey' (never use), 'arey' (never are), 'jaa' (never ja).\n"
-    "- VOCABULARY: No 'pathshala', 'madhyamik', 'prakriti', 'künstlich'. Use 'school', 'high school', 'nature', 'artificial'.\n"
-    "- GENDER: Eri uses feminine verbs (rahi hai/kiya), Ogino uses masculine (raha hai/kiya).\n"
-    "- TU/TERA: Strictly use 'Tu/Tujhe/Tera' for casual scenes. Use 'Tum' ONLY for formal conversations.\n\n"
+    "- GENDER: Eri is female (feminine verbs: rahi hai/kiya), Ogino is male (masculine: raha hai/kiya).\n"
+    "- TU/TERA: Use 'Tu/Tujhe/Tera' for casual. 'Tum' only if formal.\n\n"
     "PROTECTION:\n"
     "- Do NOT modify ASS tags like {\\an8}, {\\pos} or line breaks \\N.\n\n"
     "OUTPUT: UTF-8 plain text only. One translated line per input line. No extra text, no Markdown, no JSON."
@@ -140,84 +143,98 @@ def parse_ass(content):
     return header, events, playresx, playresy
 
 
-async def call_groq(system_prompt, user_content, api_key):
+async def call_groq(system_prompt, user_content, api_key, temperature=0.2):
     if not user_content.strip(): return user_content
     model_name = "llama-3.3-70b-versatile"
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    payload = {"model": model_name, "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_content}], "temperature": 0.2}
+    payload = {"model": model_name, "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_content}], "temperature": temperature}
 
     async with httpx.AsyncClient() as client:
-        for attempt in range(2):
-            try:
-                response = await client.post(url, headers=headers, json=payload, timeout=60.0)
-                if response.status_code == 200:
-                    data = response.json(); translated_text = data['choices'][0]['message']['content'].strip()
-                    print(f"DEBUG Groq Response: {translated_text}")
-                    translated_text = translated_text.replace('```json', '').replace('```', '').strip()
-                    if translated_text.strip() == user_content.strip():
-                        return "RETRY_REQUIRED"
-                    await asyncio.sleep(3); return translated_text
-                elif response.status_code in [429, 503]:
-                    return str(response.status_code)
-                else: return f"❌ Groq Error: {response.status_code} - {response.text}"
-            except Exception as e:
-                if attempt == 0: await asyncio.sleep(2); continue
-                return f"❌ Groq Error: {str(e)}"
+        try:
+            response = await client.post(url, headers=headers, json=payload, timeout=60.0)
+            if response.status_code == 200:
+                data = response.json(); translated_text = data['choices'][0]['message']['content'].strip()
+                translated_text = translated_text.replace('```json', '').replace('```', '').strip()
+                if translated_text.strip() == user_content.strip():
+                    return "RETRY_REQUIRED"
+                await asyncio.sleep(3); return translated_text
+            elif response.status_code in [429, 503]:
+                return str(response.status_code)
+            else: return f"❌ Groq Error: {response.status_code} - {response.text}"
+        except Exception as e:
+            return f"❌ Groq Error: {str(e)}"
 
 async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg):
     translated_texts = []
-    current_key_idx = 0; idx = 0; retries = 0
+    current_trans_idx = 1 if len(api_pool) > 1 else 0
+    idx = 0
+
     while idx < len(chunk_queue):
-        original_lines = to_translate[idx*10 : (idx+1)*10]
-        chunk = chunk_queue[idx]; api_key = api_pool[current_key_idx]
+        original_lines = to_translate[idx*20 : (idx+1)*20]
+        chunk = chunk_queue[idx]
+        style_guide = ""
 
-        await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪ𝐧𝐠] : Analyzing chunk {idx+1}/{len(chunk_queue)}...")
-        context_res = await call_groq(ANALYZER_PROMPT, chunk, api_key)
+        # STAGE 1: THE ANALYZER (Strictly Key 1 Only, rotate to Key 2 if 429)
+        analyzer_idx = 0
+        while not style_guide:
+            api_key = api_pool[analyzer_idx]
+            await edit_msg(status_msg, f"⏳ [𝐒𝐭𝐚𝐠𝐞 𝟏: 𝐀𝐧𝐚𝐥𝐲𝐳𝐞𝐫] : Processing batch {idx+1}/{len(chunk_queue)}...")
+            res = await call_groq(ANALYZER_PROMPT, chunk, api_key)
 
-        if context_res in ["RETRY_REQUIRED", "429", "503"]:
-            retries += 1
-            if retries > 3:
-                translated_texts.extend(original_lines)
-                idx += 1; retries = 0; continue
-            current_key_idx = (current_key_idx + 1) % len(api_pool)
-            if current_key_idx == 0:
-                await edit_msg(status_msg, f"⏳ All keys failed/ratelimited. Waiting 30s..."); await asyncio.sleep(30)
-            continue
-        if context_res.startswith("❌"):
-            return context_res, None
+            if res in ["429", "503", "RETRY_REQUIRED"]:
+                analyzer_idx = (analyzer_idx + 1) % len(api_pool)
+                continue
+            if res.startswith("❌"): return res, None
+            style_guide = res
 
-        await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪ𝐧𝐠] : Translating chunk {idx+1}/{len(chunk_queue)}...")
-        res = await call_groq(TRANSLATOR_PROMPT, f"Context:\n{context_res}\n\nLines to Translate:\n{chunk}", api_key)
+        # STAGE 2: THE TRANSLATOR (Key 2 and onwards)
+        translated_chunk_lines = []
+        temp = 0.2
+        while not translated_chunk_lines:
+            # Ensure we are not using the analyzer key for translation if possible
+            if current_trans_idx == 0 and len(api_pool) > 1:
+                current_trans_idx = 1
 
-        if res in ["RETRY_REQUIRED", "429", "503"]:
-            retries += 1
-            if retries > 3:
-                translated_texts.extend(original_lines)
-                idx += 1; retries = 0; continue
-            current_key_idx = (current_key_idx + 1) % len(api_pool)
-            continue
-        if res.startswith("❌"):
-            return res, None
+            api_key = api_pool[current_trans_idx]
+            await edit_msg(status_msg, f"⏳ [𝐒𝐭𝐚𝐠𝐞 𝟐: 𝐓𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐨𝐫] : Processing batch {idx+1}/{len(chunk_queue)}...")
+            res = await call_groq(TRANSLATOR_PROMPT, f"Style Guide:\n{style_guide}\n\nLines to Translate:\n{chunk}", api_key, temperature=temp)
 
-        # Filter conversational filler or JSON
-        if res.strip().startswith(('I ', 'As ', '{')):
-            translated_texts.extend(original_lines)
-        else:
-            res_lines = res.strip().split('\n')
+            if res in ["429", "503", "RETRY_REQUIRED"]:
+                current_trans_idx = (current_trans_idx + 1) % len(api_pool)
+                continue
+            if res.startswith("❌"): return res, None
+
+            # Anti-Lazy Shield & Cleanup
+            res_lines = [l.strip() for l in res.strip().split('\n') if l.strip()]
+
+            # Verification: If output is significantly shorter or mostly English
+            is_failing = False
+            if len(res_lines) < len(original_lines) * 0.7:
+                is_failing = True
+
+            temp_lines = []
             for i, line in enumerate(original_lines):
                 if i < len(res_lines):
-                    trans_line = res_lines[i].strip()
-                    # Strip speaker name if present: e.g. [Eri]: Hello -> Hello
-                    trans_line = re.sub(r'^\[.*?\]:\s*', '', trans_line).strip()
-
-                    if trans_line.lower().startswith(("i'm sorry", "error")):
-                        translated_texts.append(line)
-                    else:
-                        translated_texts.append(trans_line)
+                    trans_line = re.sub(r'^\s*\[.*?\]:\s*', '', res_lines[i]).strip()
+                    # Check similarity (Anti-Lazy Shield)
+                    if SequenceMatcher(None, line.lower(), trans_line.lower()).ratio() >= 0.8:
+                        is_failing = True
+                        break
+                    temp_lines.append(trans_line)
                 else:
-                    translated_texts.append(line)
-        idx += 1; retries = 0
+                    temp_lines.append(line)
+
+            if is_failing:
+                current_trans_idx = (current_trans_idx + 1) % len(api_pool)
+                temp = 0.6 # High creativity for retry
+                continue
+
+            translated_chunk_lines = temp_lines
+
+        translated_texts.extend(translated_chunk_lines)
+        idx += 1
+
     return None, translated_texts
 
 @Client.on_message(filters.command("translate") & filters.private)
@@ -361,11 +378,11 @@ async def process_translation(bot, cb, model_type, model_name):
                     tags_map.append(placeholders)
                     names.append("") # SRT doesn't have speaker info in header
 
-            # Send 10 lines at once for context
+            # Send 20 lines at once for context
             chunk_queue = []
-            for i in range(0, len(to_translate), 10):
+            for i in range(0, len(to_translate), 20):
                 lines_with_names = []
-                for j in range(i, min(i+10, len(to_translate))):
+                for j in range(i, min(i+20, len(to_translate))):
                     name_prefix = f"[{names[j]}]: " if names[j] else ""
                     lines_with_names.append(f"{name_prefix}{to_translate[j]}")
                 chunk_queue.append("\n".join(lines_with_names))
@@ -400,11 +417,11 @@ async def process_translation(bot, cb, model_type, model_name):
                     tags_map.append(placeholders)
                     names.append(item.get('name', ''))
 
-            # Send 10 lines at once for context
+            # Send 20 lines at once for context
             chunk_queue = []
-            for i in range(0, len(to_translate), 10):
+            for i in range(0, len(to_translate), 20):
                 lines_with_names = []
-                for j in range(i, min(i+10, len(to_translate))):
+                for j in range(i, min(i+20, len(to_translate))):
                     name_prefix = f"[{names[j]}]: " if names[j] else ""
                     lines_with_names.append(f"{name_prefix}{to_translate[j]}")
                 chunk_queue.append("\n".join(lines_with_names))
