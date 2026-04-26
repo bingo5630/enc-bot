@@ -12,7 +12,7 @@ from ..utils.uploads.telegram import upload_doc
 from ..utils.database.access_db import db
 from ..utils.encoding import extract_subtitle, get_width_height
 
-BATCH_SIZE = 10
+BATCH_SIZE = 5
 
 ANALYZER_PROMPT = (
     "Analyze the following anime subtitle lines and provide a simple 'Style Guide' for this batch.\n"
@@ -49,6 +49,10 @@ BANNED_KEYS = {}
 
 # Temporary storage for file metadata linked to message ID
 translation_data = {}
+
+# Sequential Processing and Global Backoff Variables
+GROQ_LOCK = asyncio.Lock()
+GLOBAL_BACKOFF = 10
 
 def blacklist_key(api_key, retry_after_header=0):
     """Marks a key as banned for at least 10 minutes or Retry-After duration."""
@@ -168,29 +172,44 @@ def parse_ass(content):
     return header, events, playresx, playresy
 
 
-async def call_groq(system_prompt, user_content, api_key, temperature=0.2):
+async def call_groq(system_prompt, user_content, api_key, temperature=0.2, status_msg=None):
     if not user_content.strip(): return user_content, 0
+    global GLOBAL_BACKOFF
     model_name = "llama-3.3-70b-versatile"
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     payload = {"model": model_name, "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_content}], "temperature": temperature}
 
-    try:
-        response = await GROQ_CLIENT.post(url, headers=headers, json=payload)
-        if response.status_code == 200:
-            data = response.json()
-            translated_text = data['choices'][0]['message']['content'].strip()
-            translated_text = translated_text.replace('```json', '').replace('```', '').strip()
-            if translated_text.strip() == user_content.strip():
-                return "RETRY_REQUIRED", 0
-            return translated_text, 0
-        elif response.status_code in [429, 503]:
-            retry_after = response.headers.get("Retry-After", 0)
-            return str(response.status_code), int(retry_after)
-        else:
-            return f"❌ Groq Error: {response.status_code} - {response.text}", 0
-    except Exception as e:
-        return f"❌ Groq Error: {str(e)}", 0
+    async with GROQ_LOCK:
+        try:
+            response = await GROQ_CLIENT.post(url, headers=headers, json=payload)
+            if response.status_code == 200:
+                GLOBAL_BACKOFF = 10 # Reset backoff on success
+                data = response.json()
+                translated_text = data['choices'][0]['message']['content'].strip()
+                translated_text = translated_text.replace('```json', '').replace('```', '').strip()
+                if translated_text.strip() == user_content.strip():
+                    return "RETRY_REQUIRED", 0
+                return translated_text, 0
+            elif response.status_code in [429, 503]:
+                header_retry = response.headers.get("Retry-After")
+                if header_retry and int(header_retry) > 0:
+                    retry_after = int(header_retry)
+                else:
+                    retry_after = GLOBAL_BACKOFF
+                    GLOBAL_BACKOFF *= 2 # Exponential backoff
+
+                msg = f"Rate limited! Waiting for {retry_after} seconds..."
+                print(msg)
+                if status_msg:
+                    try: await edit_msg(status_msg, f"⚠️ {msg}")
+                    except: pass
+                await asyncio.sleep(retry_after)
+                return str(response.status_code), retry_after
+            else:
+                return f"❌ Groq Error: {response.status_code} - {response.text}", 0
+        except Exception as e:
+            return f"❌ Groq Error: {str(e)}", 0
 
 async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg):
     translated_texts = []
@@ -223,13 +242,11 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
         while not style_guide:
             api_key = await get_next_key()
             await edit_msg(status_msg, f"⏳ [𝐒𝐭𝐚𝐠𝐞 𝟏: 𝐀𝐧𝐚𝐥𝐲𝐳𝐞𝐫] : Batch {idx+1}/{len(chunk_queue)} (Key: {api_key[:6]}...)")
-            res, retry_after = await call_groq(ANALYZER_PROMPT, chunk, api_key)
+            res, retry_after = await call_groq(ANALYZER_PROMPT, chunk, api_key, status_msg=status_msg)
 
             if res in ["429", "503"]:
                 blacklist_key(api_key, retry_after)
                 pool.append(pool.pop(0))
-                await edit_msg(status_msg, "Rate limit hit! Sleeping 5s before next key...")
-                await asyncio.sleep(5)
                 continue
 
             if res == "RETRY_REQUIRED":
@@ -248,13 +265,11 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
         while not translated_chunk_lines:
             api_key = await get_next_key()
             await edit_msg(status_msg, f"⏳ [𝐒𝐭𝐚𝐠𝐞 𝟐: 𝐓𝐫𝐚𝐧𝐬𝐥𝐚ᴛ𝐨𝐫] : Batch {idx+1}/{len(chunk_queue)} (Key: {api_key[:6]}..., Temp: {temp})")
-            res, retry_after = await call_groq(TRANSLATOR_PROMPT, f"Style Guide:\n{style_guide}\n\nLines to Translate:\n{chunk}", api_key, temperature=temp)
+            res, retry_after = await call_groq(TRANSLATOR_PROMPT, f"Style Guide:\n{style_guide}\n\nLines to Translate:\n{chunk}", api_key, temperature=temp, status_msg=status_msg)
 
             if res in ["429", "503"]:
                 blacklist_key(api_key, retry_after)
                 pool.append(pool.pop(0))
-                await edit_msg(status_msg, "Rate limit hit! Sleeping 5s before next key...")
-                await asyncio.sleep(5)
                 continue
 
             if res == "RETRY_REQUIRED":
