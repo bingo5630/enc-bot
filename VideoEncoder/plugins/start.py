@@ -14,7 +14,7 @@ from time import time
 from psutil import (boot_time, cpu_count, cpu_percent, disk_usage,
                     net_io_counters, swap_memory, virtual_memory)
 from pyrogram import Client, filters
-from pyrogram.types import Message
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 
 from .. import botStartTime, download_dir, encode_dir
 from ..utils.database.access_db import db
@@ -54,21 +54,17 @@ async def help_message(app, message):
     if not c:
         return
     await AddUserToDatabase(app, message)
-    msg = """<blockquote><b>How to Translate - Step by Step Guide:</b></blockquote>
-<blockquote expandable>➼ <b>Step 1: Get Groq Key</b>
-[Click here to Create Groq API Key](https://console.groq.com/keys) and add it using /set_groq_api.
-
-➼ <b>Step 2: Upload Your File</b>
-Send your .ass or subtitle file directly to the bot.
-
-➼ <b>Step 3: Select the Engine</b>
-Choose the high-stability Groq engine for lightning-fast results.
-
-➼ <b>Step 4: Wait for Processing</b>
-The bot will split your file into micro-chunks to ensure high-quality Hinglish translation. Once done, you'll receive the translated file.</blockquote>
-
-<b>Note:</b> The bot now uses an optimized Groq-Only architecture for 100% stability!"""
-    await message.reply_photo(photo=START_PIC, caption=msg, reply_markup=start_but, has_spoiler=True)
+    help_menu_text = "<blockquote><b>Help Menu - Choose an Option:</b></blockquote>"
+    help_menu_buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("❓ ʜᴏᴡ ᴛᴏ ᴛʀᴀɴsʟᴀᴛᴇ", callback_data="how_to_translate"),
+            InlineKeyboardButton("🖼️ ᴡᴀᴛᴇʀᴍᴀʀᴋ", callback_data="how_watermark_info")
+        ],
+        [
+            InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="closeMeh")
+        ]
+    ])
+    await message.reply_photo(photo=START_PIC, caption=help_menu_text, reply_markup=help_menu_buttons, has_spoiler=True)
 
 
 @Client.on_message(filters.command('stats'))
