@@ -9,23 +9,26 @@ from .. import LOGGER, download_dir
 from ..utils.uploads.telegram import upload_doc
 from ..utils.database.access_db import db
 from ..utils.encoding import extract_subtitle, get_width_height
+import difflib
+import random
 
 ANALYZER_PROMPT = (
     "Analyze the following anime subtitle lines. Identify:\n"
     "1. Speaker and their gender (Eri is female, Ogino is male).\n"
-    "2. Technical terms (Mitsuoka Pharmaceuticals). IMPORTANT: The insect is a WASP, not a mosquito.\n"
-    "3. Scene tone (Formal or Casual).\n"
-    "Provide context for each line to assist translation."
+    "2. Technical terms (Mitsuoka Pharmaceuticals). IMPORTANT: The insect is a WASP (Bhirad/Tattiya), not a mosquito.\n"
+    "3. Scene tone (Casual 'Tu/Tera' vs Formal 'Tum').\n"
+    "Provide a concise context variable for each line to ensure consistent parallel translation."
 )
 
 TRANSLATOR_PROMPT = (
     "You are a professional Anime Subtitle Translator. Use the provided context to translate lines into short, cool Hinglish (Anime Fury Style).\n\n"
     "STRICT RULES:\n"
-    "- 100% TRANSLATION: EVERY SINGLE LINE must be translated. You are NOT allowed to return the original English text.\n"
+    "- 100% TRANSLATION: EVERY SINGLE LINE must be translated. Return ONLY the translated Hinglish. English sentences are FORBIDDEN.\n"
+    "- ANTI-LAZY SHIELD: If you return the input English text, you have failed. Translate the meaning, not just the words.\n"
     "- FALLBACK: If a line is hard to translate, translate its meaning into simple Hinglish.\n"
     "- VIBE OVER LITERAL: Use common Hinglish equivalents for phrases (e.g., 'I won\'t let you escape' -> 'Main tujhe bachne nahi doonga').\n"
     "LINGUISTIC RULES:\n"
-    "- SHORT & PUNCHY: Keep it simple. If a line is more than 8-10 words, shorten it. Translate the 'vibe'.\n"
+    "- SHORT & PUNCHY: Keep it simple. Max 8-10 words. Translate the 'vibe'.\n"
     "- SPELLING: Use 'isey' (never ise), 'usey' (never use), 'arey' (never are), 'jaa' (never ja).\n"
     "- VOCABULARY: No 'pathshala', 'madhyamik', 'prakriti', 'künstlich'. Use 'school', 'high school', 'nature', 'artificial'.\n"
     "- GENDER: Eri uses feminine verbs (rahi hai/kiya), Ogino uses masculine (raha hai/kiya).\n"
@@ -68,6 +71,31 @@ TRANSLATE_BUTTONS = InlineKeyboardMarkup([
         InlineKeyboardButton("ʜᴏᴡ ᴛᴏ ᴛʀᴀɴsʟᴀᴛᴇ? ❓", callback_data="how_to_translate")
     ]
 ])
+
+def is_lazy(original, translated):
+    """Returns True if the translated text is 80% or more similar to the original."""
+    if not translated or not original: return False
+    similarity = difflib.SequenceMatcher(None, original.lower(), translated.lower()).ratio()
+    return similarity >= 0.8
+
+class KeyManager:
+    def __init__(self, api_pool):
+        self.api_pool = api_pool
+        self.analyzer_idx = 0
+        self.translator_pool = api_pool[1:] if len(api_pool) > 1 else api_pool
+        self.trans_idx = 0
+
+    def get_analyzer_key(self):
+        return self.api_pool[self.analyzer_idx]
+
+    def rotate_analyzer(self):
+        self.analyzer_idx = (self.analyzer_idx + 1) % len(self.api_pool)
+        return self.get_analyzer_key()
+
+    def get_translator_key(self):
+        key = self.translator_pool[self.trans_idx]
+        self.trans_idx = (self.trans_idx + 1) % len(self.translator_pool)
+        return key
 
 def parse_srt(content):
     content = content.replace('\r\n', '\n')
@@ -152,102 +180,95 @@ async def call_groq(client, system_prompt, user_content, api_key, creative_retry
 
     final_system_prompt = system_prompt
     if creative_retry:
-        final_system_prompt += "\n\nIMPORTANT: Your previous output was identical to the input. Translate this more creatively into Hinglish, ensuring NO original English words remain."
+        final_system_prompt += "\n\nIMPORTANT: Your previous output was too similar to the input. You MUST translate this creatively into Hinglish. NO original English sentences allowed."
 
-    payload = {"model": model_name, "messages": [{"role": "system", "content": final_system_prompt}, {"role": "user", "content": user_content}], "temperature": 0.4 if creative_retry else 0.2}
+    payload = {
+        "model": model_name,
+        "messages": [{"role": "system", "content": final_system_prompt}, {"role": "user", "content": user_content}],
+        "temperature": 0.6 if creative_retry else 0.2
+    }
 
-    for attempt in range(2):
-        try:
-            response = await client.post(url, headers=headers, json=payload, timeout=60.0)
-            if response.status_code == 200:
-                data = response.json(); translated_text = data['choices'][0]['message']['content'].strip()
-                translated_text = translated_text.replace('```json', '').replace('```', '').strip()
-                await asyncio.sleep(3); return translated_text
-            elif response.status_code in [429, 503]:
-                return str(response.status_code)
-            else: return f"❌ Groq Error: {response.status_code} - {response.text}"
-        except Exception as e:
-            if attempt == 0: await asyncio.sleep(2); continue
-            return f"❌ Groq Error: {str(e)}"
+    try:
+        response = await client.post(url, headers=headers, json=payload, timeout=60.0)
+        await asyncio.sleep(3) # Mandatory 3s delay
+        if response.status_code == 200:
+            data = response.json()
+            translated_text = data['choices'][0]['message']['content'].strip()
+            translated_text = translated_text.replace('```json', '').replace('```', '').strip()
+            # Clean speaker name from response if present
+            translated_text = re.sub(r'^\s*\[.*?\]:\s*', '', translated_text)
+            return translated_text
+        elif response.status_code in [429, 503]:
+            return str(response.status_code)
+        else: return f"❌ Groq Error: {response.status_code}"
+    except Exception as e:
+        return f"❌ Groq Error: {str(e)}"
 
-async def process_chunk_with_retry(client, idx, chunk, original_lines, api_pool, semaphore, status_msg):
-    async with semaphore:
-        current_key_idx = idx % len(api_pool)
-        retries = 0
-        while retries < len(api_pool) * 2:
-            api_key = api_pool[current_key_idx]
+async def translate_line(client, line, name, context, key_manager, creative_retry=False):
+    api_key = key_manager.get_translator_key()
+    user_content = f"Context: {context}\nSpeaker: {name}\nLine: {line}"
 
-            # Step 1: Analyzer
-            context_res = await call_groq(client, ANALYZER_PROMPT, chunk, api_key)
-            if context_res in ["429", "503"]:
-                current_key_idx = (current_key_idx + 1) % len(api_pool)
-                retries += 1; continue
-            if context_res.startswith("❌"): return original_lines
+    res = await call_groq(client, TRANSLATOR_PROMPT, user_content, api_key, creative_retry=creative_retry)
 
-            # Step 2: Translator
-            res = await call_groq(client, TRANSLATOR_PROMPT, f"Context:\n{context_res}\n\nLines to Translate:\n{chunk}", api_key)
+    # Retry on rate limit with different key
+    retries = 0
+    while res in ["429", "503"] and retries < len(key_manager.api_pool):
+        api_key = key_manager.get_translator_key()
+        res = await call_groq(client, TRANSLATOR_PROMPT, user_content, api_key, creative_retry=creative_retry)
+        retries += 1
 
-            if res in ["429", "503"]:
-                current_key_idx = (current_key_idx + 1) % len(api_pool)
-                retries += 1; continue
+    if res.startswith("❌") or res in ["429", "503"]:
+        return line # Fallback to original
 
-            if res.startswith("❌"):
-                return original_lines
+    # Anti-Lazy Shield Check
+    if not creative_retry and is_lazy(line, res):
+        # Force Retry with high creativity
+        return await translate_line(client, line, name, context, key_manager, creative_retry=True)
 
-            # Check if output is identical to input chunk (the core translation part)
-            # res is already stripped of markdown and speaker names are about to be stripped
-            # We check the raw response lines against input lines
-            res_lines = res.strip().split('\n')
-            is_lazy = True
-            for i, line in enumerate(original_lines):
-                if i < len(res_lines):
-                    trans_line = re.sub(r'^\[.*?\]:\s*', '', res_lines[i].strip()).strip()
-                    if trans_line != line:
-                        is_lazy = False; break
-                else:
-                    is_lazy = False; break
+    return res
 
-            if is_lazy:
-                # Creative retry
-                res = await call_groq(client, TRANSLATOR_PROMPT, f"Context:\n{context_res}\n\nLines to Translate:\n{chunk}", api_key, creative_retry=True)
-                if res in ["429", "503"] or res.startswith("❌"):
-                    return original_lines
-                res_lines = res.strip().split('\n')
-
-            # Processing response
-            translated_chunk = []
-            if res.strip().startswith(('I ', 'As ', '{')):
-                return original_lines
-
-            for i, line in enumerate(original_lines):
-                if i < len(res_lines):
-                    trans_line = re.sub(r'^\[.*?\]:\s*', '', res_lines[i].strip()).strip()
-                    if trans_line.lower().startswith(("i'm sorry", "error")):
-                        translated_chunk.append(line)
-                    else:
-                        translated_chunk.append(trans_line)
-                else:
-                    translated_chunk.append(line)
-            return translated_chunk
-        return original_lines
-
-async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg):
-    semaphore = asyncio.Semaphore(len(api_pool) * 2)
-    tasks = []
+async def translate_subtitle_chunks(chunk_queue, to_translate, names, api_pool, status_msg):
+    key_manager = KeyManager(api_pool)
+    trans_semaphore = asyncio.Semaphore(5) # Max 5 parallel lines
+    results = [None] * len(to_translate)
 
     async with httpx.AsyncClient() as client:
-        for idx, chunk in enumerate(chunk_queue):
-            original_lines = to_translate[idx*10 : (idx+1)*10]
-            tasks.append(process_chunk_with_retry(client, idx, chunk, original_lines, api_pool, semaphore, status_msg))
+        for chunk_idx, chunk in enumerate(chunk_queue):
+            await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪ𝐧𝐠] : Analyzing chunk {chunk_idx + 1}/{len(chunk_queue)}...")
 
-        await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪ𝐧𝐠] : Translating {len(chunk_queue)} chunks in parallel...")
-        results = await asyncio.gather(*tasks)
+            # STAGE 1: Sequential Analysis
+            api_key = key_manager.get_analyzer_key()
+            context_res = await call_groq(client, ANALYZER_PROMPT, chunk, api_key)
 
-    final_translated_texts = []
-    for res in results:
-        final_translated_texts.extend(res)
+            # Rotation for Key 1 (Analyzer)
+            retries = 0
+            while context_res in ["429", "503"] and retries < len(api_pool):
+                api_key = key_manager.rotate_analyzer()
+                context_res = await call_groq(client, ANALYZER_PROMPT, chunk, api_key)
+                retries += 1
 
-    return None, final_translated_texts
+            if context_res.startswith("❌") or context_res in ["429", "503"]:
+                context_res = "General anime scene context." # Fallback
+
+            # STAGE 2: Parallel Translation of lines in this chunk
+            start_idx = chunk_idx * 10
+            end_idx = min(start_idx + 10, len(to_translate))
+
+            async def worker(idx):
+                async with trans_semaphore:
+                    line = to_translate[idx]
+                    name = names[idx]
+                    translated = await translate_line(client, line, name, context_res, key_manager)
+                    results[idx] = translated
+
+            tasks = [worker(i) for i in range(start_idx, end_idx)]
+            await asyncio.gather(*tasks)
+
+            # Update progress
+            progress = int((chunk_idx + 1) * 100 / len(chunk_queue))
+            await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪ𝐧𝐠] : Translated {end_idx}/{len(to_translate)} lines ({progress}%)...")
+
+    return None, results
 
 @Client.on_message(filters.command("translate") & filters.private)
 async def translate_cmd_handler(bot: Client, message: Message):
@@ -399,7 +420,7 @@ async def process_translation(bot, cb, model_type, model_name):
                     lines_with_names.append(f"{name_prefix}{to_translate[j]}")
                 chunk_queue.append("\n".join(lines_with_names))
 
-            err, translated_texts = await translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg)
+            err, translated_texts = await translate_subtitle_chunks(chunk_queue, to_translate, names, api_pool, status_msg)
             if err:
                 await edit_msg(status_msg, err)
                 return
@@ -438,7 +459,7 @@ async def process_translation(bot, cb, model_type, model_name):
                     lines_with_names.append(f"{name_prefix}{to_translate[j]}")
                 chunk_queue.append("\n".join(lines_with_names))
 
-            err, translated_texts = await translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg)
+            err, translated_texts = await translate_subtitle_chunks(chunk_queue, to_translate, names, api_pool, status_msg)
             if err:
                 await edit_msg(status_msg, err)
                 return
