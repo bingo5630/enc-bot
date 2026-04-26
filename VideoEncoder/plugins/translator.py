@@ -12,7 +12,7 @@ from ..utils.uploads.telegram import upload_doc
 from ..utils.database.access_db import db
 from ..utils.encoding import extract_subtitle, get_width_height
 
-BATCH_SIZE = 15
+BATCH_SIZE = 10
 
 ANALYZER_PROMPT = (
     "Analyze the following anime subtitle lines and provide a simple 'Style Guide' for this batch.\n"
@@ -195,24 +195,23 @@ async def call_groq(system_prompt, user_content, api_key, temperature=0.2):
 async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg):
     translated_texts = []
     idx = 0
+    pool = list(api_pool)
 
-    # Key 1 for Analyzer
-    analyzer_key = api_pool[0]
-    # Keys 2-5 for Translator (if available, else fallback to all)
-    translator_pool = list(api_pool[1:]) if len(api_pool) > 1 else list(api_pool)
-
-    async def get_translator_key():
-        nonlocal translator_pool
+    async def get_next_key():
+        nonlocal pool
         while True:
-            for _ in range(len(translator_pool)):
-                if not is_key_banned(translator_pool[0]):
-                    return translator_pool[0]
-                translator_pool.append(translator_pool.pop(0))
+            for _ in range(len(pool)):
+                if not is_key_banned(pool[0]):
+                    return pool[0]
+                pool.append(pool.pop(0))
 
-            # All translator keys banned
-            earliest_expiry = min(BANNED_KEYS.values())
-            wait_time = max(5, int(earliest_expiry - time.time()) + 1)
-            await edit_msg(status_msg, f"⚠️ All translator keys rate-limited. Sleeping {wait_time}s...")
+            # All keys banned
+            if BANNED_KEYS:
+                earliest_expiry = min(BANNED_KEYS.values())
+                wait_time = max(5, int(earliest_expiry - time.time()) + 1)
+            else:
+                wait_time = 5
+            await edit_msg(status_msg, f"⚠️ All API keys rate-limited. Sleeping {wait_time}s...")
             await asyncio.sleep(wait_time)
 
     while idx < len(chunk_queue):
@@ -220,46 +219,46 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
         chunk = chunk_queue[idx]
         style_guide = ""
 
-        # STAGE 1: THE BRAIN (Sequential Analysis - Key 1)
+        # STAGE 1: THE BRAIN (Unified Rotation Analysis)
         while not style_guide:
-            if is_key_banned(analyzer_key):
-                wait_time = max(5, int(BANNED_KEYS[analyzer_key] - time.time()) + 1)
-                await edit_msg(status_msg, f"⚠️ Analyzer Key (Key 1) rate-limited. Sleeping {wait_time}s...")
-                await asyncio.sleep(wait_time)
-                continue
-
-            await edit_msg(status_msg, f"⏳ [𝐒𝐭𝐚𝐠𝐞 𝟏: 𝐀𝐧𝐚𝐥𝐲𝐳𝐞𝐫] : Batch {idx+1}/{len(chunk_queue)} (Key: {analyzer_key[:6]}...)")
-            res, retry_after = await call_groq(ANALYZER_PROMPT, chunk, analyzer_key)
+            api_key = await get_next_key()
+            await edit_msg(status_msg, f"⏳ [𝐒𝐭𝐚𝐠𝐞 𝟏: 𝐀𝐧𝐚𝐥𝐲𝐳𝐞𝐫] : Batch {idx+1}/{len(chunk_queue)} (Key: {api_key[:6]}...)")
+            res, retry_after = await call_groq(ANALYZER_PROMPT, chunk, api_key)
 
             if res in ["429", "503"]:
-                blacklist_key(analyzer_key, retry_after)
+                blacklist_key(api_key, retry_after)
+                pool.append(pool.pop(0))
+                await edit_msg(status_msg, "Rate limit hit! Sleeping 5s before next key...")
                 await asyncio.sleep(5)
                 continue
 
             if res == "RETRY_REQUIRED":
+                pool.append(pool.pop(0))
                 await asyncio.sleep(5)
                 continue
 
             if res.startswith("❌"): return res, None
 
             style_guide = res
+            pool.append(pool.pop(0)) # Rotate after success to balance load
 
-        # STAGE 2: THE HANDS (Smart Rotation Translation - Keys 2-5)
+        # STAGE 2: THE HANDS (Unified Rotation Translation)
         translated_chunk_lines = []
         temp = 0.2
         while not translated_chunk_lines:
-            api_key = await get_translator_key()
-            await edit_msg(status_msg, f"⏳ [𝐒𝐭𝐚𝐠𝐞 𝟐: 𝐓𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐨𝐫] : Batch {idx+1}/{len(chunk_queue)} (Key: {api_key[:6]}..., Temp: {temp})")
+            api_key = await get_next_key()
+            await edit_msg(status_msg, f"⏳ [𝐒𝐭𝐚𝐠𝐞 𝟐: 𝐓𝐫𝐚𝐧𝐬𝐥𝐚ᴛ𝐨𝐫] : Batch {idx+1}/{len(chunk_queue)} (Key: {api_key[:6]}..., Temp: {temp})")
             res, retry_after = await call_groq(TRANSLATOR_PROMPT, f"Style Guide:\n{style_guide}\n\nLines to Translate:\n{chunk}", api_key, temperature=temp)
 
             if res in ["429", "503"]:
                 blacklist_key(api_key, retry_after)
-                translator_pool.append(translator_pool.pop(0))
-                await asyncio.sleep(5) # Smart Rotation: Sleep 5s and switch
+                pool.append(pool.pop(0))
+                await edit_msg(status_msg, "Rate limit hit! Sleeping 5s before next key...")
+                await asyncio.sleep(5)
                 continue
 
             if res == "RETRY_REQUIRED":
-                translator_pool.append(translator_pool.pop(0))
+                pool.append(pool.pop(0))
                 await asyncio.sleep(5)
                 continue
 
@@ -269,7 +268,7 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
             res_lines = [l.strip() for l in res.strip().split('\n') if l.strip()]
             is_failing = False
 
-            # 1. Strict Line Count Check (DO NOT bypass/fallback)
+            # 1. Strict Line Count Check
             if len(res_lines) != len(original_lines):
                 is_failing = True
 
@@ -296,14 +295,14 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
                     temp_lines.append(trans_line)
 
             if is_failing:
-                translator_pool.append(translator_pool.pop(0))
+                pool.append(pool.pop(0))
                 temp = min(temp + 0.2, 1.0)
                 await edit_msg(status_msg, f"🔄 Lazy response detected. Retrying batch {idx+1} with temp {temp}...")
                 await asyncio.sleep(5)
                 continue
 
             translated_chunk_lines = temp_lines
-            translator_pool.append(translator_pool.pop(0))
+            pool.append(pool.pop(0))
 
             # TEST MODE: Preview first 10 lines of the first batch
             if idx == 0:
