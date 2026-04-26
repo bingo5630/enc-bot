@@ -20,7 +20,8 @@ async def OpenSettings(event: Message, user_id: int):
             [InlineKeyboardButton("ᴠɪᴅᴇᴏ", callback_data="VideoSettings"), InlineKeyboardButton(
                 "ᴀᴜᴅɪᴏ", callback_data="AudioSettings")],
             [InlineKeyboardButton("ᴇxᴛʀᴀs", callback_data="ExtraSettings"), InlineKeyboardButton(
-                "ʙᴀᴄᴋ", callback_data="backToStart")]
+                "ʙᴀᴄᴋ", callback_data="backToStart")],
+            [InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="closeMeh")]
         ]
         try:
             await edit_msg(
@@ -135,7 +136,7 @@ async def VideoSettings(event: Message, user_id: int):
              InlineKeyboardButton(f"ᴀsᴘᴇᴄᴛ: {'16:9' if ((await db.get_aspect(user_id)) is True) else 'sᴏᴜʀᴄᴇ'}", callback_data="triggeraspect")],
             [InlineKeyboardButton(f"ᴄᴀʙᴀᴄ {'☑️' if ((await db.get_cabac(user_id)) is True) else ''}", callback_data="triggercabac"),
              InlineKeyboardButton(f"ʀᴇғʀᴀᴍᴇ: {reframe}", callback_data="triggerreframe")],
-            [InlineKeyboardButton("ʙᴀᴄᴋ", callback_data="OpenSettings")]
+            [InlineKeyboardButton("ʙᴀᴄᴋ", callback_data="OpenSettings"), InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="closeMeh")]
         ]
 
         try:
@@ -232,7 +233,7 @@ async def AudioSettings(event: Message, user_id: int):
                 f"{sample}", callback_data="triggersamplerate")],
             [InlineKeyboardButton("ʙɪᴛʀᴀᴛᴇ", callback_data="Watermark"), InlineKeyboardButton(
                 f"{bitrate}", callback_data="triggerbitrate")],
-            [InlineKeyboardButton("ʙᴀᴄᴋ", callback_data="OpenSettings")]
+            [InlineKeyboardButton("ʙᴀᴄᴋ", callback_data="OpenSettings"), InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="closeMeh")]
         ]
 
         try:
@@ -265,7 +266,7 @@ async def ExtraSettings(event: Message, user_id: int):
              InlineKeyboardButton(f"{'ᴅᴏᴄᴜᴍᴇɴᴛ' if ((await db.get_upload_as_doc(user_id)) is True) else 'ᴠɪᴅᴇᴏ'}", callback_data="triggerUploadMode")],
             [InlineKeyboardButton("ᴡᴀᴛᴇʀᴍᴀʀᴋ sᴇᴛᴛɪɴɢs", callback_data="Watermark")],
             [InlineKeyboardButton(f"ᴍᴇᴛᴀᴅᴀᴛᴀ {'☑️' if ((await db.get_metadata_w(user_id)) is True) else ''}", callback_data="triggerMetadata"), InlineKeyboardButton(f"ᴠɪᴅᴇᴏ {'☑️' if ((await db.get_watermark(user_id)) is True) else ''}", callback_data="triggerVideo")],
-            [InlineKeyboardButton("ʙᴀᴄᴋ", callback_data="OpenSettings")]
+            [InlineKeyboardButton("ʙᴀᴄᴋ", callback_data="OpenSettings"), InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="closeMeh")]
         ]
 
         try:

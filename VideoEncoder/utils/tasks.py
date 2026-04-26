@@ -49,10 +49,6 @@ async def handle_encode(filepath, message, msg, audio_map=None, quality=None, cu
             # Ensure it has an extension, if not use original's
             if not os.path.splitext(custom_name)[1]:
                 custom_name += os.path.splitext(filepath)[1]
-            # Replace filepath to use custom name for output base
-            # Note: handle_encode/encode usually derive output name from input filepath
-            # We can create a temp copy or just pass custom_name to encode()
-            pass
 
         if await db.get_hardsub(message.from_user.id):
             subs = await extract_subs(filepath, msg, message.from_user.id)
@@ -108,7 +104,7 @@ async def handle_encode(filepath, message, msg, audio_map=None, quality=None, cu
             except: pass
 
 
-async def handle_interactive_encode(video_path, sub_path, message, msg, mode, quality=None):
+async def handle_interactive_encode(video_path, sub_path, message, msg, mode, quality=None, custom_name=None):
     from .encoding import encode, hard_sub, soft_code
     from .uploads import upload_worker
 
@@ -127,11 +123,11 @@ async def handle_interactive_encode(video_path, sub_path, message, msg, mode, qu
     error_log = None
     try:
         if mode == 'encode':
-            new_file, error_log = await encode(video_path, message, msg, quality=quality)
+            new_file, error_log = await encode(video_path, message, msg, quality=quality, custom_name=custom_name)
         elif mode == 'hard_sub':
-            new_file, error_log = await hard_sub(video_path, sub_path, message, msg, quality=quality)
+            new_file, error_log = await hard_sub(video_path, sub_path, message, msg, quality=quality, custom_name=custom_name)
         elif mode == 'soft_code':
-            new_file, error_log = await soft_code(video_path, sub_path, message, msg, quality=quality)
+            new_file, error_log = await soft_code(video_path, sub_path, message, msg, quality=quality, custom_name=custom_name)
         else:
             new_file = None
 
@@ -184,63 +180,67 @@ async def on_task_complete():
         return
     message = data[0]
 
-    # Determine text content (message text or caption)
-    text_content = message.text or message.caption
+    try:
+        # Determine text content (message text or caption)
+        text_content = message.text or message.caption
 
-    if text_content:
-        text_parts = text_content.split()
-        command = text_parts[0].lower()
+        if text_content:
+            text_parts = text_content.split()
+            command = text_parts[0].lower()
 
-        custom_name = None
-        if "-n" in text_content:
-            parts = text_content.split("-n", 1)
-            if len(parts) > 1:
-                custom_name = os.path.basename(parts[1].strip())
+            custom_name = None
+            if "-n" in text_content:
+                parts = text_content.split("-n", 1)
+                if len(parts) > 1:
+                    custom_name = os.path.basename(parts[1].strip())
 
-        if '/ddl' in command:
-            await handle_tasks(message, 'url')
-        elif '/batch' in command:
-            await handle_tasks(message, 'batch')
-        elif '/dl' in command:
-            await handle_tasks(message, 'tg')
-        elif '/480p' in command:
-            await handle_tasks(message, '480p', custom_name=custom_name)
-        elif '/720p' in command:
-            await handle_tasks(message, '720p', custom_name=custom_name)
-        elif '/1080p' in command:
-            await handle_tasks(message, '1080p', custom_name=custom_name)
-        elif '/af' in command:
-            await handle_tasks(message, 'af')
-        elif '/sub_extract' in command:
-            # Detect whether it was a file or url based on presence of text/caption and file
-            has_file = (message.reply_to_message and (message.reply_to_message.video or message.reply_to_message.document)) or \
-                       (message.video or message.document)
-            mode = 'sub_tg' if has_file else 'sub_url'
-            await handle_tasks(message, mode)
-        else:
-             # If has text but not a known command, check if it's a file
-            if message.document or message.video:
-                 if message.document and not message.document.mime_type in video_mimetype:
-                    await on_task_complete()
-                    return
-                 await handle_tasks(message, 'tg')
+            if '/ddl' in command:
+                await handle_tasks(message, 'url')
+            elif '/batch' in command:
+                await handle_tasks(message, 'batch')
+            elif '/dl' in command:
+                await handle_tasks(message, 'tg', custom_name=custom_name)
+            elif '/480p' in command:
+                await handle_tasks(message, '480p', custom_name=custom_name)
+            elif '/720p' in command:
+                await handle_tasks(message, '720p', custom_name=custom_name)
+            elif '/1080p' in command:
+                await handle_tasks(message, '1080p', custom_name=custom_name)
+            elif '/af' in command:
+                await handle_tasks(message, 'af')
+            elif '/sub_extract' in command:
+                # Detect whether it was a file or url based on presence of text/caption and file
+                has_file = (message.reply_to_message and (message.reply_to_message.video or message.reply_to_message.document)) or \
+                        (message.video or message.document)
+                mode = 'sub_tg' if has_file else 'sub_url'
+                await handle_tasks(message, mode)
             else:
-                 # Just text, maybe a link but without command? Or unhandled
-                 pass
-    else:
-        # Fallback for any other file message if somehow added
-        if message.document:
-            if not message.document.mime_type in video_mimetype:
-                await on_task_complete()
-                return
-        await handle_tasks(message, 'tg')
+                # If has text but not a known command, check if it's a file
+                if message.document or message.video:
+                    if message.document and not message.document.mime_type in video_mimetype:
+                        await on_task_complete()
+                        return
+                    await handle_tasks(message, 'tg')
+                else:
+                    # Just text, maybe a link but without command? Skip this item.
+                    asyncio.create_task(on_task_complete())
+        else:
+            # Fallback for any other file message if somehow added
+            if message.document:
+                if not message.document.mime_type in video_mimetype:
+                    asyncio.create_task(on_task_complete())
+                    return
+            await handle_tasks(message, 'tg')
+    except Exception as e:
+        LOGGER.error(f"Error in on_task_complete: {e}")
+        asyncio.create_task(on_task_complete())
 
 
 async def handle_tasks(message, mode, custom_name=None):
     try:
         msg = await message.reply_text("<b>💠 Downloading...</b>")
         if mode == 'tg':
-            await tg_task(message, msg)
+            await tg_task(message, msg, custom_name=custom_name)
         elif mode in ['480p', '720p', '1080p']:
             await tg_task(message, msg, quality=mode, custom_name=custom_name)
         elif mode == 'url':
@@ -252,7 +252,7 @@ async def handle_tasks(message, mode, custom_name=None):
         elif mode == 'sub_url':
             await sub_url_task(message, msg)
         elif mode in ['encode', 'hard_sub', 'soft_code']:
-            await interactive_task(message, msg, mode)
+            await interactive_task(message, msg, mode, custom_name=custom_name)
         else:
             await batch_task(message, msg)
     except IndexError:
@@ -268,7 +268,7 @@ async def handle_tasks(message, mode, custom_name=None):
         LOGGER.error(traceback.format_exc())
         await message.reply(text=f"Error! <code>{e}</code>")
     finally:
-        await on_task_complete()
+        asyncio.create_task(on_task_complete())
 
 
 async def tg_task(message, msg, quality=None, custom_name=None):
@@ -295,7 +295,7 @@ async def sub_url_task(message, msg):
     await handle_sub_extract(filepath, message, msg)
 
 
-async def interactive_task(message, msg, mode):
+async def interactive_task(message, msg, mode, custom_name=None):
     from .common import edit_msg
     # message here is the video message which has subtitle_msg attached
     subtitle_msg = message.subtitle_msg
@@ -313,7 +313,7 @@ async def interactive_task(message, msg, mode):
         return
 
     await edit_msg(msg, text="Processing...")
-    await handle_interactive_encode(video_path, sub_path, message, msg, mode)
+    await handle_interactive_encode(video_path, sub_path, message, msg, mode, custom_name=custom_name)
 
 
 async def af_task(message, msg):

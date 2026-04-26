@@ -537,7 +537,29 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
         elif cb.data == "close_translator":
             await cb.message.delete()
 
-        elif cb.data in ["how_to_translate", "help_callback"]:
+        elif cb.data == "help_callback":
+            help_menu_text = "<blockquote><b>Help Menu - Choose an Option:</b></blockquote>"
+            help_menu_buttons = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("❓ ʜᴏᴡ ᴛᴏ ᴛʀᴀɴsʟᴀᴛᴇ", callback_data="how_to_translate"),
+                    InlineKeyboardButton("🖼️ ᴡᴀᴛᴇʀᴍᴀʀᴋ", callback_data="how_watermark_info")
+                ],
+                [
+                    InlineKeyboardButton("🔙 ʙᴀᴄᴋ", callback_data="backToStart"),
+                    InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="closeMeh")
+                ]
+            ])
+            try:
+                await edit_msg(
+                    cb.message,
+                    media=InputMediaPhoto(START_PIC, caption=help_menu_text, has_spoiler=True),
+                    reply_markup=help_menu_buttons
+                )
+            except Exception as e:
+                LOGGER.error(f"Error in help_callback: {e}")
+                await edit_msg(cb.message, caption=help_menu_text, reply_markup=help_menu_buttons)
+
+        elif cb.data == "how_to_translate":
             help_text = "<blockquote><b>How to Translate - Step by Step Guide:</b></blockquote>\n" \
                         "<blockquote expandable>➼ <b>Step 1: Get Groq Key</b>\n" \
                         "[Click here to Create Groq API Key](https://console.groq.com/keys) and add it using /set_groq_api.\n\n" \
@@ -562,8 +584,31 @@ async def callback_handlers(bot: Client, cb: CallbackQuery):
                     reply_markup=help_buttons
                 )
             except Exception as e:
-                LOGGER.error(f"Error in {cb.data}: {e}")
+                LOGGER.error(f"Error in how_to_translate: {e}")
                 await edit_msg(cb.message, caption=help_text, reply_markup=help_buttons)
+
+        elif cb.data == "how_watermark_info":
+            watermark_help = "<blockquote><b>Watermark Information:</b></blockquote>\n" \
+                             "<blockquote expandable>➼ <b>Set Watermark:</b>\n" \
+                             "Send /watermark command to see watermark settings or use the settings menu.\n\n" \
+                             "➼ <b>Usage:</b>\n" \
+                             "Once a watermark is set, it will be automatically applied to your videos during re-encoding (if enabled in settings).</blockquote>"
+
+            watermark_buttons = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔙 Back to Home", callback_data="backToStart"),
+                    InlineKeyboardButton("❌ Close", callback_data="closeMeh")
+                ]
+            ])
+            try:
+                await edit_msg(
+                    cb.message,
+                    media=InputMediaPhoto(START_PIC, caption=watermark_help, has_spoiler=True),
+                    reply_markup=watermark_buttons
+                )
+            except Exception as e:
+                LOGGER.error(f"Error in how_watermark_info: {e}")
+                await edit_msg(cb.message, caption=watermark_help, reply_markup=watermark_buttons)
 
     except Exception as e:
         LOGGER.error(f"Error in callback_handlers: {e}")
