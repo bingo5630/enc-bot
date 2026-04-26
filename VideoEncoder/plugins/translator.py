@@ -12,6 +12,8 @@ from ..utils.uploads.telegram import upload_doc
 from ..utils.database.access_db import db
 from ..utils.encoding import extract_subtitle, get_width_height
 
+BATCH_SIZE = 15
+
 ANALYZER_PROMPT = (
     "Analyze the following anime subtitle lines and provide a simple 'Style Guide' for this batch.\n"
     "Identify:\n"
@@ -49,7 +51,7 @@ translation_data = {}
 
 def blacklist_key(api_key, retry_after_header=0):
     """Marks a key as banned for at least 10 minutes or Retry-After duration."""
-    duration = max(600, int(retry_after_header))
+    duration = int(retry_after_header) if int(retry_after_header) > 0 else 600
     BANNED_KEYS[api_key] = time.time() + duration
     LOGGER.warning(f"Key {api_key[:6]}... blacklisted for {duration}s")
 
@@ -209,7 +211,7 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
             await asyncio.sleep(wait_time)
 
     while idx < len(chunk_queue):
-        original_lines = to_translate[idx*20 : (idx+1)*20]
+        original_lines = to_translate[idx*BATCH_SIZE : (idx+1)*BATCH_SIZE]
         chunk = chunk_queue[idx]
         style_guide = ""
 
@@ -227,6 +229,7 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
 
             if res == "RETRY_REQUIRED":
                 pool.append(pool.pop(0))
+                await asyncio.sleep(5)
                 continue
 
             if res.startswith("❌"): return res, None
@@ -250,6 +253,7 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
 
             if res == "RETRY_REQUIRED":
                 pool.append(pool.pop(0))
+                await asyncio.sleep(5)
                 continue
 
             if res.startswith("❌"): return res, None
@@ -275,7 +279,7 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
                 pool.append(pool.pop(0))
                 temp = min(temp + 0.2, 1.0)
                 await edit_msg(status_msg, f"🔄 Lazy response detected. Retrying batch {idx+1} with temp {temp}...")
-                await asyncio.sleep(2)
+                await asyncio.sleep(5)
                 continue
 
             translated_chunk_lines = temp_lines
@@ -427,11 +431,11 @@ async def process_translation(bot, cb, model_type, model_name):
                     tags_map.append(placeholders)
                     names.append("") # SRT doesn't have speaker info in header
 
-            # Send 20 lines at once for context
+            # Send BATCH_SIZE lines at once for context
             chunk_queue = []
-            for i in range(0, len(to_translate), 20):
+            for i in range(0, len(to_translate), BATCH_SIZE):
                 lines_with_names = []
-                for j in range(i, min(i+20, len(to_translate))):
+                for j in range(i, min(i+BATCH_SIZE, len(to_translate))):
                     name_prefix = f"[{names[j]}]: " if names[j] else ""
                     lines_with_names.append(f"{name_prefix}{to_translate[j]}")
                 chunk_queue.append("\n".join(lines_with_names))
@@ -466,11 +470,11 @@ async def process_translation(bot, cb, model_type, model_name):
                     tags_map.append(placeholders)
                     names.append(item.get('name', ''))
 
-            # Send 20 lines at once for context
+            # Send BATCH_SIZE lines at once for context
             chunk_queue = []
-            for i in range(0, len(to_translate), 20):
+            for i in range(0, len(to_translate), BATCH_SIZE):
                 lines_with_names = []
-                for j in range(i, min(i+20, len(to_translate))):
+                for j in range(i, min(i+BATCH_SIZE, len(to_translate))):
                     name_prefix = f"[{names[j]}]: " if names[j] else ""
                     lines_with_names.append(f"{name_prefix}{to_translate[j]}")
                 chunk_queue.append("\n".join(lines_with_names))
