@@ -20,6 +20,7 @@ from ..video_utils.audio_selector import sessions
 
 @app.on_callback_query(filters.regex("^back_start$"))
 async def back_to_start(bot: Client, cb: CallbackQuery):
+    await cb.answer()
     print(f"DEBUG: Received callback data: {cb.data}")
     user = cb.from_user
     name = f"{user.first_name} {user.last_name}" if user.last_name else user.first_name
@@ -41,67 +42,79 @@ async def back_to_start(bot: Client, cb: CallbackQuery):
 
 @app.on_callback_query(filters.regex("^close_btn$"))
 async def delete_msg(bot: Client, cb: CallbackQuery):
+    await cb.answer()
     print(f"DEBUG: Received callback data: {cb.data}")
     await cb.message.delete()
 
 @app.on_callback_query(filters.regex("^(Video|Open|Audio|Extra)Settings$"))
 async def settings_nav_handlers(bot: Client, cb: CallbackQuery):
     await cb.answer()
-    from ..utils.settings import (AudioSettings, ExtraSettings, OpenSettings,
-                                  VideoSettings)
     print(f"DEBUG: Received callback data: {cb.data}")
     if cb.data == "VideoSettings":
+        from ..utils.settings import VideoSettings
         await VideoSettings(cb.message, user_id=cb.from_user.id)
     elif cb.data == "OpenSettings":
+        from ..utils.settings import OpenSettings
         await OpenSettings(cb.message, user_id=cb.from_user.id)
     elif cb.data == "AudioSettings":
+        from ..utils.settings import AudioSettings
         await AudioSettings(cb.message, user_id=cb.from_user.id)
     elif cb.data == "ExtraSettings":
+        from ..utils.settings import ExtraSettings
         await ExtraSettings(cb.message, user_id=cb.from_user.id)
 
 @app.on_callback_query(filters.regex("^trigger"))
 async def settings_trigger_handlers(bot: Client, cb: CallbackQuery):
+    await cb.answer()
     print(f"DEBUG: Received callback data: {cb.data}")
     user_id = cb.from_user.id
     if cb.data == "triggerMode":
         drive = await db.get_drive(user_id)
         await db.set_drive(user_id, not drive)
+        from ..utils.settings import ExtraSettings
         await ExtraSettings(cb.message, user_id=user_id)
 
     elif cb.data == "triggerUploadMode":
         upload_as_doc = await db.get_upload_as_doc(user_id)
         await db.set_upload_as_doc(user_id, not upload_as_doc)
+        from ..utils.settings import ExtraSettings
         await ExtraSettings(cb.message, user_id=user_id)
 
     elif cb.data == "triggerResize":
         resize = await db.get_resize(user_id)
         await db.set_resize(user_id, not resize)
+        from ..utils.settings import ExtraSettings
         await ExtraSettings(cb.message, user_id=user_id)
 
     elif cb.data == "triggerMetadata":
         metadata = await db.get_metadata_w(user_id)
         await db.set_metadata_w(user_id, not metadata)
+        from ..utils.settings import ExtraSettings
         await ExtraSettings(cb.message, user_id=user_id)
 
     elif cb.data == "triggerVideo":
         watermark = await db.get_watermark(user_id)
         await db.set_watermark(user_id, not watermark)
+        from ..utils.settings import ExtraSettings
         await ExtraSettings(cb.message, user_id=user_id)
 
     elif cb.data == "triggerHardsub":
         hardsub = await db.get_hardsub(user_id)
         await db.set_hardsub(user_id, not hardsub)
+        from ..utils.settings import ExtraSettings
         await ExtraSettings(cb.message, user_id=user_id)
 
     elif cb.data == "triggerSubtitles":
         subtitles = await db.get_subtitles(user_id)
         await db.set_subtitles(user_id, not subtitles)
+        from ..utils.settings import ExtraSettings
         await ExtraSettings(cb.message, user_id=user_id)
 
     elif cb.data == "triggerextensions":
         ex = await db.get_extensions(user_id)
         new_ex = 'MKV' if ex == 'MP4' else 'AVI' if ex == 'MKV' else 'MP4'
         await db.set_extensions(user_id, new_ex)
+        from ..utils.settings import VideoSettings
         await VideoSettings(cb.message, user_id=user_id)
 
     elif cb.data == "triggerframe":
@@ -113,6 +126,7 @@ async def settings_trigger_handlers(bot: Client, cb: CallbackQuery):
         except ValueError:
             new_fr = 'ntsc'
         await db.set_frame(user_id, new_fr)
+        from ..utils.settings import VideoSettings
         await VideoSettings(cb.message, user_id=user_id)
 
     elif cb.data == "triggerPreset":
@@ -124,12 +138,14 @@ async def settings_trigger_handlers(bot: Client, cb: CallbackQuery):
         except ValueError:
             new_p = 'uf'
         await db.set_preset(user_id, new_p)
+        from ..utils.settings import VideoSettings
         await VideoSettings(cb.message, user_id=user_id)
 
     elif cb.data == "triggersamplerate":
         sr = await db.get_samplerate(user_id)
         new_sr = '48K' if sr == '44.1K' else 'source' if sr == '48K' else '44.1K'
         await db.set_samplerate(user_id, new_sr)
+        from ..utils.settings import AudioSettings
         await AudioSettings(cb.message, user_id=user_id)
 
     elif cb.data == "triggerbitrate":
@@ -141,6 +157,7 @@ async def settings_trigger_handlers(bot: Client, cb: CallbackQuery):
         except ValueError:
             new_bit = '400'
         await db.set_bitrate(user_id, new_bit)
+        from ..utils.settings import AudioSettings
         await AudioSettings(cb.message, user_id=user_id)
 
     elif cb.data == "triggerAudioCodec":
@@ -152,6 +169,7 @@ async def settings_trigger_handlers(bot: Client, cb: CallbackQuery):
         except ValueError:
             new_a = 'dd'
         await db.set_audio(user_id, new_a)
+        from ..utils.settings import AudioSettings
         await AudioSettings(cb.message, user_id=user_id)
 
     elif cb.data == "triggerAudioChannels":
@@ -161,10 +179,11 @@ async def settings_trigger_handlers(bot: Client, cb: CallbackQuery):
             idx = channels.index(c)
             new_c = channels[(idx + 1) % len(channels)]
             if new_c == '7.1':
-                 await cb.answer("7.1 is for bluray only.", show_alert=True)
+                 await bot.answer_callback_query(cb.id, "7.1 is for bluray only.", show_alert=True)
         except ValueError:
             new_c = 'source'
         await db.set_channels(user_id, new_c)
+        from ..utils.settings import AudioSettings
         await AudioSettings(cb.message, user_id=user_id)
 
     elif cb.data == "triggerResolution":
@@ -176,6 +195,7 @@ async def settings_trigger_handlers(bot: Client, cb: CallbackQuery):
         except ValueError:
             new_r = 'OG'
         await db.set_resolution(user_id, new_r)
+        from ..utils.settings import VideoSettings
         await VideoSettings(cb.message, user_id=user_id)
 
     elif cb.data == "triggerBits":
@@ -187,19 +207,22 @@ async def settings_trigger_handlers(bot: Client, cb: CallbackQuery):
             if b:
                 await db.set_bits(user_id, False)
             else:
-                await cb.answer("H264 don't support 10 bits in this bot.", show_alert=True)
+                await bot.answer_callback_query(cb.id, "H264 don't support 10 bits in this bot.", show_alert=True)
+        from ..utils.settings import VideoSettings
         await VideoSettings(cb.message, user_id=user_id)
 
     elif cb.data == "triggerHevc":
         hevc = await db.get_hevc(user_id)
         await db.set_hevc(user_id, not hevc)
         if not hevc:
-             await cb.answer("H265 need more time for encoding video", show_alert=True)
+             await bot.answer_callback_query(cb.id, "H265 need more time for encoding video", show_alert=True)
+        from ..utils.settings import VideoSettings
         await VideoSettings(cb.message, user_id=user_id)
 
     elif cb.data == "triggertune":
         tune = await db.get_tune(user_id)
         await db.set_tune(user_id, not tune)
+        from ..utils.settings import VideoSettings
         await VideoSettings(cb.message, user_id=user_id)
 
     elif cb.data == "triggerreframe":
@@ -209,22 +232,25 @@ async def settings_trigger_handlers(bot: Client, cb: CallbackQuery):
             idx = reframes.index(rf)
             new_rf = reframes[(idx + 1) % len(reframes)]
             if new_rf == '16':
-                await cb.answer("Reframe 16 maybe not support", show_alert=True)
+                await bot.answer_callback_query(cb.id, "Reframe 16 maybe not support", show_alert=True)
         except ValueError:
             new_rf = '4'
         await db.set_reframe(user_id, new_rf)
+        from ..utils.settings import VideoSettings
         await VideoSettings(cb.message, user_id=user_id)
 
     elif cb.data == "triggercabac":
         cabac = await db.get_cabac(user_id)
         await db.set_cabac(user_id, not cabac)
+        from ..utils.settings import VideoSettings
         await VideoSettings(cb.message, user_id=user_id)
 
     elif cb.data == "triggeraspect":
         aspect = await db.get_aspect(user_id)
         await db.set_aspect(user_id, not aspect)
         if not aspect:
-             await cb.answer("This will help to force video to 16:9", show_alert=True)
+             await bot.answer_callback_query(cb.id, "This will help to force video to 16:9", show_alert=True)
+        from ..utils.settings import VideoSettings
         await VideoSettings(cb.message, user_id=user_id)
 
     elif cb.data == "triggerCRF":
@@ -234,6 +260,7 @@ async def settings_trigger_handlers(bot: Client, cb: CallbackQuery):
             await db.set_crf(user_id, 18)
         else:
             await db.set_crf(user_id, nextcrf)
+        from ..utils.settings import VideoSettings
         await VideoSettings(cb.message, user_id=user_id)
 
 @app.on_callback_query(filters.regex("^(set|del|how|back)_watermark$"))
@@ -242,7 +269,7 @@ async def watermark_handlers(bot: Client, cb: CallbackQuery):
     from .watermark import watermark_sessions, WATERMARK_PIC
     user_id = cb.from_user.id
     if cb.data == "set_watermark":
-        await cb.answer("ᴘʟᴇᴀsᴇ sᴇɴᴅ ʏᴏᴜʀ ᴡᴀᴛᴇʀᴍᴀʀᴋ ᴘʜᴏᴛᴏ ᴡɪᴛʜɪɴ 30 sᴇᴄᴏɴᴅs.", show_alert=True)
+        await bot.answer_callback_query(cb.id, "ᴘʟᴇᴀsᴇ sᴇɴᴅ ʏᴏᴜʀ ᴡᴀᴛᴇʀᴍᴀʀᴋ ᴘʜᴏᴛᴏ ᴡɪᴛʜɪɴ 30 sᴇᴄᴏɴᴅs.", show_alert=True)
         watermark_sessions[user_id] = asyncio.get_event_loop().time()
         await cb.message.reply_text("<b>ᴘʟᴇᴀsᴇ sᴇɴᴅ ʏᴏᴜʀ ᴡᴀᴛᴇʀᴍᴀʀᴋ ᴘʜᴏᴛᴏ ᴡɪᴛʜɪɴ 30 sᴇᴄᴏɴᴅs.</b>")
 
@@ -250,12 +277,13 @@ async def watermark_handlers(bot: Client, cb: CallbackQuery):
         path = os.path.join(ASSETS_DIR, f"watermark_{user_id}.png")
         if os.path.exists(path):
             os.remove(path)
-            await cb.answer("ᴡᴀᴛᴇʀᴍᴀʀᴋ ʀᴇᴍᴏᴠᴇᴅ!", show_alert=True)
+            await bot.answer_callback_query(cb.id, "ᴡᴀᴛᴇʀᴍᴀʀᴋ ʀᴇᴍᴏᴠᴇᴅ!", show_alert=True)
         else:
-            await cb.answer("ɴᴏ ᴡᴀᴛᴇʀᴍᴀʀᴋ ғᴏᴜɴᴅ!", show_alert=True)
+            await bot.answer_callback_query(cb.id, "ɴᴏ ᴡᴀᴛᴇʀᴍᴀʀᴋ ғᴏᴜɴᴅ!", show_alert=True)
         await cb.message.delete()
 
     elif cb.data == "how_watermark":
+        await cb.answer()
         how_to_text = "<b>\"ᴅᴇᴋʜᴏ ʙʜᴀɪ, ᴡᴀᴛᴇʀᴍᴀʀᴋ ʟᴀɢᴀɴᴀ ɪs ʟɪᴋᴇ ᴀᴘɴɪ ɢᴀᴀᴅɪ ᴘᴇ ɴᴀᴀᴍ ʟɪᴋʜᴡᴀɴᴀ! ʙᴀs sᴇᴛ ʙᴜᴛᴛᴏɴ ᴅᴀʙᴀᴏ, ᴘʜᴏᴛᴏ ʙʜᴇᴊᴏ, ᴀᴜʀ ʙᴏᴍ! ᴀʙ ᴄʜᴏʀ ʙʜɪ ᴅᴀʀᴇɴɢᴇ ᴛᴇʀɪ ᴠɪᴅᴇᴏ ᴄʜᴜʀᴀɴᴇ sᴇ. ʜᴇʜᴇʜᴇ...\"</b>"
         buttons = [
             [
@@ -276,6 +304,7 @@ async def watermark_handlers(bot: Client, cb: CallbackQuery):
             await edit_msg(cb.message, caption=how_to_text, reply_markup=InlineKeyboardMarkup(buttons))
 
     elif cb.data == "back_watermark":
+        await cb.answer()
         watermark_path = os.path.join(ASSETS_DIR, f"watermark_{user_id}.png")
         has_watermark = os.path.exists(watermark_path)
         text = "> <b>\"ᴡᴀɴɴᴀ sᴛᴀᴍᴘ ʏᴏᴜʀ ᴀᴜᴛʜᴏʀɪᴛʏ? ᴀᴅᴅ ᴀ ᴡᴀᴛᴇʀᴍᴀʀᴋ ᴀɴᴅ ʟᴇᴛ ᴛʜᴇ ᴡᴏʀʟᴅ ᴋɴᴏᴡ ᴡʜᴏ ᴛʜᴇ ʙᴏss ɪs!\"</b>"
@@ -305,34 +334,37 @@ async def metadata_handlers(bot: Client, cb: CallbackQuery):
     from .metadata_plugin import update_metadata_msg
     if cb.data == "metadata_on":
         await db.set_metadata_on(cb.from_user.id, True)
-        await cb.answer("ᴍᴇᴛᴀᴅᴀᴛᴀ ᴛᴜʀɴᴇᴅ ᴏɴ", show_alert=True)
+        await bot.answer_callback_query(cb.id, "ᴍᴇᴛᴀᴅᴀᴛᴀ ᴛᴜʀɴᴇᴅ ᴏɴ", show_alert=True)
         await update_metadata_msg(cb)
 
     elif cb.data == "metadata_off":
         await db.set_metadata_on(cb.from_user.id, False)
-        await cb.answer("ᴍᴇᴛᴀᴅᴀᴛᴀ ᴛᴜʀɴᴇᴅ ᴏғғ", show_alert=True)
+        await bot.answer_callback_query(cb.id, "ᴍᴇᴛᴀᴅᴀᴛᴀ ᴛᴜʀɴᴇᴅ ᴏғғ", show_alert=True)
         await update_metadata_msg(cb)
 
     elif cb.data == "metadata_how_to":
-        how_to_text = "ᴍᴀɴᴀɢɪɴɢ ᴍᴇᴛᴀᴅᴀᴛᴀ ғᴏʀ ʏᴏᴜʀ ᴠɪᴅᴇᴏs ᴀɴᴅ ғɪʟᴇs\n\n" \
-                    "ᴠᴀʀɪᴏᴜꜱ ᴍᴇᴛᴀᴅᴀᴛᴀ:\n" \
-                    "- ᴛɪᴛʟᴇ: Descriptive title of the media.\n" \
-                    "- ᴀᴜᴛʜᴏʀ: The creator or owner of the media.\n" \
-                    "- ᴀʀᴛɪꜱᴛ: The artist associated with the media.\n" \
-                    "- ᴀᴜᴅɪᴏ: Title or description of audio content.\n" \
-                    "- ꜱᴜʙᴛɪᴛʟᴇ: Title of subtitle content.\n" \
-                    "- ᴠɪᴅᴇᴏ: Title or description of video content.\n\n" \
-                    "ᴄᴏᴍᴍᴀɴᴅꜱ ᴛᴏ ᴛᴜʀɴ ᴏɴ ᴏғғ ᴍᴇᴛᴀᴅᴀᴛᴀ:\n" \
-                    "➜ /metadata: Turn on or off metadata.\n\n" \
-                    "ᴄᴏᴍᴍᴀɴᴅꜱ ᴛᴏ ꜱᴇᴛ ᴍᴇᴛᴀᴅᴀᴛᴀ:\n" \
-                    "➜ /settitle: Set a custom title of media.\n" \
-                    "➜ /setauthor: Set the author.\n" \
-                    "➜ /setartist: Set the artist.\n" \
-                    "➜ /setaudio: Set audio title.\n" \
-                    "➜ /setsubtitle: Set subtitle title.\n" \
-                    "➜ /setvideo: Set video title.\n\n" \
-                    "ᴇxᴀᴍᴘʟᴇ: /settitle Your Title Here\n\n" \
-                    "ᴜꜱᴇ ᴛʜᴇꜱᴇ ᴄᴏᴍᴍᴀɴᴅꜱ ᴛᴏ ᴇɴʀɪᴄʜ ʏᴏᴜʀ ᴍᴇᴅɪᴀ ᴡɪᴛʜ ᴀᴅᴅɪᴛɪᴏɴᴀʟ ᴍᴇᴛᴀᴅᴀᴛᴀ ɪɴꜰᴏʀᴍᴀᴛɪᴏɴ!"
+        await cb.answer()
+        how_to_text = (
+            "ᴍᴀɴᴀɢɪɴɢ ᴍᴇᴛᴀᴅᴀᴛᴀ ғᴏʀ ʏᴏᴜʀ ᴠɪᴅᴇᴏs ᴀɴᴅ ғɪʟᴇs\n\n"
+            "ᴠᴀʀɪᴏᴜꜱ ᴍᴇᴛᴀᴅᴀᴛᴀ:\n"
+            "- ᴛɪᴛʟᴇ: Descriptive title of the media.\n"
+            "- ᴀᴜᴛʜᴏʀ: The creator or owner of the media.\n"
+            "- ᴀʀᴛɪꜱᴛ: The artist associated with the media.\n"
+            "- ᴀᴜᴅɪᴏ: Title or description of audio content.\n"
+            "- ꜱᴜʙᴛɪᴛʟᴇ: Title of subtitle content.\n"
+            "- ᴠɪᴅᴇᴏ: Title or description of video content.\n\n"
+            "ᴄᴏᴍᴍᴀɴᴅꜱ ᴛᴏ ᴛᴜʀɴ ᴏɴ ᴏғғ ᴍᴇᴛᴀᴅᴀᴛᴀ:\n"
+            "➜ /metadata: Turn on or off metadata.\n\n"
+            "ᴄᴏᴍᴍᴀɴᴅꜱ ᴛᴏ ꜱᴇᴛ ᴍᴇᴛᴀᴅᴀᴛᴀ:\n"
+            "➜ /settitle: Set a custom title of media.\n"
+            "➜ /setauthor: Set the author.\n"
+            "➜ /setartist: Set the artist.\n"
+            "➜ /setaudio: Set audio title.\n"
+            "➜ /setsubtitle: Set subtitle title.\n"
+            "➜ /setvideo: Set video title.\n\n"
+            "ᴇxᴀᴍᴘʟᴇ: /settitle Your Title Here\n\n"
+            "ᴜꜱᴇ ᴛʜᴇꜱᴇ ᴄᴏᴍᴍᴀɴᴅꜱ ᴛᴏ ᴇɴʀɪᴄʜ ʏᴏᴜʀ ᴍᴇᴅɪᴀ ᴡɪᴛʜ ᴀᴅᴅɪᴛɪᴏɴᴀʟ ᴍᴇᴛᴀᴅᴀᴛᴀ ɪɴꜰᴏʀᴍᴀᴛɪᴏɴ!"
+        )
         buttons = [
             [
                 InlineKeyboardButton("🏠 ʜᴏᴍᴇ", callback_data="back_start"),
@@ -356,6 +388,7 @@ async def metadata_handlers(bot: Client, cb: CallbackQuery):
             await edit_msg(cb.message, caption=how_to_text, reply_markup=InlineKeyboardMarkup(buttons))
 
     elif cb.data == "metadata_back":
+        await cb.answer()
         await update_metadata_msg(cb)
 
 @app.on_callback_query(filters.regex("^set_font_"))
@@ -363,18 +396,20 @@ async def set_font_handler(bot: Client, cb: CallbackQuery):
     print(f"DEBUG: Received callback data: {cb.data}")
     font_name = cb.data.split("_")[-1]
     await db.set_user_font(cb.from_user.id, font_name)
-    await cb.answer(f"Font set to {font_name}!", show_alert=True)
+    await bot.answer_callback_query(cb.id, f"Font set to {font_name}!", show_alert=True)
 
 @app.on_callback_query(filters.regex("^(close_fonts|close_translator)$"))
 async def close_specific_menus(bot: Client, cb: CallbackQuery):
+    await cb.answer()
     print(f"DEBUG: Received callback data: {cb.data}")
     await cb.message.delete()
 
 @app.on_callback_query(filters.regex("^(trans_llama33_groq|how_to_translate|help_callback)$"))
 async def translator_ui_handlers(bot: Client, cb: CallbackQuery):
+    await cb.answer()
     print(f"DEBUG: Received callback data: {cb.data}")
-    from .translator import process_translation
     if cb.data == "trans_llama33_groq":
+        from .translator import process_translation
         await process_translation(bot, cb, "groq", "llama-3.3-70b-versatile")
     elif cb.data in ["how_to_translate", "help_callback"]:
         help_buttons = InlineKeyboardMarkup([
@@ -403,7 +438,9 @@ async def cancel_handlers(bot: Client, cb: CallbackQuery):
                 statusMsg = json.load(f)
                 user = cb.from_user.id
                 if user != statusMsg['user'] and user not in sudo_users and user not in owner:
+                     await bot.answer_callback_query(cb.id, "You are not authorized to cancel this process!", show_alert=True)
                      return
+                await cb.answer()
                 statusMsg['running'] = False
                 f.seek(0)
                 json.dump(statusMsg, f, indent=2)
@@ -417,19 +454,19 @@ async def cancel_handlers(bot: Client, cb: CallbackQuery):
                     ist = ist_now.strftime("%d/%m/%Y, %H:%M:%S")
                     bst_now = utc_now + datetime.timedelta(minutes=00, hours=6)
                     bst = bst_now.strftime("%d/%m/%Y, %H:%M:%S")
-                    now = f"\n{ist} (GMT+05:30)`\n`{bst} (GMT+06:00)"
+                    now = f"\n{ist} (GMT+05:30)\n{bst} (GMT+06:00)"
                     await bot.send_message(chat_id, f"**Last Process Cancelled, Bot is Free Now !!** \n\nProcess Done at `{now}`", parse_mode="markdown")
                 except:
                     pass
         except FileNotFoundError:
-             await cb.answer("Nothing to cancel or process already finished!", show_alert=True)
+             await bot.answer_callback_query(cb.id, "Nothing to cancel or process already finished!", show_alert=True)
 
     elif cb.data == "cancel_interactive":
         from .interactive_handler import interactive_sessions
         user_id = cb.from_user.id
         if user_id in interactive_sessions:
             del interactive_sessions[user_id]
-        await cb.answer("ᴘʀᴏᴄᴇss ᴄᴀɴᴄᴇʟʟᴇᴅ!", show_alert=True)
+        await bot.answer_callback_query(cb.id, "ᴘʀᴏᴄᴇss ᴄᴀɴᴄᴇʟʟᴇᴅ!", show_alert=True)
         await cb.message.delete()
 
 @app.on_callback_query(filters.regex("^mode_"))
@@ -437,11 +474,11 @@ async def mode_handlers(bot: Client, cb: CallbackQuery):
     print(f"DEBUG: Received callback data: {cb.data}")
     if cb.data == "mode_video":
         await db.set_upload_as_doc(cb.from_user.id, False)
-        await cb.answer("ᴘʀᴇғᴇʀᴇɴᴄᴇ sᴇᴛ ᴛᴏ ᴠɪᴅᴇᴏ", show_alert=True)
+        await bot.answer_callback_query(cb.id, "ᴘʀᴇғᴇʀᴇɴᴄᴇ sᴇᴛ ᴛᴏ ᴠɪᴅᴇᴏ", show_alert=True)
         await cb.message.delete()
     elif cb.data == "mode_document":
         await db.set_upload_as_doc(cb.from_user.id, True)
-        await cb.answer("ᴘʀᴇғᴇʀᴇɴᴄᴇ sᴇᴛ ᴛᴏ ᴅᴏᴄᴜᴍᴇɴᴛ", show_alert=True)
+        await bot.answer_callback_query(cb.id, "ᴘʀᴇғᴇʀᴇɴᴄᴇ sᴇᴛ ᴛᴏ ᴅᴏᴄᴜᴍᴇɴᴛ", show_alert=True)
         await cb.message.delete()
 
 @app.on_callback_query(filters.regex("audiosel"))
@@ -451,21 +488,27 @@ async def audio_selector_handler(bot: Client, cb: CallbackQuery):
     if user_id in sessions:
         await sessions[user_id].resolve_callback(cb)
     else:
-        await cb.answer("Session expired. Please try again.", show_alert=True)
+        await bot.answer_callback_query(cb.id, "Session expired. Please try again.", show_alert=True)
 
 @app.on_callback_query(filters.regex("stats"))
 async def stats_callback_handler(bot: Client, cb: CallbackQuery):
     print(f"DEBUG: Received callback data: {cb.data}")
     stats = await showw_status(bot)
     stats = stats.replace('<b>', '').replace('</b>', '')
-    await cb.answer(stats, show_alert=True)
+    await bot.answer_callback_query(cb.id, stats, show_alert=True)
 
 @app.on_callback_query(filters.regex(r"queue\+"))
 async def queue_callback_handler(bot: Client, cb: CallbackQuery):
+    await cb.answer()
     print(f"DEBUG: Received callback data: {cb.data}")
     await queue_answer(app, cb)
 
-@app.on_callback_query(filters.regex("^(Watermark|ignore_callback)$"))
-async def watermark_placeholder(bot: Client, cb: CallbackQuery):
-    print(f"DEBUG: Received callback data: {cb.data}")
-    await cb.answer("Sir, this button not works XD\n\nPress Bottom Buttons.", show_alert=True)
+@app.on_callback_query(filters.regex("^Watermark$"))
+async def watermark_settings_entry(bot: Client, cb: CallbackQuery):
+    await cb.answer()
+    cb.data = "back_watermark"
+    await watermark_handlers(bot, cb)
+
+@app.on_callback_query(filters.regex("^ignore_callback$"))
+async def ignore_callback_handler(bot: Client, cb: CallbackQuery):
+    await bot.answer_callback_query(cb.id, "Sir, this button not works XD\n\nPress Bottom Buttons.", show_alert=True)
