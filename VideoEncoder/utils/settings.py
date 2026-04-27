@@ -1,26 +1,24 @@
 
 import asyncio
 
-from pyrogram.errors import FloodWait
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, InputMediaPhoto
-
-from .. import LOGGER
-from .common import edit_msg
-from .database.access_db import db
-from .database.add_user import AddUserToDatabase
-
-
-SETTINGS_PIC = "https://graph.org/file/a232c9818402f81093feb-383081a21200f77ae8.jpg"
+SETTINGS_PIC = "https://i.ibb.co/xV675RQ/image.png"
 
 # Settings
-async def OpenSettings(event: Message, user_id: int):
+async def OpenSettings(event, user_id: int):
+    from pyrogram.errors import FloodWait
+    from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
+    from .common import edit_msg
+    from .. import LOGGER
     try:
-        text = "Settings of the Bot"
+        text = 'Efficiency is doing things right; effectiveness is doing the right things.'
         buttons = [
-            [InlineKeyboardButton("ᴠɪᴅᴇᴏ", callback_data="VideoSettings"), InlineKeyboardButton(
-                "ᴀᴜᴅɪᴏ", callback_data="AudioSettings")],
-            [InlineKeyboardButton("ᴇxᴛʀᴀs", callback_data="ExtraSettings"), InlineKeyboardButton(
-                "ʙᴀᴄᴋ", callback_data="back_start")]
+            [
+                InlineKeyboardButton("📖 How to Translate", callback_data="how_to_translate"),
+                InlineKeyboardButton("🛠️ Metadata", callback_data="metadata_help")
+            ],
+            [
+                InlineKeyboardButton("❌ Close", callback_data="close_btn")
+            ]
         ]
         try:
             await edit_msg(
@@ -40,7 +38,12 @@ async def OpenSettings(event: Message, user_id: int):
 
 
 # Video Settings
-async def VideoSettings(event: Message, user_id: int):
+async def VideoSettings(event, user_id: int):
+    from pyrogram.errors import FloodWait
+    from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
+    from .common import edit_msg
+    from .database.access_db import db
+    from .. import LOGGER
     try:
         user = await db.get_user_data(user_id)
 
@@ -155,7 +158,12 @@ async def VideoSettings(event: Message, user_id: int):
         await edit_msg(event, caption=f"An error occurred in VideoSettings: {e}")
 
 
-async def AudioSettings(event: Message, user_id: int):
+async def AudioSettings(event, user_id: int):
+    from pyrogram.errors import FloodWait
+    from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
+    from .common import edit_msg
+    from .database.access_db import db
+    from .. import LOGGER
     try:
         user = await db.get_user_data(user_id)
 
@@ -251,7 +259,12 @@ async def AudioSettings(event: Message, user_id: int):
         await edit_msg(event, caption=f"An error occurred in AudioSettings: {e}")
 
 
-async def ExtraSettings(event: Message, user_id: int):
+async def ExtraSettings(event, user_id: int):
+    from pyrogram.errors import FloodWait
+    from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
+    from .common import edit_msg
+    from .database.access_db import db
+    from .. import LOGGER
     try:
         user = await db.get_user_data(user_id)
         text = "Here's Your Subtitle Settings"

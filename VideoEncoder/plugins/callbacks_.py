@@ -1,25 +1,15 @@
-from ..utils.common import edit_msg
-
-
-import datetime
-import json
-import os
 import asyncio
-
 from pyrogram import Client, filters
 from pyrogram.types import CallbackQuery, InputMediaPhoto, InlineKeyboardButton, InlineKeyboardMarkup
-
-from .. import app, download_dir, log, owner, sudo_users, LOGGER, ASSETS_DIR
-from ..plugins.queue import queue_answer
-from ..utils.database.access_db import db
-from .start import showw_status, START_MSG, START_PIC
-from ..utils.helper import check_chat
-from ..utils.common import output, start_but, HELP_TEXT
-from ..video_utils.audio_selector import sessions
+from .. import app
 
 
 @app.on_callback_query(filters.regex("^back_start$"))
 async def back_to_start(bot: Client, cb: CallbackQuery):
+    await cb.answer()
+    from .start import START_MSG, START_PIC
+    from ..utils.common import start_but, edit_msg
+    from .. import LOGGER
     print(f"DEBUG: Received callback data: {cb.data}")
     user = cb.from_user
     name = f"{user.first_name} {user.last_name}" if user.last_name else user.first_name
@@ -41,6 +31,7 @@ async def back_to_start(bot: Client, cb: CallbackQuery):
 
 @app.on_callback_query(filters.regex("^close_btn$"))
 async def delete_msg(bot: Client, cb: CallbackQuery):
+    await cb.answer()
     print(f"DEBUG: Received callback data: {cb.data}")
     await cb.message.delete()
 
@@ -61,6 +52,9 @@ async def settings_nav_handlers(bot: Client, cb: CallbackQuery):
 
 @app.on_callback_query(filters.regex("^trigger"))
 async def settings_trigger_handlers(bot: Client, cb: CallbackQuery):
+    await cb.answer()
+    from ..utils.settings import (AudioSettings, ExtraSettings, VideoSettings)
+    from ..utils.database.access_db import db
     print(f"DEBUG: Received callback data: {cb.data}")
     user_id = cb.from_user.id
     if cb.data == "triggerMode":
@@ -238,8 +232,12 @@ async def settings_trigger_handlers(bot: Client, cb: CallbackQuery):
 
 @app.on_callback_query(filters.regex("^(set|del|how|back)_watermark$"))
 async def watermark_handlers(bot: Client, cb: CallbackQuery):
-    print(f"DEBUG: Received callback data: {cb.data}")
+    await cb.answer()
     from .watermark import watermark_sessions, WATERMARK_PIC
+    from ..utils.common import edit_msg
+    from .. import ASSETS_DIR
+    import os
+    print(f"DEBUG: Received callback data: {cb.data}")
     user_id = cb.from_user.id
     if cb.data == "set_watermark":
         await cb.answer("ᴘʟᴇᴀsᴇ sᴇɴᴅ ʏᴏᴜʀ ᴡᴀᴛᴇʀᴍᴀʀᴋ ᴘʜᴏᴛᴏ ᴡɪᴛʜɪɴ 30 sᴇᴄᴏɴᴅs.", show_alert=True)
@@ -299,10 +297,13 @@ async def watermark_handlers(bot: Client, cb: CallbackQuery):
         except:
             await edit_msg(cb.message, caption=text, reply_markup=InlineKeyboardMarkup(buttons))
 
-@app.on_callback_query(filters.regex("^metadata_"))
+@app.on_callback_query(filters.regex("^metadata_(on|off|how_to|back)$"))
 async def metadata_handlers(bot: Client, cb: CallbackQuery):
-    print(f"DEBUG: Received callback data: {cb.data}")
+    await cb.answer()
+    from ..utils.database.access_db import db
     from .metadata_plugin import update_metadata_msg
+    from ..utils.common import edit_msg
+    print(f"DEBUG: Received callback data: {cb.data}")
     if cb.data == "metadata_on":
         await db.set_metadata_on(cb.from_user.id, True)
         await cb.answer("ᴍᴇᴛᴀᴅᴀᴛᴀ ᴛᴜʀɴᴇᴅ ᴏɴ", show_alert=True)
@@ -360,6 +361,8 @@ async def metadata_handlers(bot: Client, cb: CallbackQuery):
 
 @app.on_callback_query(filters.regex("^set_font_"))
 async def set_font_handler(bot: Client, cb: CallbackQuery):
+    await cb.answer()
+    from ..utils.database.access_db import db
     print(f"DEBUG: Received callback data: {cb.data}")
     font_name = cb.data.split("_")[-1]
     await db.set_user_font(cb.from_user.id, font_name)
@@ -367,19 +370,24 @@ async def set_font_handler(bot: Client, cb: CallbackQuery):
 
 @app.on_callback_query(filters.regex("^(close_fonts|close_translator)$"))
 async def close_specific_menus(bot: Client, cb: CallbackQuery):
+    await cb.answer()
     print(f"DEBUG: Received callback data: {cb.data}")
     await cb.message.delete()
 
-@app.on_callback_query(filters.regex("^(trans_llama33_groq|how_to_translate|help_callback)$"))
+@app.on_callback_query(filters.regex("^(trans_llama33_groq|how_to_translate|help_callback|metadata_help)$"))
 async def translator_ui_handlers(bot: Client, cb: CallbackQuery):
-    print(f"DEBUG: Received callback data: {cb.data}")
+    await cb.answer()
     from .translator import process_translation
+    from .start import START_PIC
+    from ..utils.common import HELP_TEXT, METADATA_HELP_TEXT, edit_msg
+    from .. import LOGGER
+    print(f"DEBUG: Received callback data: {cb.data}")
     if cb.data == "trans_llama33_groq":
         await process_translation(bot, cb, "groq", "llama-3.3-70b-versatile")
     elif cb.data in ["how_to_translate", "help_callback"]:
         help_buttons = InlineKeyboardMarkup([
             [
-                InlineKeyboardButton("🔙 Back to Home", callback_data="back_start"),
+                InlineKeyboardButton("🔙 Back", callback_data="OpenSettings"),
                 InlineKeyboardButton("❌ Close", callback_data="close_btn")
             ]
         ])
@@ -392,9 +400,29 @@ async def translator_ui_handlers(bot: Client, cb: CallbackQuery):
         except Exception as e:
             LOGGER.error(f"Error in {cb.data}: {e}")
             await edit_msg(cb.message, caption=HELP_TEXT, reply_markup=help_buttons)
+    elif cb.data == "metadata_help":
+        help_buttons = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🔙 Back", callback_data="OpenSettings"),
+                InlineKeyboardButton("❌ Close", callback_data="close_btn")
+            ]
+        ])
+        try:
+            await edit_msg(
+                cb.message,
+                media=InputMediaPhoto(START_PIC, caption=METADATA_HELP_TEXT, has_spoiler=True),
+                reply_markup=help_buttons
+            )
+        except Exception as e:
+            LOGGER.error(f"Error in {cb.data}: {e}")
+            await edit_msg(cb.message, caption=METADATA_HELP_TEXT, reply_markup=help_buttons)
 
 @app.on_callback_query(filters.regex("^cancel"))
 async def cancel_handlers(bot: Client, cb: CallbackQuery):
+    await cb.answer()
+    from ..utils.common import edit_msg
+    from .. import download_dir, sudo_users, owner, log
+    import os, json, datetime
     print(f"DEBUG: Received callback data: {cb.data}")
     if cb.data == "cancel":
         status_file = download_dir + "status.json"
@@ -434,6 +462,8 @@ async def cancel_handlers(bot: Client, cb: CallbackQuery):
 
 @app.on_callback_query(filters.regex("^mode_"))
 async def mode_handlers(bot: Client, cb: CallbackQuery):
+    await cb.answer()
+    from ..utils.database.access_db import db
     print(f"DEBUG: Received callback data: {cb.data}")
     if cb.data == "mode_video":
         await db.set_upload_as_doc(cb.from_user.id, False)
@@ -446,6 +476,8 @@ async def mode_handlers(bot: Client, cb: CallbackQuery):
 
 @app.on_callback_query(filters.regex("audiosel"))
 async def audio_selector_handler(bot: Client, cb: CallbackQuery):
+    await cb.answer()
+    from ..video_utils.audio_selector import sessions
     print(f"DEBUG: Received callback data: {cb.data}")
     user_id = cb.from_user.id
     if user_id in sessions:
@@ -455,6 +487,8 @@ async def audio_selector_handler(bot: Client, cb: CallbackQuery):
 
 @app.on_callback_query(filters.regex("stats"))
 async def stats_callback_handler(bot: Client, cb: CallbackQuery):
+    await cb.answer()
+    from .start import showw_status
     print(f"DEBUG: Received callback data: {cb.data}")
     stats = await showw_status(bot)
     stats = stats.replace('<b>', '').replace('</b>', '')
@@ -462,10 +496,14 @@ async def stats_callback_handler(bot: Client, cb: CallbackQuery):
 
 @app.on_callback_query(filters.regex(r"queue\+"))
 async def queue_callback_handler(bot: Client, cb: CallbackQuery):
+    await cb.answer()
+    from ..plugins.queue import queue_answer
+    from .. import app
     print(f"DEBUG: Received callback data: {cb.data}")
     await queue_answer(app, cb)
 
 @app.on_callback_query(filters.regex("^(Watermark|ignore_callback)$"))
 async def watermark_placeholder(bot: Client, cb: CallbackQuery):
+    await cb.answer()
     print(f"DEBUG: Received callback data: {cb.data}")
     await cb.answer("Sir, this button not works XD\n\nPress Bottom Buttons.", show_alert=True)
