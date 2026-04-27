@@ -1,4 +1,4 @@
-from ..utils.common import edit_msg
+from ..utils.common import edit_msg, METADATA_HELP_TEXT
 from VideoEncoder import LOGGER
 
 from pyrogram import Client, filters
@@ -7,6 +7,18 @@ from ..utils.database.access_db import db
 from ..utils.database.add_user import AddUserToDatabase
 from ..utils.helper import check_chat
 
+async def get_metadata_menu(user_id):
+    # Requirement: "Action: Clicking this must trigger the exact response of the /metadata command."
+    # AND "Updated Help & Metadata Content: When the Metadata or Help info is displayed, use this exact formatting: [Guide text]"
+
+    buttons = [
+        [
+            InlineKeyboardButton("🔙 Back to Home", callback_data="back_start"),
+            InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="closeMeh")
+        ]
+    ]
+    return METADATA_HELP_TEXT, InlineKeyboardMarkup(buttons)
+
 @Client.on_message(filters.command("metadata"))
 async def metadata_handler(bot: Client, message: Message):
     c = await check_chat(message, chat='Both')
@@ -14,82 +26,19 @@ async def metadata_handler(bot: Client, message: Message):
         return
     await AddUserToDatabase(bot, message)
     user_id = message.from_user.id
-
-    metadata_on = await db.get_metadata_on(user_id)
-    title = await db.get_metadata_title(user_id)
-    author = await db.get_metadata_author(user_id)
-    artist = await db.get_metadata_artist(user_id)
-    audio = await db.get_metadata_audio(user_id)
-    subtitle = await db.get_metadata_subtitle(user_id)
-    video = await db.get_metadata_video(user_id)
-
-    status = "ON" if metadata_on else "OFF"
-    on_btn = "✅ ᴏɴ" if metadata_on else "ᴏɴ"
-    off_btn = "❌ ᴏғғ" if not metadata_on else "ᴏғғ"
-
-    text = f"㊋ Yᴏᴜʀ Mᴇᴛᴀᴅᴀᴛᴀ ɪꜱ ᴄᴜʀʀᴇɴᴛʟʏ: {status}\n" \
-           f"◈ Tɪᴛʟᴇ ▹ {title}  \n" \
-           f"◈ Aᴜᴛʜᴏʀ ▹ {author}  \n" \
-           f"◈ Aʀᴛɪꜱᴛ ▹ {artist}  \n" \
-           f"◈ Aᴜᴅɪᴏ ▹ {audio}  \n" \
-           f"◈ Sᴜʙᴛɪᴛʟᴇ ▹ {subtitle}  \n" \
-           f"◈ Vɪᴅᴇᴏ ▹ {video}"
-
-    buttons = [
-        [
-            InlineKeyboardButton(on_btn, callback_data="metadata_on"),
-            InlineKeyboardButton(off_btn, callback_data="metadata_off")
-        ],
-        [
-            InlineKeyboardButton("🥂 ʜᴏᴡ ᴛᴏ sᴇᴛ ᴍᴇᴛᴀᴅᴀᴛᴀ", callback_data="metadata_how_to")
-        ],
-        [
-            InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="closeMeh")
-        ]
-    ]
+    text, reply_markup = await get_metadata_menu(user_id)
 
     await message.reply_photo(
         photo="https://graph.org/file/3f313447e012a34252704-c4fdaa14a9a0ae0a4b.jpg",
         caption=text,
-        reply_markup=InlineKeyboardMarkup(buttons),
+        reply_markup=reply_markup,
         has_spoiler=True
     )
 
 
 async def update_metadata_msg(cb: CallbackQuery):
     user_id = cb.from_user.id
-    metadata_on = await db.get_metadata_on(user_id)
-    title = await db.get_metadata_title(user_id)
-    author = await db.get_metadata_author(user_id)
-    artist = await db.get_metadata_artist(user_id)
-    audio = await db.get_metadata_audio(user_id)
-    subtitle = await db.get_metadata_subtitle(user_id)
-    video = await db.get_metadata_video(user_id)
-
-    status = "ON" if metadata_on else "OFF"
-    on_btn = "✅ ᴏɴ" if metadata_on else "ᴏɴ"
-    off_btn = "❌ ᴏғғ" if not metadata_on else "ᴏғғ"
-
-    text = f"㊋ Yᴏᴜʀ Mᴇᴛᴀᴅᴀᴛᴀ ɪꜱ ᴄᴜʀʀᴇɴᴛʟʏ: {status}\n" \
-           f"◈ Tɪᴛʟᴇ ▹ {title}  \n" \
-           f"◈ Aᴜᴛʜᴏʀ ▹ {author}  \n" \
-           f"◈ Aʀᴛɪꜱᴛ ▹ {artist}  \n" \
-           f"◈ Aᴜᴅɪᴏ ▹ {audio}  \n" \
-           f"◈ Sᴜʙᴛɪᴛʟᴇ ▹ {subtitle}  \n" \
-           f"◈ Vɪᴅᴇᴏ ▹ {video}"
-
-    buttons = [
-        [
-            InlineKeyboardButton(on_btn, callback_data="metadata_on"),
-            InlineKeyboardButton(off_btn, callback_data="metadata_off")
-        ],
-        [
-            InlineKeyboardButton("🥂 ʜᴏᴡ ᴛᴏ sᴇᴛ ᴍᴇᴛᴀᴅᴀᴛᴀ", callback_data="metadata_how_to")
-        ],
-        [
-            InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="closeMeh")
-        ]
-    ]
+    text, reply_markup = await get_metadata_menu(user_id)
 
     try:
         await edit_msg(
@@ -99,16 +48,18 @@ async def update_metadata_msg(cb: CallbackQuery):
                 caption=text,
                 has_spoiler=True
             ),
-            reply_markup=InlineKeyboardMarkup(buttons)
+            reply_markup=reply_markup
         )
     except:
         try:
-            await edit_msg(cb.message, caption=text, reply_markup=InlineKeyboardMarkup(buttons))
+            await edit_msg(cb.message, caption=text, reply_markup=reply_markup)
         except:
             pass
 
 @Client.on_message(filters.command(["settitle", "setauthor", "setartist", "setaudio", "setsubtitle", "setvideo"]))
 async def set_metadata_cmds(bot: Client, message: Message):
+    # Keep these for backward compatibility unless user explicitly said remove them too.
+    # The requirement said remove /settings, not these commands.
     c = await check_chat(message, chat='Both')
     if not c:
         return

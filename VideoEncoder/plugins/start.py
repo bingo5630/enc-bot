@@ -14,7 +14,7 @@ from time import time
 from psutil import (boot_time, cpu_count, cpu_percent, disk_usage,
                     net_io_counters, swap_memory, virtual_memory)
 from pyrogram import Client, filters
-from pyrogram.types import Message
+from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
 
 from .. import botStartTime, download_dir, encode_dir
 from ..utils.database.access_db import db
@@ -55,7 +55,15 @@ async def help_message(app, message):
     if not c:
         return
     await AddUserToDatabase(app, message)
-    await message.reply_photo(photo=START_PIC, caption=HELP_TEXT, reply_markup=start_but, has_spoiler=True)
+
+    buttons = [
+        [
+            InlineKeyboardButton("🔙 Back to Home", callback_data="back_start"),
+            InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="closeMeh")
+        ]
+    ]
+
+    await message.reply_photo(photo=START_PIC, caption=HELP_TEXT, reply_markup=InlineKeyboardMarkup(buttons), has_spoiler=True)
 
 
 @Client.on_message(filters.command('stats'))

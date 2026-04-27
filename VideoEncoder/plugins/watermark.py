@@ -14,6 +14,30 @@ WATERMARK_PIC = "https://graph.org/file/65aea4e00b2a2b6015d0e-6492306dbbd65ad3bc
 # user_id: timestamp of when they clicked 'set_watermark'
 watermark_sessions = {}
 
+async def get_watermark_menu(user_id):
+    watermark_path = os.path.join(ASSETS_DIR, f'watermark_{user_id}.png')
+    has_watermark = os.path.exists(watermark_path)
+
+    text = "> <b>\"ᴡᴀɴɴᴀ sᴛᴀᴍᴘ ʏᴏᴜʀ ᴀᴜᴛʜᴏʀɪᴛʏ? ᴀᴅᴅ ᴀ ᴡᴀᴛᴇʀᴍᴀʀᴋ ᴀɴᴅ ʟᴇᴛ ᴛʜᴇ ᴡᴏʀʟᴅ ᴋɴᴏᴡ ᴡʜᴏ ᴛʜᴇ ʙᴏss ɪs!\"</b>"
+
+    if has_watermark:
+        btn_row1 = [InlineKeyboardButton("🔄 ᴄʜᴀɴɢᴇ ᴡᴀᴛᴇʀᴍᴀʀᴋ", callback_data="set_watermark")]
+    else:
+        btn_row1 = [InlineKeyboardButton("🖼️ sᴇᴛ ᴡᴀᴛᴇʀᴍᴀʀᴋ", callback_data="set_watermark")]
+
+    buttons = [
+        btn_row1,
+        [
+            InlineKeyboardButton("🗑️ ʀᴇᴍᴏᴠᴇ ᴡᴀᴛᴇʀᴍᴀʀᴋ", callback_data="del_watermark"),
+            InlineKeyboardButton("🔙 Back to Home", callback_data="back_start")
+        ],
+        [
+            InlineKeyboardButton("❓ ʜᴏᴡ ᴛᴏ sᴇᴛ ᴡᴀᴛᴇʀᴍᴀʀᴋ", callback_data="how_watermark"),
+            InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="closeMeh")
+        ]
+    ]
+    return text, InlineKeyboardMarkup(buttons)
+
 @Client.on_message(filters.command(["watermark"]))
 async def watermark_command(client, message):
     try:
@@ -22,32 +46,12 @@ async def watermark_command(client, message):
             return
         await AddUserToDatabase(client, message)
         user_id = message.from_user.id
-
-        watermark_path = os.path.join(ASSETS_DIR, f'watermark_{user_id}.png')
-        has_watermark = os.path.exists(watermark_path)
-
-        text = "> <b>\"ᴡᴀɴɴᴀ sᴛᴀᴍᴘ ʏᴏᴜʀ ᴀᴜᴛʜᴏʀɪᴛʏ? ᴀᴅᴅ ᴀ ᴡᴀᴛᴇʀᴍᴀʀᴋ ᴀɴᴅ ʟᴇᴛ ᴛʜᴇ ᴡᴏʀʟᴅ ᴋɴᴏᴡ ᴡʜᴏ ᴛʜᴇ ʙᴏss ɪs!\"</b>"
-
-        if has_watermark:
-            btn_row1 = [InlineKeyboardButton("🔄 ᴄʜᴀɴɢᴇ ᴡᴀᴛᴇʀᴍᴀʀᴋ", callback_data="set_watermark")]
-        else:
-            btn_row1 = [InlineKeyboardButton("🖼️ sᴇᴛ ᴡᴀᴛᴇʀᴍᴀʀᴋ", callback_data="set_watermark")]
-
-        buttons = [
-            btn_row1,
-            [
-                InlineKeyboardButton("🗑️ ʀᴇᴍᴏᴠᴇ ᴡᴀᴛᴇʀᴍᴀʀᴋ", callback_data="del_watermark"),
-                InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="closeMeh")
-            ],
-            [
-                InlineKeyboardButton("❓ ʜᴏᴡ ᴛᴏ sᴇᴛ ᴡᴀᴛᴇʀᴍᴀʀᴋ", callback_data="how_watermark")
-            ]
-        ]
+        text, reply_markup = await get_watermark_menu(user_id)
 
         await message.reply_photo(
             photo=WATERMARK_PIC,
             caption=text,
-            reply_markup=InlineKeyboardMarkup(buttons),
+            reply_markup=reply_markup,
             has_spoiler=True
         )
     except Exception as e:

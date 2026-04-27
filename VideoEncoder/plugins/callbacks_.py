@@ -35,205 +35,31 @@ async def delete_msg(bot: Client, cb: CallbackQuery):
     print(f"DEBUG: Received callback data: {cb.data}")
     await cb.message.delete()
 
-@app.on_callback_query(filters.regex("^(Video|Open|Audio|Extra)Settings$"))
-async def settings_nav_handlers(bot: Client, cb: CallbackQuery):
+@app.on_callback_query(filters.regex("^metadata_start$"))
+async def metadata_start_callback(bot: Client, cb: CallbackQuery):
     await cb.answer()
-    from ..utils.settings import (AudioSettings, ExtraSettings, OpenSettings,
-                                  VideoSettings)
-    print(f"DEBUG: Received callback data: {cb.data}")
-    if cb.data == "VideoSettings":
-        await VideoSettings(cb.message, user_id=cb.from_user.id)
-    elif cb.data == "OpenSettings":
-        await OpenSettings(cb.message, user_id=cb.from_user.id)
-    elif cb.data == "AudioSettings":
-        await AudioSettings(cb.message, user_id=cb.from_user.id)
-    elif cb.data == "ExtraSettings":
-        await ExtraSettings(cb.message, user_id=cb.from_user.id)
+    from .metadata_plugin import update_metadata_msg
+    await update_metadata_msg(cb)
 
-@app.on_callback_query(filters.regex("^trigger"))
-async def settings_trigger_handlers(bot: Client, cb: CallbackQuery):
+@app.on_callback_query(filters.regex("^watermark_start$"))
+async def watermark_start_callback(bot: Client, cb: CallbackQuery):
     await cb.answer()
-    from ..utils.settings import (AudioSettings, ExtraSettings, VideoSettings)
-    from ..utils.database.access_db import db
-    print(f"DEBUG: Received callback data: {cb.data}")
-    user_id = cb.from_user.id
-    if cb.data == "triggerMode":
-        drive = await db.get_drive(user_id)
-        await db.set_drive(user_id, not drive)
-        await ExtraSettings(cb.message, user_id=user_id)
-
-    elif cb.data == "triggerUploadMode":
-        upload_as_doc = await db.get_upload_as_doc(user_id)
-        await db.set_upload_as_doc(user_id, not upload_as_doc)
-        await ExtraSettings(cb.message, user_id=user_id)
-
-    elif cb.data == "triggerResize":
-        resize = await db.get_resize(user_id)
-        await db.set_resize(user_id, not resize)
-        await ExtraSettings(cb.message, user_id=user_id)
-
-    elif cb.data == "triggerMetadata":
-        metadata = await db.get_metadata_w(user_id)
-        await db.set_metadata_w(user_id, not metadata)
-        await ExtraSettings(cb.message, user_id=user_id)
-
-    elif cb.data == "triggerVideo":
-        watermark = await db.get_watermark(user_id)
-        await db.set_watermark(user_id, not watermark)
-        await ExtraSettings(cb.message, user_id=user_id)
-
-    elif cb.data == "triggerHardsub":
-        hardsub = await db.get_hardsub(user_id)
-        await db.set_hardsub(user_id, not hardsub)
-        await ExtraSettings(cb.message, user_id=user_id)
-
-    elif cb.data == "triggerSubtitles":
-        subtitles = await db.get_subtitles(user_id)
-        await db.set_subtitles(user_id, not subtitles)
-        await ExtraSettings(cb.message, user_id=user_id)
-
-    elif cb.data == "triggerextensions":
-        ex = await db.get_extensions(user_id)
-        new_ex = 'MKV' if ex == 'MP4' else 'AVI' if ex == 'MKV' else 'MP4'
-        await db.set_extensions(user_id, new_ex)
-        await VideoSettings(cb.message, user_id=user_id)
-
-    elif cb.data == "triggerframe":
-        fr = await db.get_frame(user_id)
-        frames = ['ntsc', 'source', 'pal', 'film', '23.976', '30', '60']
-        try:
-            idx = frames.index(fr)
-            new_fr = frames[(idx + 1) % len(frames)]
-        except ValueError:
-            new_fr = 'ntsc'
-        await db.set_frame(user_id, new_fr)
-        await VideoSettings(cb.message, user_id=user_id)
-
-    elif cb.data == "triggerPreset":
-        p = await db.get_preset(user_id)
-        presets = ['uf', 'sf', 'vf', 'f', 'm', 's']
-        try:
-            idx = presets.index(p)
-            new_p = presets[(idx + 1) % len(presets)]
-        except ValueError:
-            new_p = 'uf'
-        await db.set_preset(user_id, new_p)
-        await VideoSettings(cb.message, user_id=user_id)
-
-    elif cb.data == "triggersamplerate":
-        sr = await db.get_samplerate(user_id)
-        new_sr = '48K' if sr == '44.1K' else 'source' if sr == '48K' else '44.1K'
-        await db.set_samplerate(user_id, new_sr)
-        await AudioSettings(cb.message, user_id=user_id)
-
-    elif cb.data == "triggerbitrate":
-        bit = await db.get_bitrate(user_id)
-        bits = ['400', '320', '256', '224', '192', '160', '128', 'source']
-        try:
-            idx = bits.index(bit)
-            new_bit = bits[(idx + 1) % len(bits)]
-        except ValueError:
-            new_bit = '400'
-        await db.set_bitrate(user_id, new_bit)
-        await AudioSettings(cb.message, user_id=user_id)
-
-    elif cb.data == "triggerAudioCodec":
-        a = await db.get_audio(user_id)
-        codecs = ['dd', 'copy', 'aac', 'opus', 'alac', 'vorbis']
-        try:
-            idx = codecs.index(a)
-            new_a = codecs[(idx + 1) % len(codecs)]
-        except ValueError:
-            new_a = 'dd'
-        await db.set_audio(user_id, new_a)
-        await AudioSettings(cb.message, user_id=user_id)
-
-    elif cb.data == "triggerAudioChannels":
-        c = await db.get_channels(user_id)
-        channels = ['source', '1.0', '2.0', '2.1', '5.1', '7.1']
-        try:
-            idx = channels.index(c)
-            new_c = channels[(idx + 1) % len(channels)]
-            if new_c == '7.1':
-                 await cb.answer("7.1 is for bluray only.", show_alert=True)
-        except ValueError:
-            new_c = 'source'
-        await db.set_channels(user_id, new_c)
-        await AudioSettings(cb.message, user_id=user_id)
-
-    elif cb.data == "triggerResolution":
-        r = await db.get_resolution(user_id)
-        res = ['OG', '1080', '720', '480', '576']
-        try:
-            idx = res.index(r)
-            new_r = res[(idx + 1) % len(res)]
-        except ValueError:
-            new_r = 'OG'
-        await db.set_resolution(user_id, new_r)
-        await VideoSettings(cb.message, user_id=user_id)
-
-    elif cb.data == "triggerBits":
-        b = await db.get_bits(user_id)
-        hevc = await db.get_hevc(user_id)
-        if hevc:
-            await db.set_bits(user_id, not b)
-        else:
-            if b:
-                await db.set_bits(user_id, False)
-            else:
-                await cb.answer("H264 don't support 10 bits in this bot.", show_alert=True)
-        await VideoSettings(cb.message, user_id=user_id)
-
-    elif cb.data == "triggerHevc":
-        hevc = await db.get_hevc(user_id)
-        await db.set_hevc(user_id, not hevc)
-        if not hevc:
-             await cb.answer("H265 need more time for encoding video", show_alert=True)
-        await VideoSettings(cb.message, user_id=user_id)
-
-    elif cb.data == "triggertune":
-        tune = await db.get_tune(user_id)
-        await db.set_tune(user_id, not tune)
-        await VideoSettings(cb.message, user_id=user_id)
-
-    elif cb.data == "triggerreframe":
-        rf = await db.get_reframe(user_id)
-        reframes = ['4', '8', '16', 'pass']
-        try:
-            idx = reframes.index(rf)
-            new_rf = reframes[(idx + 1) % len(reframes)]
-            if new_rf == '16':
-                await cb.answer("Reframe 16 maybe not support", show_alert=True)
-        except ValueError:
-            new_rf = '4'
-        await db.set_reframe(user_id, new_rf)
-        await VideoSettings(cb.message, user_id=user_id)
-
-    elif cb.data == "triggercabac":
-        cabac = await db.get_cabac(user_id)
-        await db.set_cabac(user_id, not cabac)
-        await VideoSettings(cb.message, user_id=user_id)
-
-    elif cb.data == "triggeraspect":
-        aspect = await db.get_aspect(user_id)
-        await db.set_aspect(user_id, not aspect)
-        if not aspect:
-             await cb.answer("This will help to force video to 16:9", show_alert=True)
-        await VideoSettings(cb.message, user_id=user_id)
-
-    elif cb.data == "triggerCRF":
-        crf = await db.get_crf(user_id)
-        nextcrf = int(crf) + 1
-        if nextcrf > 30:
-            await db.set_crf(user_id, 18)
-        else:
-            await db.set_crf(user_id, nextcrf)
-        await VideoSettings(cb.message, user_id=user_id)
+    from .watermark import get_watermark_menu, WATERMARK_PIC
+    from ..utils.common import edit_msg
+    text, reply_markup = await get_watermark_menu(cb.from_user.id)
+    try:
+        await edit_msg(
+            cb.message,
+            media=InputMediaPhoto(WATERMARK_PIC, caption=text, has_spoiler=True),
+            reply_markup=reply_markup
+        )
+    except:
+        await edit_msg(cb.message, caption=text, reply_markup=reply_markup)
 
 @app.on_callback_query(filters.regex("^(set|del|how|back)_watermark$"))
 async def watermark_handlers(bot: Client, cb: CallbackQuery):
     await cb.answer()
-    from .watermark import watermark_sessions, WATERMARK_PIC
+    from .watermark import watermark_sessions, WATERMARK_PIC, get_watermark_menu
     from ..utils.common import edit_msg
     from .. import ASSETS_DIR
     import os
@@ -251,7 +77,8 @@ async def watermark_handlers(bot: Client, cb: CallbackQuery):
             await cb.answer("ᴡᴀᴛᴇʀᴍᴀʀᴋ ʀᴇᴍᴏᴠᴇᴅ!", show_alert=True)
         else:
             await cb.answer("ɴᴏ ᴡᴀᴛᴇʀᴍᴀʀᴋ ғᴏᴜɴᴅ!", show_alert=True)
-        await cb.message.delete()
+        text, reply_markup = await get_watermark_menu(user_id)
+        await edit_msg(cb.message, caption=text, reply_markup=reply_markup)
 
     elif cb.data == "how_watermark":
         how_to_text = "<b>\"ᴅᴇᴋʜᴏ ʙʜᴀɪ, ᴡᴀᴛᴇʀᴍᴀʀᴋ ʟᴀɢᴀɴᴀ ɪs ʟɪᴋᴇ ᴀᴘɴɪ ɢᴀᴀᴅɪ ᴘᴇ ɴᴀᴀᴍ ʟɪᴋʜᴡᴀɴᴀ! ʙᴀs sᴇᴛ ʙᴜᴛᴛᴏɴ ᴅᴀʙᴀᴏ, ᴘʜᴏᴛᴏ ʙʜᴇᴊᴏ, ᴀᴜʀ ʙᴏᴍ! ᴀʙ ᴄʜᴏʀ ʙʜɪ ᴅᴀʀᴇɴɢᴇ ᴛᴇʀɪ ᴠɪᴅᴇᴏ ᴄʜᴜʀᴀɴᴇ sᴇ. ʜᴇʜᴇʜᴇ...\"</b>"
@@ -274,28 +101,15 @@ async def watermark_handlers(bot: Client, cb: CallbackQuery):
             await edit_msg(cb.message, caption=how_to_text, reply_markup=InlineKeyboardMarkup(buttons))
 
     elif cb.data == "back_watermark":
-        watermark_path = os.path.join(ASSETS_DIR, f"watermark_{user_id}.png")
-        has_watermark = os.path.exists(watermark_path)
-        text = "> <b>\"ᴡᴀɴɴᴀ sᴛᴀᴍᴘ ʏᴏᴜʀ ᴀᴜᴛʜᴏʀɪᴛʏ? ᴀᴅᴅ ᴀ ᴡᴀᴛᴇʀᴍᴀʀᴋ ᴀɴᴅ ʟᴇᴛ ᴛʜᴇ ᴡᴏʀʟᴅ ᴋɴᴏᴡ ᴡʜᴏ ᴛʜᴇ ʙᴏss ɪs!\"</b>"
-        btn_text = "🔄 ᴄʜᴀɴɢᴇ ᴡᴀᴛᴇʀᴍᴀʀᴋ" if has_watermark else "🖼️ sᴇᴛ ᴡᴀᴛᴇʀᴍᴀʀᴋ"
-        buttons = [
-            [InlineKeyboardButton(btn_text, callback_data="set_watermark")],
-            [
-                InlineKeyboardButton("🗑️ ʀᴇᴍᴏᴠᴇ ᴡᴀᴛᴇʀᴍᴀʀᴋ", callback_data="del_watermark"),
-                InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_btn")
-            ],
-            [
-                InlineKeyboardButton("❓ ʜᴏᴡ ᴛᴏ sᴇᴛ ᴡᴀᴛᴇʀᴍᴀʀᴋ", callback_data="how_watermark")
-            ]
-        ]
+        text, reply_markup = await get_watermark_menu(user_id)
         try:
             await edit_msg(
                 cb.message,
                 media=InputMediaPhoto(WATERMARK_PIC, caption=text, has_spoiler=True),
-                reply_markup=InlineKeyboardMarkup(buttons)
+                reply_markup=reply_markup
             )
         except:
-            await edit_msg(cb.message, caption=text, reply_markup=InlineKeyboardMarkup(buttons))
+            await edit_msg(cb.message, caption=text, reply_markup=reply_markup)
 
 @app.on_callback_query(filters.regex("^metadata_(on|off|how_to|back)$"))
 async def metadata_handlers(bot: Client, cb: CallbackQuery):
@@ -318,8 +132,6 @@ async def metadata_handlers(bot: Client, cb: CallbackQuery):
         how_to_text = "ᴍᴀɴᴀɢɪɴɢ ᴍᴇᴛᴀᴅᴀᴛᴀ ғᴏʀ ʏᴏᴜʀ ᴠɪᴅᴇᴏs ᴀɴᴅ ғɪʟᴇs\n\n" \
                     "ᴠᴀʀɪᴏᴜꜱ ᴍᴇᴛᴀᴅᴀᴛᴀ:\n" \
                     "- ᴛɪᴛʟᴇ: Descriptive title of the media.\n" \
-                    "- ᴀᴜᴛʜᴏʀ: The creator or owner of the media.\n" \
-                    "- ᴀʀᴛɪꜱᴛ: The artist associated with the media.\n" \
                     "- ᴀᴜᴅɪᴏ: Title or description of audio content.\n" \
                     "- ꜱᴜʙᴛɪᴛʟᴇ: Title of subtitle content.\n" \
                     "- ᴠɪᴅᴇᴏ: Title or description of video content.\n\n" \
@@ -327,8 +139,6 @@ async def metadata_handlers(bot: Client, cb: CallbackQuery):
                     "➜ /metadata: Turn on or off metadata.\n\n" \
                     "ᴄᴏᴍᴍᴀɴᴅꜱ ᴛᴏ ꜱᴇᴛ ᴍᴇᴛᴀᴅᴀᴛᴀ:\n" \
                     "➜ /settitle: Set a custom title of media.\n" \
-                    "➜ /setauthor: Set the author.\n" \
-                    "➜ /setartist: Set the artist.\n" \
                     "➜ /setaudio: Set audio title.\n" \
                     "➜ /setsubtitle: Set subtitle title.\n" \
                     "➜ /setvideo: Set video title.\n\n" \
@@ -374,48 +184,13 @@ async def close_specific_menus(bot: Client, cb: CallbackQuery):
     print(f"DEBUG: Received callback data: {cb.data}")
     await cb.message.delete()
 
-@app.on_callback_query(filters.regex("^(trans_llama33_groq|how_to_translate|help_callback|metadata_help)$"))
+@app.on_callback_query(filters.regex("^(trans_llama33_groq)$"))
 async def translator_ui_handlers(bot: Client, cb: CallbackQuery):
     await cb.answer()
     from .translator import process_translation
-    from .start import START_PIC
-    from ..utils.common import HELP_TEXT, METADATA_HELP_TEXT, edit_msg
-    from .. import LOGGER
     print(f"DEBUG: Received callback data: {cb.data}")
     if cb.data == "trans_llama33_groq":
         await process_translation(bot, cb, "groq", "llama-3.3-70b-versatile")
-    elif cb.data in ["how_to_translate", "help_callback"]:
-        help_buttons = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("🔙 Back", callback_data="OpenSettings"),
-                InlineKeyboardButton("❌ Close", callback_data="close_btn")
-            ]
-        ])
-        try:
-            await edit_msg(
-                cb.message,
-                media=InputMediaPhoto(START_PIC, caption=HELP_TEXT, has_spoiler=True),
-                reply_markup=help_buttons
-            )
-        except Exception as e:
-            LOGGER.error(f"Error in {cb.data}: {e}")
-            await edit_msg(cb.message, caption=HELP_TEXT, reply_markup=help_buttons)
-    elif cb.data == "metadata_help":
-        help_buttons = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("🔙 Back", callback_data="OpenSettings"),
-                InlineKeyboardButton("❌ Close", callback_data="close_btn")
-            ]
-        ])
-        try:
-            await edit_msg(
-                cb.message,
-                media=InputMediaPhoto(START_PIC, caption=METADATA_HELP_TEXT, has_spoiler=True),
-                reply_markup=help_buttons
-            )
-        except Exception as e:
-            LOGGER.error(f"Error in {cb.data}: {e}")
-            await edit_msg(cb.message, caption=METADATA_HELP_TEXT, reply_markup=help_buttons)
 
 @app.on_callback_query(filters.regex("^cancel"))
 async def cancel_handlers(bot: Client, cb: CallbackQuery):
@@ -501,9 +276,3 @@ async def queue_callback_handler(bot: Client, cb: CallbackQuery):
     from .. import app
     print(f"DEBUG: Received callback data: {cb.data}")
     await queue_answer(app, cb)
-
-@app.on_callback_query(filters.regex("^(Watermark|ignore_callback)$"))
-async def watermark_placeholder(bot: Client, cb: CallbackQuery):
-    await cb.answer()
-    print(f"DEBUG: Received callback data: {cb.data}")
-    await cb.answer("Sir, this button not works XD\n\nPress Bottom Buttons.", show_alert=True)

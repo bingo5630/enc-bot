@@ -3,6 +3,7 @@ import os
 import asyncio
 import re
 import httpx
+import json
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from .. import LOGGER, download_dir
@@ -11,72 +12,33 @@ from ..utils.database.access_db import db
 from ..utils.encoding import extract_subtitle, get_width_height
 
 ANALYZER_PROMPT = (
-    "Analyze the following anime subtitle lines. Identify:\n"
-    "1. Speaker and their gender (Eri is female, Ogino is male).\n"
-    "2. Technical terms (Mitsuoka Pharmaceuticals). IMPORTANT: The insect is a WASP, not a mosquito.\n"
-    "3. Scene tone (Formal or Casual).\n"
-    "Provide context for each line to assist translation."
+    "Analyze the raw English subtitle lines and context. "
+    "Output ONLY a JSON object with these keys: "
+    "{\"gender\": \"male/female\", \"tone\": \"casual/serious\", \"context\": \"summary\"}."
 )
 
 TRANSLATOR_PROMPT = (
-    "You are a professional Anime Subtitle Translator. Use the provided context to translate lines into short, cool Hinglish (Anime Fury Style).\n\n"
-    "LINGUISTIC RULES:\n"
-    "- SHORT & PUNCHY: Keep it simple. If a line is more than 8-10 words, shorten it. Translate the 'vibe'.\n"
-    "- SPELLING: Use 'isey' (never ise), 'usey' (never use), 'arey' (never are), 'jaa' (never ja).\n"
-    "- VOCABULARY: No 'pathshala', 'madhyamik', 'prakriti', 'künstlich'. Use 'school', 'high school', 'nature', 'artificial'.\n"
-    "- GENDER: Eri uses feminine verbs (rahi hai/kiya), Ogino uses masculine (raha hai/kiya).\n"
-    "- TU/TERA: Strictly use 'Tu/Tujhe/Tera' for casual scenes. Use 'Tum' ONLY for formal conversations.\n\n"
-    "PROTECTION:\n"
-    "- Do NOT modify ASS tags like {\\an8}, {\\pos} or line breaks \\N.\n\n"
-    "OUTPUT: UTF-8 plain text only. One translated line per input line. No extra text, no Markdown, no JSON."
+    "You are a professional Anime Subtitler. Use the Phase 1 analysis to translate into punchy, Street-Style Hinglish.\n\n"
+    "Rules:\n"
+    "- Match gender and tone from analysis.\n"
+    "- Use 'Isey'/'Usey'.\n"
+    "- Keep 'Oh' for reactions.\n"
+    "- Use 'Abey', 'Arey', 'Yaar'.\n"
+    "- Ensure flow feels natural, not robotic.\n"
+    "- Keep sentences short and punchy like professional subbing styles.\n"
+    "- Output ONLY the translated text string."
 )
 
 TRANSLATE_PIC = "https://graph.org/file/600586a9a49029c2e98f1-90c27ea7986142ea7a.jpg"
-TRANSLATE_TEXT = """✨ ᴄʜᴏᴏsᴇ ʏᴏᴜʀ ᴛʀᴀɴsʟᴀᴛɪᴏɴ ᴇɴɢɪɴᴇ ✨
-ᴘʟᴇᴀsᴇ sᴇʟᴇᴄᴛ ᴀ ᴍᴏᴅᴇʟ ᴛᴏ sᴛᴀʀᴛ ʜɪɴɢʟɪsʜ ᴛʀᴀɴsʟᴀᴛɪᴏɴ.
-
-ʜᴏᴡ ᴛᴏ ᴛʀᴀɴsʟᴀᴛᴇ - sᴛᴇᴘ ʙʏ sᴛᴇᴘ ɢᴜɪᴅᴇ:
-➼ sᴛᴇᴘ 1: ɢᴇᴛ ɢʀᴏǫ ᴋᴇʏ
-ᴄʟɪᴄᴋ ʜᴇʀᴇ ᴛᴏ ᴄʀᴇᴀᴛᴇ ɢʀᴏǫ ᴀᴘɪ ᴋᴇʏ ᴀɴᴅ ᴀᴅᴅ ɪᴛ ᴜsɪɴɢ /sᴇᴛ_ɢʀᴏǫ_ᴀᴘɪ.
-➼ sᴛᴇᴘ 2: ᴜᴘʟᴏᴀᴅ ʏᴏᴜʀ ғɪʟᴇ
-sᴇɴᴅ ʏᴏᴜʀ .ᴀss ᴏʀ sᴜʙᴛɪᴛʟᴇ ғɪʟᴇ ᴅɪʀᴇᴄᴛʟʏ ᴛᴏ ᴛʜᴇ ʙᴏᴛ.
-➼ sᴛᴇᴘ 3: sᴇʟᴇᴄᴛ ᴛʜᴇ ᴇɴɢɪɴᴇ
-ᴄʜᴏᴏsᴇ ᴛʜᴇ ʜɪɢʜ-sᴛᴀʙɪʟɪᴛʏ ɢʀᴏǫ ᴇɴɢɪɴᴇ ғᴏʀ ʟɪɢʜᴛɴɪɴɢ-ғᴀsᴛ ʀᴇsᴜʟᴛs.
-➼ sᴛᴇᴘ 4: ᴡᴀɪᴛ ғᴏʀ ᴘʀᴏᴄᴇssɪɴɢ
-ᴛʜᴇ ʙᴏᴛ ᴡɪʟʟ sᴘʟɪᴛ ʏᴏᴜʀ ғɪʟᴇ ɪɴᴛᴏ ᴍɪᴄʀᴏ-ᴄʜᴜɴᴋs ᴛᴏ ᴇɴsᴜʀᴇ ʜɪɢʜ-ǫᴜᴀʟɪᴛʏ ʜɪɴɢʟɪsʜ ᴛʀᴀɴsʟᴀᴛɪᴏɴ. ᴏɴᴄᴇ ᴅᴏɴᴇ, ʏᴏᴜ'ʟʟ ʀᴇᴄᴇɪᴠᴇ ᴛʜᴇ ᴛʀᴀɴsʟᴀᴛᴇᴅ ғɪʟᴇ.
-ɴᴏᴛᴇ: ᴛʜᴇ ʙᴏᴛ ɴᴏᴡ ᴜsᴇs ᴀɴ ᴏᴘᴛɪᴍɪᴢᴇᴅ ɢʀᴏǫ-ᴏɴʟʏ ᴀʀᴄʜɪᴛᴇᴄᴛᴜʀᴇ ғᴏʀ 100% sᴛᴀʙɪʟɪᴛʏ!"""
+TRANSLATE_TEXT = "✨ ᴄʜᴏᴏsᴇ ʏᴏᴜʀ ᴛʀᴀɴsʟᴀᴛɪᴏɴ ᴇɴɢɪɴᴇ ✨\nᴘʟᴇᴀsᴇ sᴇʟᴇᴄᴛ ᴀ ᴍᴏᴅᴇʟ ᴛᴏ sᴛᴀʀᴛ ʜɪɴɢʟɪsʜ ᴛʀᴀɴsʟᴀᴛɪᴏɴ."
 
 # Temporary storage for file metadata linked to message ID
 translation_data = {}
 
-SETUP_GUIDE_TEXT = (
-    "✨ ʜᴏᴡ ᴛᴏ sᴇᴛ ᴜᴘ ʏᴏᴜʀ ᴛʀᴀɴsʟᴀᴛɪᴏɴ ᴇɴɢɪɴᴇ ✨\n\n"
-    "𝟷️⃣ [ᴄʟɪᴄᴋ ʜᴇʀᴇ ғᴏʀ ɢʀᴏǫ ᴋᴇʏ](https://console.groq.com/keys)\n"
-    "👉 sᴇɴᴅ ʏᴏᴜʀ ᴋᴇʏ ᴜsɪɴɢ /set_groq_api ᴛᴏ ᴀᴅᴅ ɪᴛ ᴛᴏ ʏᴏᴜʀ ᴀᴘɪ ᴘᴏᴏʟ.\n\n"
-    "<blockquote expandable>➼ <b>Step 1: Get Groq Key</b>\n"
-    "Visit Groq Console and create an API Key.\n\n"
-    "➼ <b>Step 2: Add to Pool</b>\n"
-    "Use /set_groq_api [key] to add keys to your pool.\n\n"
-    "➼ <b>Step 3: Reply to Subtitle</b>\n"
-    "Reply to any .ass or .srt file with /translate.\n\n"
-    "➼ <b>Step 4: Select Model</b>\n"
-    "Choose Llama 3.3 70B and wait for the AI to work its magic!</blockquote>"
-)
-
-SETUP_GUIDE_BUTTONS = InlineKeyboardMarkup([
-    [
-        InlineKeyboardButton("🔙 Back to Home", callback_data="back_start"),
-        InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_btn")
-    ]
-])
-
 TRANSLATE_BUTTONS = InlineKeyboardMarkup([
     [
         InlineKeyboardButton("ʟʟᴀᴍᴀ 𝟹.𝟹 𝟽𝟶ʙ 🚀", callback_data="trans_llama33_groq"),
-        InlineKeyboardButton("📖 How to Translate", callback_data="how_to_translate")
-    ],
-    [
-        InlineKeyboardButton("❌ Close", callback_data="close_btn")
+        InlineKeyboardButton("❌ Cancel", callback_data="close_btn")
     ]
 ])
 
@@ -172,7 +134,7 @@ async def call_groq(system_prompt, user_content, api_key):
                     translated_text = translated_text.replace('```json', '').replace('```', '').strip()
                     if translated_text.strip() == user_content.strip():
                         return "RETRY_REQUIRED"
-                    await asyncio.sleep(3); return translated_text
+                    await asyncio.sleep(2); return translated_text
                 elif response.status_code in [429, 503]:
                     return str(response.status_code)
                 else: return f"❌ Groq Error: {response.status_code} - {response.text}"
@@ -182,57 +144,60 @@ async def call_groq(system_prompt, user_content, api_key):
 
 async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg):
     translated_texts = []
-    current_key_idx = 0; idx = 0; retries = 0
+    idx = 0
     while idx < len(chunk_queue):
         original_lines = to_translate[idx*10 : (idx+1)*10]
-        chunk = chunk_queue[idx]; api_key = api_pool[current_key_idx]
+        chunk = chunk_queue[idx]
 
-        await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪ𝐧𝐠] : Analyzing chunk {idx+1}/{len(chunk_queue)}...")
-        context_res = await call_groq(ANALYZER_PROMPT, chunk, api_key)
+        # Phase 1: The Analyst (Key 1 ONLY)
+        api_key_1 = api_pool[0]
+        await edit_msg(status_msg, f"⏳ [𝐀𝐧𝐚𝐥𝐲𝐬𝐭] : Analyzing chunk {idx+1}/{len(chunk_queue)}...")
+        analysis_res = await call_groq(ANALYZER_PROMPT, chunk, api_key_1)
 
-        if context_res in ["RETRY_REQUIRED", "429", "503"]:
-            retries += 1
-            if retries > 3:
-                translated_texts.extend(original_lines)
-                idx += 1; retries = 0; continue
-            current_key_idx = (current_key_idx + 1) % len(api_pool)
-            if current_key_idx == 0:
-                await edit_msg(status_msg, f"⏳ All keys failed/ratelimited. Waiting 30s..."); await asyncio.sleep(30)
-            continue
-        if context_res.startswith("❌"):
-            return context_res, None
+        if analysis_res in ["RETRY_REQUIRED", "429", "503"] or analysis_res.startswith("❌"):
+             # For Analyst, if it fails we just use a default context to not block forever,
+             # but following strict logic, we should probably retry.
+             # The instructions don't specify analyst failover, so we'll try once more then default.
+             await asyncio.sleep(5)
+             analysis_res = await call_groq(ANALYZER_PROMPT, chunk, api_key_1)
+             if analysis_res in ["RETRY_REQUIRED", "429", "503"] or analysis_res.startswith("❌"):
+                 analysis_res = '{"gender": "neutral", "tone": "casual", "context": "general anime scene"}'
 
-        await edit_msg(status_msg, f"⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪ𝐧𝐠] : Translating chunk {idx+1}/{len(chunk_queue)}...")
-        res = await call_groq(TRANSLATOR_PROMPT, f"Context:\n{context_res}\n\nLines to Translate:\n{chunk}", api_key)
+        # Phase 2: The Translator (Keys 2 & 3 ONLY)
+        success = False
+        api_key_2 = api_pool[1] if len(api_pool) > 1 else api_pool[0]
+        api_key_3 = api_pool[2] if len(api_pool) > 2 else (api_pool[1] if len(api_pool) > 1 else api_pool[0])
 
-        if res in ["RETRY_REQUIRED", "429", "503"]:
-            retries += 1
-            if retries > 3:
-                translated_texts.extend(original_lines)
-                idx += 1; retries = 0; continue
-            current_key_idx = (current_key_idx + 1) % len(api_pool)
-            continue
-        if res.startswith("❌"):
-            return res, None
+        while not success:
+            await edit_msg(status_msg, f"⏳ [𝐓𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐨𝐫] : Translating chunk {idx+1}/{len(chunk_queue)}...")
+            res = await call_groq(TRANSLATOR_PROMPT, f"Analysis:\n{analysis_res}\n\nLines to Translate:\n{chunk}", api_key_2)
 
-        # Filter conversational filler or JSON
-        if res.strip().startswith(('I ', 'As ', '{')):
-            translated_texts.extend(original_lines)
-        else:
-            res_lines = res.strip().split('\n')
-            for i, line in enumerate(original_lines):
-                if i < len(res_lines):
-                    trans_line = res_lines[i].strip()
-                    # Strip speaker name if present: e.g. [Eri]: Hello -> Hello
-                    trans_line = re.sub(r'^\[.*?\]:\s*', '', trans_line).strip()
+            if res in ["RETRY_REQUIRED", "429", "503"] or res.startswith("❌"):
+                # Phase 3: Failover & Safety
+                await edit_msg(status_msg, f"⏳ Key 2 failed. Switching to Key 3 in 5-10s...")
+                await asyncio.sleep(7) # 5-10s
 
-                    if trans_line.lower().startswith(("i'm sorry", "error")):
-                        translated_texts.append(line)
-                    else:
-                        translated_texts.append(trans_line)
+                res = await call_groq(TRANSLATOR_PROMPT, f"Analysis:\n{analysis_res}\n\nLines to Translate:\n{chunk}", api_key_3)
+
+                if res in ["RETRY_REQUIRED", "429", "503"] or res.startswith("❌"):
+                    await edit_msg(status_msg, f"⏳ Key 3 failed. Pausing 2 minutes before retry...")
+                    await asyncio.sleep(120)
+                    continue # Retry the same chunk
                 else:
-                    translated_texts.append(line)
-        idx += 1; retries = 0
+                    success = True
+            else:
+                success = True
+
+        # Process the successful translation
+        res_lines = res.strip().split('\n')
+        for i, line in enumerate(original_lines):
+            if i < len(res_lines):
+                trans_line = res_lines[i].strip()
+                trans_line = re.sub(r'^\[.*?\]:\s*', '', trans_line).strip()
+                translated_texts.append(trans_line)
+            else:
+                translated_texts.append(line)
+        idx += 1
     return None, translated_texts
 
 @Client.on_message(filters.command("translate") & filters.private)
@@ -305,6 +270,10 @@ async def process_translation(bot, cb, model_type, model_name):
         if not api_pool:
             await cb.answer("❌ Groq API Pool is Empty!", show_alert=True)
             return
+        if len(api_pool) < 3:
+            await cb.answer("❌ You need at least 3 Groq API Keys for Studio Flow!", show_alert=True)
+            return
+
     unique_key = f"{cb.message.chat.id}_{cb.message.id}"
     file_data = translation_data.get(unique_key)
     replied = None
@@ -333,7 +302,7 @@ async def process_translation(bot, cb, model_type, model_name):
             return
 
     await cb.message.delete()
-    status_msg = await bot.send_message(user_id, "⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪ𝐧𝐠] : 𝐑𝐞𝐚𝐝𝐢𝐧𝐠 𝐟𝐢𝐥𝐞 𝐚𝐧𝐝 𝐬𝐭ᴀ𝐫ᴛɪ𝐧𝐠 ᴛ𝐫𝐚𝐧𝐬𝐥𝐚ᴛɪ𝐨𝐧...")
+    status_msg = await bot.send_message(user_id, "⏳ [𝐒𝐭𝐮𝐝𝐢𝐨 𝐅𝐥𝐨𝐰] : 𝐈𝐧𝐢𝐭𝐢𝐚𝐥𝐢𝐳𝐢𝐧𝐠 𝐀𝐫𝐜𝐡𝐢𝐭𝐞𝐜𝐭𝐮𝐫𝐞...")
 
     file_path = await bot.download_media(
         message=file_id,
@@ -341,7 +310,7 @@ async def process_translation(bot, cb, model_type, model_name):
     )
 
     if file_data and file_data.get('is_video'):
-        await edit_msg(status_msg, "⏳ [𝐀𝐈 𝐏𝐫𝐨𝐜ᴇ𝐬𝐬ɪ𝐧𝐠] : Extracting subtitles from video...")
+        await edit_msg(status_msg, "⏳ [𝐒𝐭𝐮𝐝𝐢𝐨 𝐅𝐥𝐨𝐰] : Extracting subtitles from video...")
         extracted = await extract_subtitle(file_path)
         if not os.path.exists(extracted):
             await edit_msg(status_msg, f"❌ Subtitle extraction failed: {extracted}")
