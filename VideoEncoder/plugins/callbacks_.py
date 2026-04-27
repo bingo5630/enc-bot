@@ -12,8 +12,6 @@ from pyrogram.types import CallbackQuery, InputMediaPhoto, InlineKeyboardButton,
 from .. import app, download_dir, log, owner, sudo_users, LOGGER, ASSETS_DIR
 from ..plugins.queue import queue_answer
 from ..utils.database.access_db import db
-from ..utils.settings import (AudioSettings, ExtraSettings, OpenSettings,
-                              VideoSettings)
 from .start import showw_status, START_MSG, START_PIC
 from ..utils.helper import check_chat
 from ..utils.common import output, start_but, HELP_TEXT
@@ -48,6 +46,9 @@ async def delete_msg(bot: Client, cb: CallbackQuery):
 
 @app.on_callback_query(filters.regex("^(Video|Open|Audio|Extra)Settings$"))
 async def settings_nav_handlers(bot: Client, cb: CallbackQuery):
+    await cb.answer()
+    from ..utils.settings import (AudioSettings, ExtraSettings, OpenSettings,
+                                  VideoSettings)
     print(f"DEBUG: Received callback data: {cb.data}")
     if cb.data == "VideoSettings":
         await VideoSettings(cb.message, user_id=cb.from_user.id)
@@ -464,7 +465,7 @@ async def queue_callback_handler(bot: Client, cb: CallbackQuery):
     print(f"DEBUG: Received callback data: {cb.data}")
     await queue_answer(app, cb)
 
-@app.on_callback_query(filters.regex("^Watermark$"))
+@app.on_callback_query(filters.regex("^(Watermark|ignore_callback)$"))
 async def watermark_placeholder(bot: Client, cb: CallbackQuery):
     print(f"DEBUG: Received callback data: {cb.data}")
     await cb.answer("Sir, this button not works XD\n\nPress Bottom Buttons.", show_alert=True)
