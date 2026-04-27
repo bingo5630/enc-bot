@@ -1,7 +1,7 @@
 
 
 import datetime
-
+import asyncio
 import motor.motor_asyncio
 
 
@@ -52,37 +52,61 @@ class Database:
         )
 
     async def add_user(self, id):
-        if not await self.is_user_exist(id):
-            user = self.new_user(id)
-            await self.col.insert_one(user)
+        try:
+            if not await self.is_user_exist(id):
+                user = self.new_user(id)
+                await asyncio.wait_for(self.col.insert_one(user), timeout=5.0)
+        except Exception:
+            pass
 
     async def is_user_exist(self, id):
-        user = await self.col.find_one({'id': int(id)})
-        return True if user else False
+        try:
+            user = await asyncio.wait_for(self.col.find_one({'id': int(id)}), timeout=5.0)
+            return True if user else False
+        except Exception:
+            return False
 
     async def total_users_count(self):
-        count = await self.col.count_documents({})
-        return count
+        try:
+            count = await asyncio.wait_for(self.col.count_documents({}), timeout=5.0)
+            return count
+        except Exception:
+            return 0
 
     async def get_all_users(self):
-        all_users = self.col.find({})
-        return all_users
+        try:
+            all_users = self.col.find({})
+            return all_users
+        except Exception:
+            return []
 
     async def delete_user(self, user_id):
-        await self.col.delete_many({'id': int(user_id)})
+        try:
+            await asyncio.wait_for(self.col.delete_many({'id': int(user_id)}), timeout=5.0)
+        except Exception:
+            pass
 
     async def _get_user(self, id):
-        user = await self.col.find_one({'id': int(id)})
-        if not user:
-            await self.add_user(int(id))
-            user = await self.col.find_one({'id': int(id)})
-        return user
+        try:
+            user = await asyncio.wait_for(self.col.find_one({'id': int(id)}), timeout=5.0)
+            if not user:
+                await self.add_user(int(id))
+                user = await asyncio.wait_for(self.col.find_one({'id': int(id)}), timeout=5.0)
+            return user or self.new_user(id)
+        except Exception:
+            return self.new_user(id)
+
+    async def get_user_data(self, id):
+        return await self._get_user(id)
 
     # Telegram Related
 
     # Upload As Doc
     async def set_upload_as_doc(self, id, upload_as_doc):
-        await self.col.update_one({'id': id}, {'$set': {'upload_as_doc': upload_as_doc}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'upload_as_doc': upload_as_doc}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_upload_as_doc(self, id):
         user = await self._get_user(id)
@@ -92,7 +116,10 @@ class Database:
 
     # Resize
     async def set_resize(self, id, resize):
-        await self.col.update_one({'id': id}, {'$set': {'resize': resize}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'resize': resize}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_resize(self, id):
         user = await self._get_user(id)
@@ -100,7 +127,10 @@ class Database:
 
     # Frame
     async def set_frame(self, id, frame):
-        await self.col.update_one({'id': id}, {'$set': {'frame': frame}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'frame': frame}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_frame(self, id):
         user = await self._get_user(id)
@@ -108,7 +138,10 @@ class Database:
 
     # Convert To 720p
     async def set_resolution(self, id, resolution):
-        await self.col.update_one({'id': id}, {'$set': {'resolution': resolution}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'resolution': resolution}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_resolution(self, id):
         user = await self._get_user(id)
@@ -116,7 +149,10 @@ class Database:
 
     # Video Bits
     async def set_bits(self, id, bits):
-        await self.col.update_one({'id': id}, {'$set': {'bits': bits}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'bits': bits}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_bits(self, id):
         user = await self._get_user(id)
@@ -124,7 +160,10 @@ class Database:
 
     # Copy Subtitles
     async def set_subtitles(self, id, subtitles):
-        await self.col.update_one({'id': id}, {'$set': {'subtitles': subtitles}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'subtitles': subtitles}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_subtitles(self, id):
         user = await self._get_user(id)
@@ -132,7 +171,10 @@ class Database:
 
     # Sample rate
     async def set_samplerate(self, id, sample):
-        await self.col.update_one({'id': id}, {'$set': {'sample': sample}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'sample': sample}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_samplerate(self, id):
         user = await self._get_user(id)
@@ -140,7 +182,10 @@ class Database:
 
     # Extensions
     async def set_extensions(self, id, extensions):
-        await self.col.update_one({'id': id}, {'$set': {'extensions': extensions}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'extensions': extensions}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_extensions(self, id):
         user = await self._get_user(id)
@@ -148,7 +193,10 @@ class Database:
 
     # Bit rate
     async def set_bitrate(self, id, bitrate):
-        await self.col.update_one({'id': id}, {'$set': {'bitrate': bitrate}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'bitrate': bitrate}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_bitrate(self, id):
         user = await self._get_user(id)
@@ -156,7 +204,10 @@ class Database:
 
     # Reframe
     async def set_reframe(self, id, reframe):
-        await self.col.update_one({'id': id}, {'$set': {'reframe': reframe}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'reframe': reframe}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_reframe(self, id):
         user = await self._get_user(id)
@@ -164,7 +215,10 @@ class Database:
 
     # Audio Codec
     async def set_audio(self, id, audio):
-        await self.col.update_one({'id': id}, {'$set': {'audio': audio}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'audio': audio}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_audio(self, id):
         user = await self._get_user(id)
@@ -172,7 +226,10 @@ class Database:
 
     # Audio Channels
     async def set_channels(self, id, channels):
-        await self.col.update_one({'id': id}, {'$set': {'channels': channels}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'channels': channels}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_channels(self, id):
         user = await self._get_user(id)
@@ -180,7 +237,10 @@ class Database:
 
     # Metadata Watermark
     async def set_metadata_w(self, id, metadata):
-        await self.col.update_one({'id': id}, {'$set': {'metadata': metadata}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'metadata': metadata}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_metadata_w(self, id):
         user = await self._get_user(id)
@@ -188,7 +248,10 @@ class Database:
 
     # Watermark
     async def set_watermark(self, id, watermark):
-        await self.col.update_one({'id': id}, {'$set': {'watermark': watermark}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'watermark': watermark}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_watermark(self, id):
         user = await self._get_user(id)
@@ -196,7 +259,10 @@ class Database:
 
     # Preset
     async def set_preset(self, id, preset):
-        await self.col.update_one({'id': id}, {'$set': {'preset': preset}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'preset': preset}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_preset(self, id):
         user = await self._get_user(id)
@@ -204,7 +270,10 @@ class Database:
 
     # Hard Sub
     async def set_hardsub(self, id, hardsub):
-        await self.col.update_one({'id': id}, {'$set': {'hardsub': hardsub}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'hardsub': hardsub}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_hardsub(self, id):
         user = await self._get_user(id)
@@ -212,7 +281,10 @@ class Database:
 
     # HEVC
     async def set_hevc(self, id, hevc):
-        await self.col.update_one({'id': id}, {'$set': {'hevc': hevc}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'hevc': hevc}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_hevc(self, id):
         user = await self._get_user(id)
@@ -220,7 +292,10 @@ class Database:
 
     # Tune
     async def set_tune(self, id, tune):
-        await self.col.update_one({'id': id}, {'$set': {'tune': tune}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'tune': tune}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_tune(self, id):
         user = await self._get_user(id)
@@ -228,7 +303,10 @@ class Database:
 
     # CABAC
     async def set_cabac(self, id, cabac):
-        await self.col.update_one({'id': id}, {'$set': {'cabac': cabac}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'cabac': cabac}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_cabac(self, id):
         user = await self._get_user(id)
@@ -236,7 +314,10 @@ class Database:
 
     # Aspect ratio
     async def set_aspect(self, id, aspect):
-        await self.col.update_one({'id': id}, {'$set': {'aspect': aspect}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'aspect': aspect}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_aspect(self, id):
         user = await self._get_user(id)
@@ -244,7 +325,10 @@ class Database:
 
     # Google Drive
     async def set_drive(self, id, drive):
-        await self.col.update_one({'id': id}, {'$set': {'drive': drive}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'drive': drive}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_drive(self, id):
         user = await self._get_user(id)
@@ -256,7 +340,10 @@ class Database:
         return user.get('crf', 18)
 
     async def set_crf(self, id, crf):
-        await self.col.update_one({'id': id}, {'$set': {'crf': crf}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'crf': crf}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     # Process killed status
     async def get_killed_status(self):
@@ -268,7 +355,10 @@ class Database:
             return status.get('status')
 
     async def set_killed_status(self, status):
-        await self.col2.update_one({'id': 'killed'}, {'$set': {'status': status}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col2.update_one({'id': 'killed'}, {'$set': {'status': status}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     # Auth Chat
     async def get_chat(self):
@@ -280,7 +370,10 @@ class Database:
             return status.get('chat')
 
     async def set_chat(self, chat):
-        await self.col2.update_one({'id': 'auth'}, {'$set': {'chat': chat}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col2.update_one({'id': 'auth'}, {'$set': {'chat': chat}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     # Auth Sudo
     async def get_sudo(self):
@@ -292,79 +385,115 @@ class Database:
             return status.get('sudo_')
 
     async def set_sudo(self, sudo):
-        await self.col2.update_one({'id': 'sudo'}, {'$set': {'sudo_': sudo}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col2.update_one({'id': 'sudo'}, {'$set': {'sudo_': sudo}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
 
     # Metadata Settings
     async def set_metadata_on(self, id, metadata_on):
-        await self.col.update_one({'id': id}, {'$set': {'metadata_on': metadata_on}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'metadata_on': metadata_on}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_metadata_on(self, id):
         user = await self._get_user(id)
         return user.get('metadata_on', False)
 
     async def set_metadata_title(self, id, metadata_title):
-        await self.col.update_one({'id': id}, {'$set': {'metadata_title': metadata_title}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'metadata_title': metadata_title}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_metadata_title(self, id):
         user = await self._get_user(id)
         return user.get('metadata_title', "By: @Anime_Fury")
 
     async def set_metadata_author(self, id, metadata_author):
-        await self.col.update_one({'id': id}, {'$set': {'metadata_author': metadata_author}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'metadata_author': metadata_author}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_metadata_author(self, id):
         user = await self._get_user(id)
         return user.get('metadata_author', "By: @Anime_Fury")
 
     async def set_metadata_artist(self, id, metadata_artist):
-        await self.col.update_one({'id': id}, {'$set': {'metadata_artist': metadata_artist}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'metadata_artist': metadata_artist}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_metadata_artist(self, id):
         user = await self._get_user(id)
         return user.get('metadata_artist', "By: @Anime_Fury")
 
     async def set_metadata_audio(self, id, metadata_audio):
-        await self.col.update_one({'id': id}, {'$set': {'metadata_audio': metadata_audio}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'metadata_audio': metadata_audio}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_metadata_audio(self, id):
         user = await self._get_user(id)
         return user.get('metadata_audio', "By: @Anime_Fury")
 
     async def set_metadata_subtitle(self, id, metadata_subtitle):
-        await self.col.update_one({'id': id}, {'$set': {'metadata_subtitle': metadata_subtitle}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'metadata_subtitle': metadata_subtitle}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_metadata_subtitle(self, id):
         user = await self._get_user(id)
         return user.get('metadata_subtitle', "By: @Anime_Fury")
 
     async def set_metadata_video(self, id, metadata_video):
-        await self.col.update_one({'id': id}, {'$set': {'metadata_video': metadata_video}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'metadata_video': metadata_video}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_metadata_video(self, id):
         user = await self._get_user(id)
         return user.get('metadata_video', "By: @Anime_Fury")
 
     async def set_user_font(self, id, font):
-        await self.col.update_one({'id': id}, {'$set': {'user_font': font}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'user_font': font}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_user_font(self, id):
         user = await self._get_user(id)
         return user.get('user_font', 'Arial')
 
     async def set_user_font_size(self, id, size):
-        await self.col.update_one({'id': id}, {'$set': {'user_font_size': size}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'user_font_size': size}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_user_font_size(self, id):
         user = await self._get_user(id)
         return user.get('user_font_size', 0)
 
     async def add_groq_api_key(self, id, key):
-        await self.col.update_one({'id': id}, {'$addToSet': {'groq_api_pool': key}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$addToSet': {'groq_api_pool': key}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass
 
     async def get_groq_api_pool(self, id):
         user = await self._get_user(id)
         return user.get('groq_api_pool', [])
 
     async def clear_groq_api_pool(self, id):
-        await self.col.update_one({'id': id}, {'$set': {'groq_api_pool': []}}, upsert=True)
+        try:
+            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'groq_api_pool': []}}, upsert=True), timeout=5.0)
+        except Exception:
+            pass

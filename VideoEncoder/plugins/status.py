@@ -91,6 +91,7 @@ async def mirror_status(client, message: Message):
 
 @app.on_callback_query(filters.regex('^status'))
 async def status_pages(client, query: CallbackQuery):
+    print(f"DEBUG: Received callback data: {query.data}")
     data_split = query.data.split()
     cmd = data_split[1]
 

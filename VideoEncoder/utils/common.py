@@ -20,8 +20,8 @@ The bot will split your file into micro-chunks to ensure high-quality Hinglish t
 
 output = InlineKeyboardMarkup([
     [
-        InlineKeyboardButton("🔙 Back to Home", callback_data="main_menu"),
-        InlineKeyboardButton("ᴄʟosᴇ", callback_data="close_msg")
+        InlineKeyboardButton("🔙 Back to Home", callback_data="back_start"),
+        InlineKeyboardButton("ᴄʟosᴇ", callback_data="close_btn")
     ]
 ])
 

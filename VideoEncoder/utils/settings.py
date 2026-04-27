@@ -20,7 +20,7 @@ async def OpenSettings(event: Message, user_id: int):
             [InlineKeyboardButton("ᴠɪᴅᴇᴏ", callback_data="VideoSettings"), InlineKeyboardButton(
                 "ᴀᴜᴅɪᴏ", callback_data="AudioSettings")],
             [InlineKeyboardButton("ᴇxᴛʀᴀs", callback_data="ExtraSettings"), InlineKeyboardButton(
-                "ʙᴀᴄᴋ", callback_data="main_menu")]
+                "ʙᴀᴄᴋ", callback_data="back_start")]
         ]
         try:
             await edit_msg(
@@ -44,7 +44,9 @@ async def VideoSettings(event: Message, user_id: int):
     from .common import edit_msg
     from .database.access_db import db
     try:
-        ex = await db.get_extensions(user_id)
+        user = await db.get_user_data(user_id)
+
+        ex = user.get('extensions', 'MP4')
         if ex == 'MP4':
             extensions = 'ᴍᴘ4'
         elif ex == 'MKV':
@@ -54,7 +56,7 @@ async def VideoSettings(event: Message, user_id: int):
         else:
             extensions = 'ᴍᴘ4'
 
-        fr = await db.get_frame(user_id)
+        fr = user.get('frame', 'source')
         if fr == 'ntsc':
             frame = 'ɴᴛsᴄ'
         elif fr == 'pal':
@@ -72,7 +74,7 @@ async def VideoSettings(event: Message, user_id: int):
         else:
             frame = 'sᴏᴜʀᴄᴇ'
 
-        p = await db.get_preset(user_id)
+        p = user.get('preset', 'sf')
         if p == 'uf':
             pre = 'ᴜʟᴛʀᴀғᴀsᴛ'
         elif p == 'sf':
@@ -88,9 +90,9 @@ async def VideoSettings(event: Message, user_id: int):
         else:
             pre = 'ɴᴏɴᴇ'
 
-        crf = await db.get_crf(user_id)
+        crf = user.get('crf', 18)
 
-        r = await db.get_resolution(user_id)
+        r = user.get('resolution', 'OG')
         if r == 'OG':
             res = 'sᴏᴜʀᴄᴇ'
         elif r == '1080':
@@ -105,7 +107,7 @@ async def VideoSettings(event: Message, user_id: int):
             res = 'sᴏᴜʀᴄᴇ'
 
         # Reframe
-        rf = await db.get_reframe(user_id)
+        rf = user.get('reframe', 'pass')
         if rf == '4':
             reframe = '4'
         elif rf == '8':
@@ -121,19 +123,19 @@ async def VideoSettings(event: Message, user_id: int):
         buttons = [
             [InlineKeyboardButton("ʙᴀsɪᴄ sᴇᴛᴛɪɴɢs", callback_data="Watermark")],
             [InlineKeyboardButton(f"ᴇxᴛ: {extensions} ", callback_data="triggerextensions"),
-             InlineKeyboardButton(f"ʙɪᴛs: {'10' if ((await db.get_bits(user_id)) is True) else '8'}", callback_data="triggerBits")],
-            [InlineKeyboardButton(f"ᴄᴏᴅᴇᴄ: {'ʜ265' if ((await db.get_hevc(user_id)) is True) else 'ʜ264'}", callback_data="triggerHevc"),
+             InlineKeyboardButton(f"ʙɪᴛs: {'10' if (user.get('bits', False) is True) else '8'}", callback_data="triggerBits")],
+            [InlineKeyboardButton(f"ᴄᴏᴅᴇᴄ: {'ʜ265' if (user.get('hevc', False) is True) else 'ʜ264'}", callback_data="triggerHevc"),
              InlineKeyboardButton(f"ᴄʀғ: {crf}", callback_data="triggerCRF")],
             [InlineKeyboardButton("ǫᴜᴀʟɪᴛʏ", callback_data="Watermark"),
              InlineKeyboardButton(f"{res}", callback_data="triggerResolution")],
             [InlineKeyboardButton("ᴛᴜɴᴇ", callback_data="Watermark"),
-             InlineKeyboardButton(f"{'ᴀɴɪᴍᴀᴛɪᴏɴ' if ((await db.get_tune(user_id)) is True) else 'ғɪʟᴍ'}", callback_data="triggertune")],
+             InlineKeyboardButton(f"{'ᴀɴɪᴍᴀᴛɪᴏɴ' if (user.get('tune', False) is True) else 'ғɪʟᴍ'}", callback_data="triggertune")],
             [InlineKeyboardButton("ᴀᴅᴠᴀɴᴄᴇᴅ sᴇᴛᴛɪɴɢs", callback_data="Watermark")],
             [InlineKeyboardButton("ᴘʀᴇsᴇᴛ", callback_data="Watermark"),
              InlineKeyboardButton(f"{pre}", callback_data="triggerPreset")],
             [InlineKeyboardButton(f"ғᴘs: {frame}", callback_data="triggerframe"),
-             InlineKeyboardButton(f"ᴀsᴘᴇᴄᴛ: {'16:9' if ((await db.get_aspect(user_id)) is True) else 'sᴏᴜʀᴄᴇ'}", callback_data="triggeraspect")],
-            [InlineKeyboardButton(f"ᴄᴀʙᴀᴄ {'☑️' if ((await db.get_cabac(user_id)) is True) else ''}", callback_data="triggercabac"),
+             InlineKeyboardButton(f"ᴀsᴘᴇᴄᴛ: {'16:9' if (user.get('aspect', False) is True) else 'sᴏᴜʀᴄᴇ'}", callback_data="triggeraspect")],
+            [InlineKeyboardButton(f"ᴄᴀʙᴀᴄ {'☑️' if (user.get('cabac', False) is True) else ''}", callback_data="triggercabac"),
              InlineKeyboardButton(f"ʀᴇғʀᴀᴍᴇ: {reframe}", callback_data="triggerreframe")],
             [InlineKeyboardButton("ʙᴀᴄᴋ", callback_data="OpenSettings")]
         ]
@@ -159,8 +161,9 @@ async def AudioSettings(event: Message, user_id: int):
     from .common import edit_msg
     from .database.access_db import db
     try:
+        user = await db.get_user_data(user_id)
 
-        a = await db.get_audio(user_id)
+        a = user.get('audio', 'dd')
         if a == 'dd':
             audio = 'ᴀᴄ3'
         elif a == 'aac':
@@ -176,7 +179,7 @@ async def AudioSettings(event: Message, user_id: int):
         else:
             audio = 'ɴᴏɴᴇ'
 
-        bit = await db.get_bitrate(user_id)
+        bit = user.get('bitrate', 'source')
         if bit == '400':
             bitrate = '400ᴋ'
         elif bit == '320':
@@ -196,7 +199,7 @@ async def AudioSettings(event: Message, user_id: int):
         else:
             bitrate = 'sᴏᴜʀᴄᴇ'
 
-        sr = await db.get_samplerate(user_id)
+        sr = user.get('sample', 'source')
         if sr == '44.1K':
             sample = '44.1ᴋʜᴢ'
         elif sr == '48K':
@@ -206,7 +209,7 @@ async def AudioSettings(event: Message, user_id: int):
         else:
             sample = 'sᴏᴜʀᴄᴇ'
 
-        c = await db.get_channels(user_id)
+        c = user.get('channels', 'source')
         if c == '1.0':
             channels = 'ᴍᴏɴᴏ'
         elif c == '2.0':
@@ -256,15 +259,16 @@ async def ExtraSettings(event: Message, user_id: int):
     from .common import edit_msg
     from .database.access_db import db
     try:
+        user = await db.get_user_data(user_id)
         text = "Here's Your Subtitle Settings"
         buttons = [
             [InlineKeyboardButton("sᴜʙᴛɪᴛʟᴇs sᴇᴛᴛɪɴɢs", callback_data="Watermark")],
-            [InlineKeyboardButton(f"ʜᴀʀᴅsᴜʙ {'☑️' if ((await db.get_hardsub(user_id)) is True) else ''}", callback_data="triggerHardsub"), InlineKeyboardButton(f"ᴄᴏᴘʏ {'☑️' if ((await db.get_subtitles(user_id)) is True) else ''}", callback_data="triggerSubtitles")],
+            [InlineKeyboardButton(f"ʜᴀʀᴅsᴜʙ {'☑️' if (user.get('hardsub', False) is True) else ''}", callback_data="triggerHardsub"), InlineKeyboardButton(f"ᴄᴏᴘʏ {'☑️' if (user.get('subtitles', False) is True) else ''}", callback_data="triggerSubtitles")],
             [InlineKeyboardButton("ᴜᴘʟᴏᴀᴅ sᴇᴛᴛɪɴɢs", callback_data="Watermark")],
-            [InlineKeyboardButton(f"{'ɢ-ᴅʀɪᴠᴇ' if ((await db.get_drive(user_id)) is True) else 'ᴛᴇʟᴇɢʀᴀᴍ'}", callback_data="triggerMode"),
-             InlineKeyboardButton(f"{'ᴅᴏᴄᴜᴍᴇɴᴛ' if ((await db.get_upload_as_doc(user_id)) is True) else 'ᴠɪᴅᴇᴏ'}", callback_data="triggerUploadMode")],
+            [InlineKeyboardButton(f"{'ɢ-ᴅʀɪᴠᴇ' if (user.get('drive', False) is True) else 'ᴛᴇʟᴇɢʀᴀᴍ'}", callback_data="triggerMode"),
+             InlineKeyboardButton(f"{'ᴅᴏᴄᴜᴍᴇɴᴛ' if (user.get('upload_as_doc', False) is True) else 'ᴠɪᴅᴇᴏ'}", callback_data="triggerUploadMode")],
             [InlineKeyboardButton("ᴡᴀᴛᴇʀᴍᴀʀᴋ sᴇᴛᴛɪɴɢs", callback_data="Watermark")],
-            [InlineKeyboardButton(f"ᴍᴇᴛᴀᴅᴀᴛᴀ {'☑️' if ((await db.get_metadata_w(user_id)) is True) else ''}", callback_data="triggerMetadata"), InlineKeyboardButton(f"ᴠɪᴅᴇᴏ {'☑️' if ((await db.get_watermark(user_id)) is True) else ''}", callback_data="triggerVideo")],
+            [InlineKeyboardButton(f"ᴍᴇᴛᴀᴅᴀᴛᴀ {'☑️' if (user.get('metadata', False) is True) else ''}", callback_data="triggerMetadata"), InlineKeyboardButton(f"ᴠɪᴅᴇᴏ {'☑️' if (user.get('watermark', False) is True) else ''}", callback_data="triggerVideo")],
             [InlineKeyboardButton("ʙᴀᴄᴋ", callback_data="OpenSettings")]
         ]
 

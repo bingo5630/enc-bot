@@ -22,6 +22,7 @@ from ..video_utils.audio_selector import sessions
 
 @app.on_callback_query(filters.regex("^back_start$"))
 async def back_to_start(bot: Client, cb: CallbackQuery):
+    print(f"DEBUG: Received callback data: {cb.data}")
     user = cb.from_user
     name = f"{user.first_name} {user.last_name}" if user.last_name else user.first_name
     link = f"https://t.me/{user.username}" if user.username else f"tg://user?id={user.id}"
@@ -42,10 +43,12 @@ async def back_to_start(bot: Client, cb: CallbackQuery):
 
 @app.on_callback_query(filters.regex("^close_btn$"))
 async def delete_msg(bot: Client, cb: CallbackQuery):
+    print(f"DEBUG: Received callback data: {cb.data}")
     await cb.message.delete()
 
 @app.on_callback_query(filters.regex("^(Video|Open|Audio|Extra)Settings$"))
 async def settings_nav_handlers(bot: Client, cb: CallbackQuery):
+    print(f"DEBUG: Received callback data: {cb.data}")
     if cb.data == "VideoSettings":
         await VideoSettings(cb.message, user_id=cb.from_user.id)
     elif cb.data == "OpenSettings":
@@ -57,6 +60,7 @@ async def settings_nav_handlers(bot: Client, cb: CallbackQuery):
 
 @app.on_callback_query(filters.regex("^trigger"))
 async def settings_trigger_handlers(bot: Client, cb: CallbackQuery):
+    print(f"DEBUG: Received callback data: {cb.data}")
     user_id = cb.from_user.id
     if cb.data == "triggerMode":
         drive = await db.get_drive(user_id)
@@ -233,6 +237,7 @@ async def settings_trigger_handlers(bot: Client, cb: CallbackQuery):
 
 @app.on_callback_query(filters.regex("^(set|del|how|back)_watermark$"))
 async def watermark_handlers(bot: Client, cb: CallbackQuery):
+    print(f"DEBUG: Received callback data: {cb.data}")
     from .watermark import watermark_sessions, WATERMARK_PIC
     user_id = cb.from_user.id
     if cb.data == "set_watermark":
@@ -295,6 +300,7 @@ async def watermark_handlers(bot: Client, cb: CallbackQuery):
 
 @app.on_callback_query(filters.regex("^metadata_"))
 async def metadata_handlers(bot: Client, cb: CallbackQuery):
+    print(f"DEBUG: Received callback data: {cb.data}")
     from .metadata_plugin import update_metadata_msg
     if cb.data == "metadata_on":
         await db.set_metadata_on(cb.from_user.id, True)
@@ -353,16 +359,19 @@ async def metadata_handlers(bot: Client, cb: CallbackQuery):
 
 @app.on_callback_query(filters.regex("^set_font_"))
 async def set_font_handler(bot: Client, cb: CallbackQuery):
+    print(f"DEBUG: Received callback data: {cb.data}")
     font_name = cb.data.split("_")[-1]
     await db.set_user_font(cb.from_user.id, font_name)
     await cb.answer(f"Font set to {font_name}!", show_alert=True)
 
 @app.on_callback_query(filters.regex("^(close_fonts|close_translator)$"))
 async def close_specific_menus(bot: Client, cb: CallbackQuery):
+    print(f"DEBUG: Received callback data: {cb.data}")
     await cb.message.delete()
 
 @app.on_callback_query(filters.regex("^(trans_llama33_groq|how_to_translate|help_callback)$"))
 async def translator_ui_handlers(bot: Client, cb: CallbackQuery):
+    print(f"DEBUG: Received callback data: {cb.data}")
     from .translator import process_translation
     if cb.data == "trans_llama33_groq":
         await process_translation(bot, cb, "groq", "llama-3.3-70b-versatile")
@@ -385,6 +394,7 @@ async def translator_ui_handlers(bot: Client, cb: CallbackQuery):
 
 @app.on_callback_query(filters.regex("^cancel"))
 async def cancel_handlers(bot: Client, cb: CallbackQuery):
+    print(f"DEBUG: Received callback data: {cb.data}")
     if cb.data == "cancel":
         status_file = download_dir + "status.json"
         try:
@@ -423,6 +433,7 @@ async def cancel_handlers(bot: Client, cb: CallbackQuery):
 
 @app.on_callback_query(filters.regex("^mode_"))
 async def mode_handlers(bot: Client, cb: CallbackQuery):
+    print(f"DEBUG: Received callback data: {cb.data}")
     if cb.data == "mode_video":
         await db.set_upload_as_doc(cb.from_user.id, False)
         await cb.answer("ᴘʀᴇғᴇʀᴇɴᴄᴇ sᴇᴛ ᴛᴏ ᴠɪᴅᴇᴏ", show_alert=True)
@@ -434,6 +445,7 @@ async def mode_handlers(bot: Client, cb: CallbackQuery):
 
 @app.on_callback_query(filters.regex("audiosel"))
 async def audio_selector_handler(bot: Client, cb: CallbackQuery):
+    print(f"DEBUG: Received callback data: {cb.data}")
     user_id = cb.from_user.id
     if user_id in sessions:
         await sessions[user_id].resolve_callback(cb)
@@ -442,14 +454,17 @@ async def audio_selector_handler(bot: Client, cb: CallbackQuery):
 
 @app.on_callback_query(filters.regex("stats"))
 async def stats_callback_handler(bot: Client, cb: CallbackQuery):
+    print(f"DEBUG: Received callback data: {cb.data}")
     stats = await showw_status(bot)
     stats = stats.replace('<b>', '').replace('</b>', '')
     await cb.answer(stats, show_alert=True)
 
 @app.on_callback_query(filters.regex(r"queue\+"))
 async def queue_callback_handler(bot: Client, cb: CallbackQuery):
+    print(f"DEBUG: Received callback data: {cb.data}")
     await queue_answer(app, cb)
 
 @app.on_callback_query(filters.regex("^Watermark$"))
 async def watermark_placeholder(bot: Client, cb: CallbackQuery):
+    print(f"DEBUG: Received callback data: {cb.data}")
     await cb.answer("Sir, this button not works XD\n\nPress Bottom Buttons.", show_alert=True)

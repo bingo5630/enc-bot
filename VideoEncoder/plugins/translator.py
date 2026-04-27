@@ -53,8 +53,8 @@ SETUP_GUIDE_TEXT = (
 
 SETUP_GUIDE_BUTTONS = InlineKeyboardMarkup([
     [
-        InlineKeyboardButton("🔙 Back to Home", callback_data="main_menu"),
-        InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_msg")
+        InlineKeyboardButton("🔙 Back to Home", callback_data="back_start"),
+        InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_btn")
     ]
 ])
 
@@ -437,8 +437,8 @@ async def process_translation(bot, cb, model_type, model_name):
         target_msg = replied if replied else cb.message
 
         reply_markup = InlineKeyboardMarkup([[
-            InlineKeyboardButton("🔙 Back to Home", callback_data="main_menu"),
-            InlineKeyboardButton("❌ Close", callback_data="close_msg")
+            InlineKeyboardButton("🔙 Back to Home", callback_data="back_start"),
+            InlineKeyboardButton("❌ Close", callback_data="close_btn")
         ]])
 
         await upload_doc(target_msg, status_msg, 0, output_filename, output_path, caption=caption, reply_markup=reply_markup)
