@@ -5,15 +5,15 @@ from pyrogram.errors import FloodWait
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, InputMediaPhoto
 
 from .. import LOGGER
+from .common import edit_msg
+from .database.access_db import db
+from .database.add_user import AddUserToDatabase
 
 
 SETTINGS_PIC = "https://graph.org/file/a232c9818402f81093feb-383081a21200f77ae8.jpg"
 
 # Settings
 async def OpenSettings(event: Message, user_id: int):
-    from .common import edit_msg
-    from .database.access_db import db
-    from .database.add_user import AddUserToDatabase
     try:
         text = "Settings of the Bot"
         buttons = [
@@ -41,8 +41,6 @@ async def OpenSettings(event: Message, user_id: int):
 
 # Video Settings
 async def VideoSettings(event: Message, user_id: int):
-    from .common import edit_msg
-    from .database.access_db import db
     try:
         user = await db.get_user_data(user_id)
 
@@ -121,17 +119,17 @@ async def VideoSettings(event: Message, user_id: int):
 
         text = "Here's Your Video Settings"
         buttons = [
-            [InlineKeyboardButton("ʙᴀsɪᴄ sᴇᴛᴛɪɴɢs", callback_data="Watermark")],
+            [InlineKeyboardButton("ʙᴀsɪᴄ sᴇᴛᴛɪɴɢs", callback_data="ignore_callback")],
             [InlineKeyboardButton(f"ᴇxᴛ: {extensions} ", callback_data="triggerextensions"),
              InlineKeyboardButton(f"ʙɪᴛs: {'10' if (user.get('bits', False) is True) else '8'}", callback_data="triggerBits")],
             [InlineKeyboardButton(f"ᴄᴏᴅᴇᴄ: {'ʜ265' if (user.get('hevc', False) is True) else 'ʜ264'}", callback_data="triggerHevc"),
              InlineKeyboardButton(f"ᴄʀғ: {crf}", callback_data="triggerCRF")],
-            [InlineKeyboardButton("ǫᴜᴀʟɪᴛʏ", callback_data="Watermark"),
+            [InlineKeyboardButton("ǫᴜᴀʟɪᴛʏ", callback_data="ignore_callback"),
              InlineKeyboardButton(f"{res}", callback_data="triggerResolution")],
-            [InlineKeyboardButton("ᴛᴜɴᴇ", callback_data="Watermark"),
+            [InlineKeyboardButton("ᴛᴜɴᴇ", callback_data="ignore_callback"),
              InlineKeyboardButton(f"{'ᴀɴɪᴍᴀᴛɪᴏɴ' if (user.get('tune', False) is True) else 'ғɪʟᴍ'}", callback_data="triggertune")],
-            [InlineKeyboardButton("ᴀᴅᴠᴀɴᴄᴇᴅ sᴇᴛᴛɪɴɢs", callback_data="Watermark")],
-            [InlineKeyboardButton("ᴘʀᴇsᴇᴛ", callback_data="Watermark"),
+            [InlineKeyboardButton("ᴀᴅᴠᴀɴᴄᴇᴅ sᴇᴛᴛɪɴɢs", callback_data="ignore_callback")],
+            [InlineKeyboardButton("ᴘʀᴇsᴇᴛ", callback_data="ignore_callback"),
              InlineKeyboardButton(f"{pre}", callback_data="triggerPreset")],
             [InlineKeyboardButton(f"ғᴘs: {frame}", callback_data="triggerframe"),
              InlineKeyboardButton(f"ᴀsᴘᴇᴄᴛ: {'16:9' if (user.get('aspect', False) is True) else 'sᴏᴜʀᴄᴇ'}", callback_data="triggeraspect")],
@@ -158,8 +156,6 @@ async def VideoSettings(event: Message, user_id: int):
 
 
 async def AudioSettings(event: Message, user_id: int):
-    from .common import edit_msg
-    from .database.access_db import db
     try:
         user = await db.get_user_data(user_id)
 
@@ -227,13 +223,13 @@ async def AudioSettings(event: Message, user_id: int):
 
         text = "Here's Your Audio Settings"
         buttons = [
-            [InlineKeyboardButton("ᴄᴏᴅᴇᴄ", callback_data="Watermark"), InlineKeyboardButton(
+            [InlineKeyboardButton("ᴄᴏᴅᴇᴄ", callback_data="ignore_callback"), InlineKeyboardButton(
                 f"{audio}", callback_data="triggerAudioCodec")],
-            [InlineKeyboardButton("ᴄʜᴀɴɴᴇʟs", callback_data="Watermark"), InlineKeyboardButton(
+            [InlineKeyboardButton("ᴄʜᴀɴɴᴇʟs", callback_data="ignore_callback"), InlineKeyboardButton(
                 f"{channels}", callback_data="triggerAudioChannels")],
-            [InlineKeyboardButton("sᴀᴍᴘʟᴇ ʀᴀᴛᴇ", callback_data="Watermark"), InlineKeyboardButton(
+            [InlineKeyboardButton("sᴀᴍᴘʟᴇ ʀᴀᴛᴇ", callback_data="ignore_callback"), InlineKeyboardButton(
                 f"{sample}", callback_data="triggersamplerate")],
-            [InlineKeyboardButton("ʙɪᴛʀᴀᴛᴇ", callback_data="Watermark"), InlineKeyboardButton(
+            [InlineKeyboardButton("ʙɪᴛʀᴀᴛᴇ", callback_data="ignore_callback"), InlineKeyboardButton(
                 f"{bitrate}", callback_data="triggerbitrate")],
             [InlineKeyboardButton("ʙᴀᴄᴋ", callback_data="OpenSettings")]
         ]
@@ -256,18 +252,16 @@ async def AudioSettings(event: Message, user_id: int):
 
 
 async def ExtraSettings(event: Message, user_id: int):
-    from .common import edit_msg
-    from .database.access_db import db
     try:
         user = await db.get_user_data(user_id)
         text = "Here's Your Subtitle Settings"
         buttons = [
-            [InlineKeyboardButton("sᴜʙᴛɪᴛʟᴇs sᴇᴛᴛɪɴɢs", callback_data="Watermark")],
+            [InlineKeyboardButton("sᴜʙᴛɪᴛʟᴇs sᴇᴛᴛɪɴɢs", callback_data="ignore_callback")],
             [InlineKeyboardButton(f"ʜᴀʀᴅsᴜʙ {'☑️' if (user.get('hardsub', False) is True) else ''}", callback_data="triggerHardsub"), InlineKeyboardButton(f"ᴄᴏᴘʏ {'☑️' if (user.get('subtitles', False) is True) else ''}", callback_data="triggerSubtitles")],
-            [InlineKeyboardButton("ᴜᴘʟᴏᴀᴅ sᴇᴛᴛɪɴɢs", callback_data="Watermark")],
+            [InlineKeyboardButton("ᴜᴘʟᴏᴀᴅ sᴇᴛᴛɪɴɢs", callback_data="ignore_callback")],
             [InlineKeyboardButton(f"{'ɢ-ᴅʀɪᴠᴇ' if (user.get('drive', False) is True) else 'ᴛᴇʟᴇɢʀᴀᴍ'}", callback_data="triggerMode"),
              InlineKeyboardButton(f"{'ᴅᴏᴄᴜᴍᴇɴᴛ' if (user.get('upload_as_doc', False) is True) else 'ᴠɪᴅᴇᴏ'}", callback_data="triggerUploadMode")],
-            [InlineKeyboardButton("ᴡᴀᴛᴇʀᴍᴀʀᴋ sᴇᴛᴛɪɴɢs", callback_data="Watermark")],
+            [InlineKeyboardButton("ᴡᴀᴛᴇʀᴍᴀʀᴋ sᴇᴛᴛɪɴɢs", callback_data="back_watermark")],
             [InlineKeyboardButton(f"ᴍᴇᴛᴀᴅᴀᴛᴀ {'☑️' if (user.get('metadata', False) is True) else ''}", callback_data="triggerMetadata"), InlineKeyboardButton(f"ᴠɪᴅᴇᴏ {'☑️' if (user.get('watermark', False) is True) else ''}", callback_data="triggerVideo")],
             [InlineKeyboardButton("ʙᴀᴄᴋ", callback_data="OpenSettings")]
         ]
