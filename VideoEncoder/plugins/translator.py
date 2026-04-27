@@ -135,26 +135,25 @@ async def call_groq(system_prompt, user_content, api_key):
     payload = {"model": model_name, "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_content}], "temperature": 0.2}
 
     async with httpx.AsyncClient() as client:
-        for attempt in range(2):
-            try:
-                response = await client.post(url, headers=headers, json=payload, timeout=60.0)
-                if response.status_code == 200:
-                    data = response.json(); translated_text = data['choices'][0]['message']['content'].strip()
-                    print(f"DEBUG Groq Response: {translated_text}")
-                    translated_text = translated_text.replace('```json', '').replace('```', '').strip()
-                    if translated_text.strip() == user_content.strip():
-                        return "RETRY_REQUIRED"
-                    await asyncio.sleep(2); return translated_text
-                elif response.status_code in [429, 503]:
-                    return str(response.status_code)
-                else: return f"❌ Groq Error: {response.status_code} - {response.text}"
-            except Exception as e:
-                if attempt == 0: await asyncio.sleep(2); continue
-                return f"❌ Groq Error: {str(e)}"
+        try:
+            response = await client.post(url, headers=headers, json=payload, timeout=60.0)
+            if response.status_code == 200:
+                data = response.json(); translated_text = data['choices'][0]['message']['content'].strip()
+                print(f"DEBUG Groq Response: {translated_text}")
+                translated_text = translated_text.replace('```json', '').replace('```', '').strip()
+                if translated_text.strip() == user_content.strip():
+                    return "RETRY_REQUIRED"
+                return translated_text
+            elif response.status_code in [429, 503]:
+                return str(response.status_code)
+            else: return f"❌ Groq Error: {response.status_code} - {response.text}"
+        except Exception as e:
+            return f"❌ Groq Error: {str(e)}"
 
 async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg):
     translated_texts = []
     idx = 0
+    trans_key_idx = 1 # Start rotation from Key 2 (index 1)
     while idx < len(chunk_queue):
         original_lines = to_translate[idx*10 : (idx+1)*10]
         chunk = chunk_queue[idx]
@@ -167,36 +166,37 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
             analysis_res = await call_groq(ANALYZER_PROMPT, chunk, api_key_1)
 
             if analysis_res in ["RETRY_REQUIRED", "429", "503"] or analysis_res.startswith("❌"):
-                # For Analyst, if it fails we just use a default context to not block forever,
-                # but following strict logic, we should probably retry.
-                # The instructions don't specify analyst failover, so we'll try once more then default.
                 await asyncio.sleep(5)
                 analysis_res = await call_groq(ANALYZER_PROMPT, chunk, api_key_1)
                 if analysis_res in ["RETRY_REQUIRED", "429", "503"] or analysis_res.startswith("❌"):
                     analysis_res = '{"gender": "neutral", "tone": "casual", "context": "general anime scene"}'
 
-            # Phase 2: The Translator (Primary: Key 4, Failover: Key 5)
-            api_key_4 = api_pool[3] if len(api_pool) > 3 else api_pool[0]
-            api_key_5 = api_pool[4] if len(api_pool) > 4 else (api_pool[3] if len(api_pool) > 3 else api_pool[0])
-
-            await edit_msg(status_msg, f"⏳ [𝐓𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐨𝐫] : Translating chunk {idx+1}/{len(chunk_queue)}...")
-            res = await call_groq(TRANSLATOR_PROMPT, f"Analysis:\n{analysis_res}\n\nLines to Translate:\n{chunk}", api_key_4)
-
-            if res in ["RETRY_REQUIRED", "429", "503"] or res.startswith("❌"):
-                # Phase 3: Failover
-                await edit_msg(status_msg, f"⏳ Key 4 failed. Switching to Key 5 in 5-10s...")
-                await asyncio.sleep(7)
-
-                res = await call_groq(TRANSLATOR_PROMPT, f"Analysis:\n{analysis_res}\n\nLines to Translate:\n{chunk}", api_key_5)
+            # Phase 2: The Translator (Staggered Rotation: Keys 2-5)
+            keys_tried = 0
+            while keys_tried < 4:
+                api_key_trans = api_pool[trans_key_idx]
+                await edit_msg(status_msg, f"⏳ [𝐓𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐨𝐫] : Translating chunk {idx+1}/{len(chunk_queue)} using Key {trans_key_idx+1}...")
+                res = await call_groq(TRANSLATOR_PROMPT, f"Analysis:\n{analysis_res}\n\nLines to Translate:\n{chunk}", api_key_trans)
 
                 if res in ["RETRY_REQUIRED", "429", "503"] or res.startswith("❌"):
-                    await edit_msg(status_msg, f"⏳ Key 5 failed. Pausing 30 seconds before full retry...")
-                    await asyncio.sleep(30)
-                    continue # Restart the full cycle from Phase 1
+                    await asyncio.sleep(2)
+                    trans_key_idx = trans_key_idx + 1 if trans_key_idx < 4 else 1
+                    keys_tried += 1
                 else:
+                    # Success
+                    if trans_key_idx == 4: # Key 5
+                        await edit_msg(status_msg, f"✅ Chunk {idx+1} translated. Taking 10s pause...")
+                        await asyncio.sleep(10)
+                    else:
+                        await asyncio.sleep(2)
+                    trans_key_idx = trans_key_idx + 1 if trans_key_idx < 4 else 1
                     success = True
-            else:
-                success = True
+                    break
+
+            if not success:
+                await edit_msg(status_msg, f"⚠️ All keys failed for chunk {idx+1}. Emergency pause 15s...")
+                await asyncio.sleep(15)
+                # Loop will restart from Phase 1
 
         # Process the successful translation
         res_lines = res.strip().split('\n')
