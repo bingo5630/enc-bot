@@ -30,7 +30,17 @@ TRANSLATOR_PROMPT = (
 )
 
 TRANSLATE_PIC = "https://graph.org/file/600586a9a49029c2e98f1-90c27ea7986142ea7a.jpg"
-TRANSLATE_TEXT = "✨ ᴄʜᴏᴏsᴇ ʏᴏᴜʀ ᴛʀᴀɴsʟᴀᴛɪᴏɴ ᴇɴɢɪɴᴇ ✨\nᴘʟᴇᴀsᴇ sᴇʟᴇᴄᴛ ᴀ ᴍᴏᴅᴇʟ ᴛᴏ sᴛᴀʀᴛ ʜɪɴɢʟɪsʜ ᴛʀᴀɴsʟᴀᴛɪᴏɴ."
+TRANSLATE_TEXT = """<blockquote>✨ ᴄʜᴏᴏsᴇ ʏᴏᴜʀ ᴛʀᴀɴsʟᴀᴛɪᴏɴ ᴇɴɢɪɴᴇ ✨
+ᴘʟᴇᴀsᴇ sᴇʟᴇᴄᴛ ᴀ ᴍᴏᴅᴇʟ ᴛᴏ sᴛᴀʀᴛ ʜɪɴɢʟɪsʜ ᴛʀᴀɴsʟᴀᴛɪᴏɴ.</blockquote>
+<blockquote expandable>ʜᴏᴡ ᴛᴏ ᴛʀᴀɴsʟᴀᴛᴇ - sᴛᴇᴘ ʙʏ sᴛᴇᴘ ɢᴜɪᴅᴇ:
+➼ sᴛᴇᴘ 1: ɢᴇᴛ ɢʀᴏǫ ᴋᴇʏ | <a href='https://console.groq.com/keys?hl=en-IN'>ᴄʟɪᴄᴋ ʜᴇʀᴇ</a> ᴛᴏ ᴄʀᴇᴀᴛᴇ ʏᴏᴜʀ ᴀᴘɪ ᴋᴇʏ.
+➼ sᴛᴇᴘ 2: ᴜᴘʟᴏᴀᴅ ʏᴏᴜʀ ғɪʟᴇ
+sᴇɴᴅ ʏᴏᴜʀ .ᴀss ᴏʀ sᴜʙᴛɪᴛʟᴇ ғɪʟᴇ ᴅɪʀᴇᴄᴛʟʏ ᴛᴏ ᴛʜᴇ ʙᴏᴛ.
+➼ sᴛᴇᴘ 3: sᴇʟᴇᴄᴛ ᴛʜᴇ ᴇɴɢɪɴᴇ
+ᴄʜᴏᴏsᴇ ᴛʜᴇ ʜɪɢʜ-sᴛᴀʙɪʟɪᴛʏ ɢʀᴏǫ ᴇɴɢɪɴᴇ ғᴏʀ ʟɪɢʜᴛɴɪɴɢ-ғᴀsᴛ ʀᴇsᴜʟᴛs.
+➼ sᴛᴇᴘ 4: ᴡᴀɪᴛ ғᴏʀ ᴘʀᴏᴄᴇssɪɴɢ
+ᴛʜᴇ ʙᴏᴛ ᴡɪʟʟ sᴘʟɪᴛ ʏᴏᴜʀ ғɪʟᴇ ɪɴᴛᴏ ᴍɪᴄʀᴏ-ᴄʜᴜɴᴋs ᴛᴏ ᴇɴsᴜʀᴇ ʜɪɢʜ-ǫᴜᴀʟɪᴛʏ ʜɪɴɢʟɪsʜ ᴛʀᴀɴsʟᴀᴛɪᴏɴ.</blockquote>
+ɴᴏᴛᴇ: ᴛʜᴇ ʙᴏᴛ ɴᴏᴡ ᴜsᴇs ᴀɴ ᴏᴘᴛɪᴍɪᴢᴇᴅ ɢʀᴏǫ-ᴏɴʟʏ ᴀʀᴄʜɪᴛᴇᴄᴛᴜʀᴇ ғᴏʀ 100% sᴛᴀʙɪʟɪᴛʏ!"""
 
 # Temporary storage for file metadata linked to message ID
 translation_data = {}
@@ -149,40 +159,40 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
         original_lines = to_translate[idx*10 : (idx+1)*10]
         chunk = chunk_queue[idx]
 
-        # Phase 1: The Analyst (Key 1 ONLY)
-        api_key_1 = api_pool[0]
-        await edit_msg(status_msg, f"⏳ [𝐀𝐧𝐚𝐥𝐲𝐬𝐭] : Analyzing chunk {idx+1}/{len(chunk_queue)}...")
-        analysis_res = await call_groq(ANALYZER_PROMPT, chunk, api_key_1)
-
-        if analysis_res in ["RETRY_REQUIRED", "429", "503"] or analysis_res.startswith("❌"):
-             # For Analyst, if it fails we just use a default context to not block forever,
-             # but following strict logic, we should probably retry.
-             # The instructions don't specify analyst failover, so we'll try once more then default.
-             await asyncio.sleep(5)
-             analysis_res = await call_groq(ANALYZER_PROMPT, chunk, api_key_1)
-             if analysis_res in ["RETRY_REQUIRED", "429", "503"] or analysis_res.startswith("❌"):
-                 analysis_res = '{"gender": "neutral", "tone": "casual", "context": "general anime scene"}'
-
-        # Phase 2: The Translator (Keys 2 & 3 ONLY)
         success = False
-        api_key_2 = api_pool[1] if len(api_pool) > 1 else api_pool[0]
-        api_key_3 = api_pool[2] if len(api_pool) > 2 else (api_pool[1] if len(api_pool) > 1 else api_pool[0])
-
         while not success:
+            # Phase 1: The Analyst (Key 1 ONLY)
+            api_key_1 = api_pool[0]
+            await edit_msg(status_msg, f"⏳ [𝐀𝐧𝐚𝐥𝐲𝐬𝐭] : Analyzing chunk {idx+1}/{len(chunk_queue)}...")
+            analysis_res = await call_groq(ANALYZER_PROMPT, chunk, api_key_1)
+
+            if analysis_res in ["RETRY_REQUIRED", "429", "503"] or analysis_res.startswith("❌"):
+                # For Analyst, if it fails we just use a default context to not block forever,
+                # but following strict logic, we should probably retry.
+                # The instructions don't specify analyst failover, so we'll try once more then default.
+                await asyncio.sleep(5)
+                analysis_res = await call_groq(ANALYZER_PROMPT, chunk, api_key_1)
+                if analysis_res in ["RETRY_REQUIRED", "429", "503"] or analysis_res.startswith("❌"):
+                    analysis_res = '{"gender": "neutral", "tone": "casual", "context": "general anime scene"}'
+
+            # Phase 2: The Translator (Primary: Key 4, Failover: Key 5)
+            api_key_4 = api_pool[3] if len(api_pool) > 3 else api_pool[0]
+            api_key_5 = api_pool[4] if len(api_pool) > 4 else (api_pool[3] if len(api_pool) > 3 else api_pool[0])
+
             await edit_msg(status_msg, f"⏳ [𝐓𝐫𝐚𝐧𝐬𝐥𝐚𝐭𝐨𝐫] : Translating chunk {idx+1}/{len(chunk_queue)}...")
-            res = await call_groq(TRANSLATOR_PROMPT, f"Analysis:\n{analysis_res}\n\nLines to Translate:\n{chunk}", api_key_2)
+            res = await call_groq(TRANSLATOR_PROMPT, f"Analysis:\n{analysis_res}\n\nLines to Translate:\n{chunk}", api_key_4)
 
             if res in ["RETRY_REQUIRED", "429", "503"] or res.startswith("❌"):
-                # Phase 3: Failover & Safety
-                await edit_msg(status_msg, f"⏳ Key 2 failed. Switching to Key 3 in 5-10s...")
-                await asyncio.sleep(7) # 5-10s
+                # Phase 3: Failover
+                await edit_msg(status_msg, f"⏳ Key 4 failed. Switching to Key 5 in 5-10s...")
+                await asyncio.sleep(7)
 
-                res = await call_groq(TRANSLATOR_PROMPT, f"Analysis:\n{analysis_res}\n\nLines to Translate:\n{chunk}", api_key_3)
+                res = await call_groq(TRANSLATOR_PROMPT, f"Analysis:\n{analysis_res}\n\nLines to Translate:\n{chunk}", api_key_5)
 
                 if res in ["RETRY_REQUIRED", "429", "503"] or res.startswith("❌"):
-                    await edit_msg(status_msg, f"⏳ Key 3 failed. Pausing 2 minutes before retry...")
-                    await asyncio.sleep(120)
-                    continue # Retry the same chunk
+                    await edit_msg(status_msg, f"⏳ Key 5 failed. Pausing 30 seconds before full retry...")
+                    await asyncio.sleep(30)
+                    continue # Restart the full cycle from Phase 1
                 else:
                     success = True
             else:
@@ -270,8 +280,8 @@ async def process_translation(bot, cb, model_type, model_name):
         if not api_pool:
             await cb.answer("❌ Groq API Pool is Empty!", show_alert=True)
             return
-        if len(api_pool) < 3:
-            await cb.answer("❌ You need at least 3 Groq API Keys for Studio Flow!", show_alert=True)
+        if len(api_pool) < 5:
+            await cb.answer("❌ You need at least 5 Groq API Keys for Studio Flow!", show_alert=True)
             return
 
     unique_key = f"{cb.message.chat.id}_{cb.message.id}"

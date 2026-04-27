@@ -29,10 +29,6 @@ async def get_watermark_menu(user_id):
         btn_row1,
         [
             InlineKeyboardButton("🗑️ ʀᴇᴍᴏᴠᴇ ᴡᴀᴛᴇʀᴍᴀʀᴋ", callback_data="del_watermark"),
-            InlineKeyboardButton("🔙 Back to Home", callback_data="back_start")
-        ],
-        [
-            InlineKeyboardButton("❓ ʜᴏᴡ ᴛᴏ sᴇᴛ ᴡᴀᴛᴇʀᴍᴀʀᴋ", callback_data="how_watermark"),
             InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="closeMeh")
         ]
     ]
