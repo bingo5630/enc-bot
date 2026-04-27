@@ -3,20 +3,19 @@ from pyrogram.errors import MessageNotModified
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from .. import LOGGER
 
-HELP_TEXT = """<blockquote><b>How to Translate - Step by Step Guide:</b></blockquote>
-<blockquote expandable>➼ <b>Step 1: Get Groq Key</b>
-[Click here to Create Groq API Key](https://console.groq.com/keys) and add it using /set_groq_api.
+HELP_TEXT = """ʜᴏᴡ ᴛᴏ ᴛʀᴀɴsʟᴀᴛᴇ - sᴛᴇᴘ ʙʏ sᴛᴇᴘ ɢᴜɪᴅᴇ:
+➼ sᴛᴇᴘ 1: ɢᴇᴛ ɢʀᴏǫ ᴋᴇʏ
+ᴄʟɪᴄᴋ ʜᴇʀᴇ ᴛᴏ ᴄʀᴇᴀᴛᴇ ɢʀᴏǫ ᴀᴘɪ ᴋᴇʏ ᴀɴᴅ ᴀᴅᴅ ɪᴛ ᴜsɪɴɢ /sᴇᴛ_ɢʀᴏǫ_ᴀᴘɪ.
+➼ sᴛᴇᴘ 2: ᴜᴘʟᴏᴀᴅ ʏᴏᴜʀ ғɪʟᴇ
+sᴇɴᴅ ʏᴏᴜʀ .ᴀss ᴏʀ sᴜʙᴛɪᴛʟᴇ ғɪʟᴇ ᴅɪʀᴇᴄᴛʟʏ ᴛᴏ ᴛʜᴇ ʙᴏᴛ.
+➼ sᴛᴇᴘ 3: sᴇʟᴇᴄᴛ ᴛʜᴇ ᴇɴɢɪɴᴇ
+ᴄʜᴏᴏsᴇ ᴛʜᴇ ʜɪɢʜ-sᴛᴀʙɪʟɪᴛʏ ɢʀᴏǫ ᴇɴɢɪɴᴇ ғᴏʀ ʟɪɢʜᴛɴɪɴɢ-ғᴀsᴛ ʀᴇsᴜʟᴛs.
+➼ sᴛᴇᴘ 4: ᴡᴀɪᴛ ғᴏʀ ᴘʀᴏᴄᴇssɪɴɢ
+ᴛʜᴇ ʙᴏᴛ ᴡɪʟʟ sᴘʟɪᴛ ʏᴏᴜʀ ғɪʟᴇ ɪɴᴛᴏ ᴍɪᴄʀᴏ-ᴄʜᴜɴᴋs ᴛᴏ ᴇɴsᴜʀᴇ ʜɪɢʜ-ǫᴜᴀʟɪᴛʏ ʜɪɴɢʟɪsʜ ᴛʀᴀɴsʟᴀᴛɪᴏɴ. ᴏɴᴄᴇ ᴅᴏɴᴇ, ʏᴏᴜ'ʟʟ ʀᴇᴄᴇɪᴠᴇ ᴛʜᴇ ᴛʀᴀɴsʟᴀᴛᴇᴅ ғɪʟᴇ.
+ɴᴏᴛᴇ: ᴛʜᴇ ʙᴏᴛ ɴᴏᴡ ᴜsᴇs ᴀɴ ᴏᴘᴛɪᴍɪᴢᴇᴅ ɢʀᴏǫ-ᴏɴʟʏ ᴀʀᴄʜɪᴛᴇᴄᴛᴜʀᴇ ғᴏʀ 100% sᴛᴀʙɪʟɪᴛʏ!"""
 
-➼ <b>Step 2: Upload Your File</b>
-Send your .ass or subtitle file directly to the bot.
-
-➼ <b>Step 3: Select the Engine</b>
-Choose the high-stability Groq engine for lightning-fast results.
-
-➼ <b>Step 4: Wait for Processing</b>
-The bot will split your file into micro-chunks to ensure high-quality Hinglish translation. Once done, you'll receive the translated file.</blockquote>
-
-<b>Note:</b> The bot now uses an optimized Groq-Only architecture for 100% stability!"""
+METADATA_HELP_TEXT = """ᴍᴇᴛᴀᴅᴀᴛᴀ ᴄᴏɴᴛʀᴏʟ:
+ᴜsᴇ /ᴍᴇᴛᴀᴅᴀᴛᴀ ᴄᴏᴍᴍᴀɴᴅ ᴛᴏ ᴄʜᴀɴɢᴇ ғɪʟᴇ ᴛɪᴛʟᴇ, ᴀᴜᴅɪᴏ ᴛʀᴀᴄᴋ ɴᴀᴍᴇs, ᴀɴᴅ sᴛʀᴇᴀᴍ ɪɴғᴏ."""
 
 output = InlineKeyboardMarkup([
     [
