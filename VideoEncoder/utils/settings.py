@@ -10,7 +10,7 @@ from .database.access_db import db
 from .database.add_user import AddUserToDatabase
 
 
-SETTINGS_PIC = "https://graph.org/file/a232c9818402f81093feb-383081a21200f77ae8.jpg"
+SETTINGS_PIC = "https://i.ibb.co/xV675RQ/image.png"
 
 # Settings
 async def OpenSettings(event: Message, user_id: int):

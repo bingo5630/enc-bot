@@ -36,8 +36,27 @@ async def edit_msg(message, text=None, **kwargs):
     try:
         if text:
             return await message.edit_text(text, **kwargs)
-        if 'caption' in kwargs:
-            return await message.edit_caption(**kwargs)
-        return await message.edit(**kwargs)
-    except:
-        pass
+        if "caption" in kwargs:
+            try:
+                return await message.edit_caption(**kwargs)
+            except MessageNotModified:
+                return message
+            except Exception as e:
+                LOGGER.error(f"Failed to edit caption: {e}")
+
+        if "media" in kwargs:
+            try:
+                return await message.edit_media(**kwargs)
+            except Exception as e:
+                LOGGER.error(f"Failed to edit media: {e}. Falling back to caption/text.")
+                if "caption" in kwargs:
+                    return await message.edit_caption(caption=kwargs["caption"], reply_markup=kwargs.get("reply_markup"))
+                return await message.edit_text(text="Media load failed, but bot is active.", reply_markup=kwargs.get("reply_markup"))
+
+        try:
+            return await message.edit(**kwargs)
+        except MessageNotModified:
+            return message
+    except Exception as e:
+        LOGGER.error(f"Global edit_msg failure: {e}")
+        return message
