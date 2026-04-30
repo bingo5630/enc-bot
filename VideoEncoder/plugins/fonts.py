@@ -26,15 +26,15 @@ async def fonts_handler(bot: Client, event: Message):
 
     buttons = [
         [
-            InlineKeyboardButton("[ ᴀʀɪᴀʟ ]", callback_data="set_font_Arial"),
-            InlineKeyboardButton("[ ʀᴏʙᴏᴛᴏ ]", callback_data="set_font_Roboto")
+            InlineKeyboardButton("ᴀʀɪᴀʟ", callback_data="set_font_Arial"),
+            InlineKeyboardButton("ʀᴏʙᴏᴛᴏ", callback_data="set_font_Roboto")
         ],
         [
-            InlineKeyboardButton("[ ᴠᴇʀᴅᴀɴᴀ ]", callback_data="set_font_Verdana"),
-            InlineKeyboardButton("[ ᴛɪᴍᴇs ]", callback_data="set_font_Times")
+            InlineKeyboardButton("ᴠᴇʀᴅᴀɴᴀ", callback_data="set_font_Verdana"),
+            InlineKeyboardButton("ᴛɪᴍᴇs", callback_data="set_font_Times")
         ],
         [
-            InlineKeyboardButton("[ ᴄʟᴏsᴇ ]", callback_data="close_fonts")
+            InlineKeyboardButton("ᴄʟᴏsᴇ", callback_data="close_fonts")
         ]
     ]
 
