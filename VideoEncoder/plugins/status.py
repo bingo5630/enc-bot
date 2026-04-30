@@ -67,20 +67,20 @@ async def mirror_status(client, message: Message):
     uptime = get_readable_time(time() - botStartTime)
 
     msg = (
-        f'<b>System Status</b>\n'
-        f'<b>CPU:</b> {cpu}% | <b>RAM:</b> {mem}%\n'
-        f'<b>FREE:</b> {get_readable_file_size(disk)}\n'
-        f'<b>UP:</b> {upload_speed} | <b>DL:</b> {download_speed}\n'
-        f'<b>Uptime:</b> {uptime}\n\n'
+        f'<b>sʏsᴛᴇᴍ sᴛᴀᴛᴜs</b>\n'
+        f'<b>ᴄᴘᴜ:</b> {cpu}% | <b>ʀᴀᴍ:</b> {mem}%\n'
+        f'<b>ғʀᴇᴇ:</b> {get_readable_file_size(disk)}\n'
+        f'<b>ᴜᴘ:</b> {upload_speed} | <b>ᴅʟ:</b> {download_speed}\n'
+        f'<b>ᴜᴘᴛɪᴍᴇ:</b> {uptime}\n\n'
     )
 
     if count:
-        msg += f"<b>Active Tasks:</b> {count}\n"
+        msg += f"<b>ᴀᴄᴛɪᴠᴇ ᴛᴀsᴋs:</b> {count}\n"
         for i, task_msg in enumerate(data):
              info = get_task_info(task_msg)
              msg += f"{i+1}. {info}\n"
     else:
-        msg += "No Active Downloads!\n"
+        msg += "ɴᴏ ᴀᴄᴛɪᴠᴇ ᴅᴏᴡɴʟᴏᴀᴅs!\n"
 
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("ʀᴇғʀᴇsʜ", callback_data="status ref")]
@@ -108,20 +108,20 @@ async def status_pages(client, query: CallbackQuery):
         uptime = get_readable_time(time() - botStartTime)
 
         msg = (
-            f'<b>System Status</b>\n'
-            f'<b>CPU:</b> {cpu}% | <b>RAM:</b> {mem}%\n'
-            f'<b>FREE:</b> {get_readable_file_size(disk)}\n'
-            f'<b>UP:</b> {upload_speed} | <b>DL:</b> {download_speed}\n'
-            f'<b>Uptime:</b> {uptime}\n\n'
+            f'<b>sʏsᴛᴇᴍ sᴛᴀᴛᴜs</b>\n'
+            f'<b>ᴄᴘᴜ:</b> {cpu}% | <b>ʀᴀᴍ:</b> {mem}%\n'
+            f'<b>ғʀᴇᴇ:</b> {get_readable_file_size(disk)}\n'
+            f'<b>ᴜᴘ:</b> {upload_speed} | <b>ᴅʟ:</b> {download_speed}\n'
+            f'<b>ᴜᴘᴛɪᴍᴇ:</b> {uptime}\n\n'
         )
 
         if count:
-            msg += f"<b>Active Tasks:</b> {count}\n"
+            msg += f"<b>ᴀᴄᴛɪᴠᴇ ᴛᴀsᴋs:</b> {count}\n"
             for i, task_msg in enumerate(data):
                  info = get_task_info(task_msg)
                  msg += f"{i+1}. {info}\n"
         else:
-            msg += "No Active Downloads!\n"
+            msg += "ɴᴏ ᴀᴄᴛɪᴠᴇ ᴅᴏᴡɴʟᴏᴀᴅs!\n"
 
         buttons = InlineKeyboardMarkup([
             [InlineKeyboardButton("ʀᴇғʀᴇsʜ", callback_data="status ref")]

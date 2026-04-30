@@ -65,7 +65,7 @@ async def main_callback_handler(bot: Client, cb: CallbackQuery):
             from .start import START_PIC
             buttons = [
                 [
-                    InlineKeyboardButton("🔙 Back to Home", callback_data="back_start"),
+                    InlineKeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ʜᴏᴍᴇ", callback_data="back_start"),
                     InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="closeMeh")
                 ]
             ]
@@ -286,20 +286,20 @@ async def main_callback_handler(bot: Client, cb: CallbackQuery):
                 uptime = TimeFormatter(time() - botStartTime)
 
                 msg = (
-                    f'<b>System Status</b>\n'
-                    f'<b>CPU:</b> {cpu}% | <b>RAM:</b> {mem}%\n'
-                    f'<b>FREE:</b> {humanbytes(disk)}\n'
-                    f'<b>UP:</b> {upload_speed} | <b>DL:</b> {download_speed}\n'
-                    f'<b>Uptime:</b> {uptime}\n\n'
+                    f'<b>sʏsᴛᴇᴍ sᴛᴀᴛᴜs</b>\n'
+                    f'<b>ᴄᴘᴜ:</b> {cpu}% | <b>ʀᴀᴍ:</b> {mem}%\n'
+                    f'<b>ғʀᴇᴇ:</b> {humanbytes(disk)}\n'
+                    f'<b>ᴜᴘ:</b> {upload_speed} | <b>ᴅʟ:</b> {download_speed}\n'
+                    f'<b>ᴜᴘᴛɪᴍᴇ:</b> {uptime}\n\n'
                 )
 
                 if count:
-                    msg += f"<b>Active Tasks:</b> {count}\n"
+                    msg += f"<b>ᴀᴄᴛɪᴠᴇ ᴛᴀsᴋs:</b> {count}\n"
                     for i, task_msg in enumerate(active_data):
                          info = get_task_info(task_msg)
                          msg += f"{i+1}. {info}\n"
                 else:
-                    msg += "No Active Downloads!\n"
+                    msg += "ɴᴏ ᴀᴄᴛɪᴠᴇ ᴅᴏᴡɴʟᴏᴀᴅs!\n"
 
                 buttons = InlineKeyboardMarkup([[InlineKeyboardButton("ʀᴇғʀᴇsʜ", callback_data="status ref")]])
                 try:

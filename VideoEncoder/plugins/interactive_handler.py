@@ -89,10 +89,8 @@ async def document_handler(bot: Client, message: Message):
 
         data.append(video_msg)
 
-        if len(data) == 1:
-            from ..utils.tasks import handle_tasks
-            await handle_tasks(video_msg, session['mode'])
-        else:
-            await message.reply("📔 Waiting for queue...")
+        from ..utils.tasks import handle_tasks
+        asyncio.create_task(handle_tasks(video_msg, session['mode']))
+        await message.reply(f"📔 Added to queue. Position: {len(data)}")
 
         del interactive_sessions[user_id]
