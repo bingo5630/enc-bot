@@ -52,6 +52,7 @@ except:
 
 
 data = []
+task_semaphore = None
 
 PROGRESS = """
 • {0} of {1}

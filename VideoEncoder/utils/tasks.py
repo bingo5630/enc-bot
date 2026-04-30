@@ -160,107 +160,53 @@ async def handle_interactive_encode(video_path, sub_path, message, edit_msg, mod
             try: os.remove(sub_path)
             except: pass
 
-async def on_task_complete():
+async def on_task_complete(message):
+    if message in data:
+        data.remove(message)
     if not data:
-        return
-    del data[0]
-    if not len(data) > 0:
         from .helper import delete_downloads
         delete_downloads()
-        return
-    message = data[0]
-
-    # Determine text content (message text or caption)
-    text_content = message.text or message.caption
-
-    if text_content:
-        text_parts = text_content.split()
-        command = text_parts[0].lower()
-
-        custom_name = None
-        if "-n" in text_content:
-            parts = text_content.split("-n", 1)
-            if len(parts) > 1:
-                custom_name = os.path.basename(parts[1].strip())
-
-        if '/ddl' in command:
-            await handle_tasks(message, 'url')
-        elif '/batch' in command:
-            await handle_tasks(message, 'batch')
-        elif '/dl' in command:
-            await handle_tasks(message, 'tg')
-        elif '/480p' in command:
-            await handle_tasks(message, '480p', custom_name=custom_name)
-        elif '/720p' in command:
-            await handle_tasks(message, '720p', custom_name=custom_name)
-        elif '/1080p' in command:
-            await handle_tasks(message, '1080p', custom_name=custom_name)
-        elif '/af' in command:
-            await handle_tasks(message, 'af')
-        elif '/sub_extract' in command:
-            # Detect whether it was a file or url based on presence of text/caption and file
-            has_file = (message.reply_to_message and (message.reply_to_message.video or message.reply_to_message.document)) or \
-                       (message.video or message.document)
-            mode = 'sub_tg' if has_file else 'sub_url'
-            await handle_tasks(message, mode)
-        else:
-             # If has text but not a known command, check if it's a file
-            if message.document or message.video:
-                 if message.document and not message.document.mime_type in video_mimetype:
-                    await on_task_complete()
-                    return
-                 await handle_tasks(message, 'tg')
-            else:
-                 # Just text, maybe a link but without command? Or unhandled
-                 pass
-    else:
-        # Fallback for any other file message if somehow added
-        if message.document:
-            if not message.document.mime_type in video_mimetype:
-                await on_task_complete()
-                return
-        await handle_tasks(message, 'tg')
 
 
 async def handle_tasks(message, mode, msg=None, custom_name=None):
-    try:
-        if msg:
-            edit_msg = msg
-            await edit_msg.edit("<b>💠 Downloading...</b>")
-        else:
-            edit_msg = await message.reply_text("<b>💠 Downloading...</b>")
+    from .. import task_semaphore
+    async with task_semaphore:
+        try:
+            if msg:
+                edit_msg = msg
+                await edit_msg.edit("<b>💠 ᴅᴏᴡɴʟᴏᴀᴅɪɴɢ...</b>")
+            else:
+                edit_msg = await message.reply_text("<b>💠 ᴅᴏᴡɴʟᴏᴀᴅɪɴɢ...</b>")
 
-        if mode == 'tg':
-            await tg_task(message, edit_msg)
-        elif mode in ['480p', '720p', '1080p']:
-            await tg_task(message, edit_msg, quality=mode, custom_name=custom_name)
-        elif mode == 'url':
-            await url_task(message, edit_msg)
-        elif mode == 'af':
-            await af_task(message, edit_msg)
-        elif mode == 'sub_tg':
-            await sub_tg_task(message, edit_msg)
-        elif mode == 'sub_url':
-            await sub_url_task(message, edit_msg)
-        elif mode in ['encode', 'hard_sub', 'soft_code']:
-            await interactive_task(message, edit_msg, mode)
-        else:
-            await batch_task(message, edit_msg)
-    except IndexError:
-        return
-    except MessageIdInvalid:
-        try: await edit_msg.edit(text='Download Cancelled!')
-        except: pass
-    except FileNotFoundError:
-        LOGGER.error('[FileNotFoundError]: Maybe due to cancel, hmm')
-        import traceback
-        LOGGER.error(traceback.format_exc())
-    except Exception as e:
-        import traceback
-        LOGGER.error(traceback.format_exc())
-        await message.reply(text=f"Error! <code>{e}</code>")
-    finally:
-        await on_task_complete()
+            if mode == 'tg':
+                await tg_task(message, edit_msg)
+            elif mode in ['480p', '720p', '1080p']:
+                await tg_task(message, edit_msg, quality=mode, custom_name=custom_name)
+            elif mode == 'url':
+                await url_task(message, edit_msg)
+            elif mode == 'af':
+                await af_task(message, edit_msg)
+            elif mode == 'sub_tg':
+                await sub_tg_task(message, edit_msg)
+            elif mode == 'sub_url':
+                await sub_url_task(message, edit_msg)
+            elif mode in ['encode', 'hard_sub', 'soft_code']:
+                await interactive_task(message, edit_msg, mode)
+            else:
+                await batch_task(message, edit_msg)
+        except MessageIdInvalid:
+            try: await edit_msg.edit(text='ᴅᴏᴡɴʟᴏᴀᴅ ᴄᴀɴᴄᴇʟʟᴇᴅ!')
+            except: pass
+        except FileNotFoundError:
+            LOGGER.error('[FileNotFoundError]: Maybe due to cancel, hmm')
+            import traceback
+            LOGGER.error(traceback.format_exc())
+        except Exception as e:
+            import traceback
+            LOGGER.error(traceback.format_exc())
+            await message.reply(text=f"ᴇʀʀᴏʀ! <code>{e}</code>")
+        finally:
+            await on_task_complete(message)
 
 
 async def tg_task(message, edit_msg, quality=None, custom_name=None):

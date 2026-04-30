@@ -38,18 +38,18 @@ METADATA_HELP_TEXT = """ᴍᴀɴᴀɢɪɴɢ ᴍᴇᴛᴀᴅᴀᴛᴀ ғᴏʀ ʏ�
 
 output = InlineKeyboardMarkup([
     [
-        InlineKeyboardButton("🔙 Back to Home", callback_data="back_start"),
-        InlineKeyboardButton("ᴄʟosᴇ", callback_data="close_btn")
+        InlineKeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ʜᴏᴍᴇ", callback_data="back_start"),
+        InlineKeyboardButton("ᴄʟᴏsᴇ", callback_data="close_btn")
     ]
 ])
 
 start_but = InlineKeyboardMarkup([
-    [InlineKeyboardButton("[ • ᴍᴀɪɴ ᴄʜᴀɴɴᴇʟ • ]", url="https://t.me/HellFire_Academy")],
+    [InlineKeyboardButton("• ᴍᴀɪɴ ᴄʜᴀɴɴᴇʟ •", url="https://t.me/HellFire_Academy")],
     [
-        InlineKeyboardButton("[ • ᴅᴇᴠᴇʟᴏᴘᴇʀ • ]", url="https://t.me/DoraShin_hlo"),
-        InlineKeyboardButton("[ • ᴄʜᴀᴛ • ]", url="https://t.me/HellFire_Academy_Chat")
+        InlineKeyboardButton("• ᴅᴇᴠᴇʟᴏᴘᴇʀ •", url="https://t.me/DoraShin_hlo"),
+        InlineKeyboardButton("• ᴄʜᴀᴛ •", url="https://t.me/HellFire_Academy_Chat")
     ],
-    [InlineKeyboardButton("[ • ᴍᴜɢɪᴡᴀʀᴀs ɴᴇᴛᴡᴏʀᴋ • ]", url="https://t.me/Mugiwaras_Network")]
+    [InlineKeyboardButton("• ᴍᴜɢɪᴡᴀʀᴀs ɴᴇᴛᴡᴏʀᴋ •", url="https://t.me/Mugiwaras_Network")]
 ])
 
 

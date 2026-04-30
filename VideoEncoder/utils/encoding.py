@@ -235,34 +235,6 @@ async def extract_subs(filepath, msg, user_id):
         return None
 
 
-async def get_metadata_flags(user_id):
-    from .database.access_db import db
-    if not await db.get_metadata_on(user_id):
-        return []
-
-    title = await db.get_metadata_title(user_id)
-    author = await db.get_metadata_author(user_id)
-    artist = await db.get_metadata_artist(user_id)
-    audio = await db.get_metadata_audio(user_id)
-    subtitle = await db.get_metadata_subtitle(user_id)
-    video = await db.get_metadata_video(user_id)
-
-    flags = []
-    if title:
-        flags.extend(['-metadata', f'title={title}'])
-    if author:
-        flags.extend(['-metadata', f'author={author}'])
-    if artist:
-        flags.extend(['-metadata', f'artist={artist}'])
-    if audio:
-        flags.extend(['-metadata:s:a', f'title={audio}'])
-    if subtitle:
-        flags.extend(['-metadata:s:s', f'title={subtitle}'])
-    if video:
-        flags.extend(['-metadata:s:v', f'title={video}'])
-
-    return flags
-
 async def encode(filepath, message, msg, audio_map=None, quality=None, custom_name=None):
     from .database.access_db import db
     cleanup_temp_subs(msg.id)
@@ -400,15 +372,8 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
     else:
         video_opts = f'{cabac} {reframe} -profile:v main -map 0:v:0 -map_chapters 0 -map_metadata 0'
 
-    # Metadata Watermark
-    m = await db.get_metadata_w(message.from_user.id)
-    if m:
-        metadata = '-metadata title=Cantarellabots -metadata:s:v title=Cantarellabots -metadata:s:a title=Cantarellabots'
-    else:
-        metadata = ''
-
-    # Advanced Metadata
-    adv_metadata = await get_metadata_flags(message.from_user.id)
+    metadata = ''
+    adv_metadata = []
 
     # Copy Subtitles
     h = await db.get_hardsub(message.from_user.id)
@@ -474,12 +439,9 @@ async def encode(filepath, message, msg, audio_map=None, quality=None, custom_na
         else:
             font_size = 50
 
-    # Watermark and Resolution
+    # Resolution
     r = await db.get_resolution(message.from_user.id)
-    # Physical Watermark check
-    user_id = message.from_user.id
-    watermark_file = os.path.join(ASSETS_DIR, f'watermark_{user_id}.png')
-    has_watermark = os.path.exists(watermark_file)
+    has_watermark = False
 
     vf_list = []
     if quality == '480p':
@@ -776,7 +738,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
     else:
         output_filepath = os.path.join(encode_dir, name + '.mkv')
 
-    adv_metadata = await get_metadata_flags(message.from_user.id)
+    adv_metadata = []
 
     # Font Selection - Locked to Roboto Medium for Dialogues
     selected_font = 'Roboto Medium'
@@ -855,8 +817,7 @@ async def hard_sub(filepath, subtitles_path, message, msg, quality=None):
         thumb_path = await compress_image(thumb_path)
 
     # Watermark check
-    watermark_file = os.path.join(ASSETS_DIR, f'watermark_{user_id}.png')
-    has_watermark = os.path.exists(watermark_file)
+    has_watermark = False
 
     # Hardcode subtitles - requires re-encoding video
     # Using libx264 for speed
@@ -962,7 +923,7 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
     # Soft coding usually works best with MKV
     output_filepath = os.path.join(encode_dir, name + '.mkv')
 
-    adv_metadata = await get_metadata_flags(message.from_user.id)
+    adv_metadata = []
 
     # Thumbnail injection
     user_id = message.from_user.id
@@ -978,8 +939,7 @@ async def soft_code(filepath, subtitles_path, message, msg, quality=None):
         thumb_path = await compress_image(thumb_path)
 
     # Watermark check
-    watermark_file = os.path.join(ASSETS_DIR, f'watermark_{user_id}.png')
-    has_watermark = os.path.exists(watermark_file)
+    has_watermark = False
 
     # Merge subtitle and video - no re-encoding (mostly)
     # However, if quality is set or watermark exists, we HAVE to re-encode to scale/overlay.

@@ -1,4 +1,5 @@
 
+import asyncio
 import dns.resolver
 from pyrogram import idle
 
@@ -10,6 +11,8 @@ dns.resolver.default_resolver.nameservers = [
 
 
 async def main():
+    import VideoEncoder
+    VideoEncoder.task_semaphore = asyncio.Semaphore(4)
     await app.start()
     await app.send_message(chat_id=log, text='<b>ʜᴏsᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ ʙᴀʙᴇʏ ✅</b>')
     await idle()

@@ -32,21 +32,12 @@ class Database:
             channels='source',
             drive=False,
             preset='sf',
-            metadata=True,
             hardsub=False,
-            watermark=False,
             subtitles=True,
             resolution='OG',
             upload_as_doc=False,
             crf=22,
             resize=False,
-            metadata_on=False,
-            metadata_title="By: @Anime_Fury",
-            metadata_author="By: @Anime_Fury",
-            metadata_artist="By: @Anime_Fury",
-            metadata_audio="By: @Anime_Fury",
-            metadata_subtitle="By: @Anime_Fury",
-            metadata_video="By: @Anime_Fury",
             user_font='Roboto-Bold',
             user_font_size=0,
             groq_api_pool=[],
@@ -239,27 +230,6 @@ class Database:
         user = await self._get_user(id)
         return user.get('channels', 'source')
 
-    # Metadata Watermark
-    async def set_metadata_w(self, id, metadata):
-        try:
-            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'metadata': metadata}}, upsert=True), timeout=5.0)
-        except Exception as e:
-            LOGGER.error(f"Error in set_metadata_w: {e}")
-
-    async def get_metadata_w(self, id):
-        user = await self._get_user(id)
-        return user.get('metadata', False)
-
-    # Watermark
-    async def set_watermark(self, id, watermark):
-        try:
-            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'watermark': watermark}}, upsert=True), timeout=5.0)
-        except Exception as e:
-            LOGGER.error(f"Error in set_watermark: {e}")
-
-    async def get_watermark(self, id):
-        user = await self._get_user(id)
-        return user.get('watermark', False)
 
     # Preset
     async def set_preset(self, id, preset):
@@ -395,77 +365,6 @@ class Database:
             LOGGER.error(f"Error in set_sudo: {e}")
 
 
-    # Metadata Settings
-    async def set_metadata_on(self, id, metadata_on):
-        try:
-            # Update both metadata_on and legacy metadata field for reliability
-            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'metadata_on': metadata_on, 'metadata': metadata_on}}, upsert=True), timeout=5.0)
-        except Exception as e:
-            LOGGER.error(f"Error in set_metadata_on: {e}")
-
-    async def get_metadata_on(self, id):
-        user = await self._get_user(id)
-        return user.get('metadata_on', False)
-
-    async def set_metadata_title(self, id, metadata_title):
-        try:
-            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'metadata_title': metadata_title}}, upsert=True), timeout=5.0)
-        except Exception as e:
-            LOGGER.error(f"Error in set_metadata_title: {e}")
-
-    async def get_metadata_title(self, id):
-        user = await self._get_user(id)
-        return user.get('metadata_title', "By: @Anime_Fury")
-
-    async def set_metadata_author(self, id, metadata_author):
-        try:
-            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'metadata_author': metadata_author}}, upsert=True), timeout=5.0)
-        except Exception as e:
-            LOGGER.error(f"Error in set_metadata_author: {e}")
-
-    async def get_metadata_author(self, id):
-        user = await self._get_user(id)
-        return user.get('metadata_author', "By: @Anime_Fury")
-
-    async def set_metadata_artist(self, id, metadata_artist):
-        try:
-            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'metadata_artist': metadata_artist}}, upsert=True), timeout=5.0)
-        except Exception as e:
-            LOGGER.error(f"Error in set_metadata_artist: {e}")
-
-    async def get_metadata_artist(self, id):
-        user = await self._get_user(id)
-        return user.get('metadata_artist', "By: @Anime_Fury")
-
-    async def set_metadata_audio(self, id, metadata_audio):
-        try:
-            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'metadata_audio': metadata_audio}}, upsert=True), timeout=5.0)
-        except Exception as e:
-            LOGGER.error(f"Error in set_metadata_audio: {e}")
-
-    async def get_metadata_audio(self, id):
-        user = await self._get_user(id)
-        return user.get('metadata_audio', "By: @Anime_Fury")
-
-    async def set_metadata_subtitle(self, id, metadata_subtitle):
-        try:
-            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'metadata_subtitle': metadata_subtitle}}, upsert=True), timeout=5.0)
-        except Exception as e:
-            LOGGER.error(f"Error in set_metadata_subtitle: {e}")
-
-    async def get_metadata_subtitle(self, id):
-        user = await self._get_user(id)
-        return user.get('metadata_subtitle', "By: @Anime_Fury")
-
-    async def set_metadata_video(self, id, metadata_video):
-        try:
-            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'metadata_video': metadata_video}}, upsert=True), timeout=5.0)
-        except Exception as e:
-            LOGGER.error(f"Error in set_metadata_video: {e}")
-
-    async def get_metadata_video(self, id):
-        user = await self._get_user(id)
-        return user.get('metadata_video', "By: @Anime_Fury")
 
     async def set_user_font(self, id, font):
         try:

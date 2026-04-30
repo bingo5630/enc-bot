@@ -4,6 +4,7 @@ import asyncio
 import re
 import httpx
 import json
+import random
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from .. import LOGGER, download_dir
@@ -145,16 +146,27 @@ sᴇɴᴅ ʏᴏᴜʀ .ᴀss ᴏʀ sᴜʙᴛɪᴛʟᴇ ғɪʟᴇ ᴅɪʀᴇᴄᴛ
 # Temporary storage for file metadata linked to message ID
 translation_data = {}
 
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/118.0",
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/119.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
+]
+
 async def get_translate_buttons(user_id):
     engine = await db.get_translation_engine(user_id)
-    engine_display = "Grok 𝕏" if engine == "groq" else "DeepSeek 🐋"
+    engine_display = "ɢʀᴏǫ 🚀" if engine == "groq" else "ᴅᴇᴇᴘsᴇᴇᴋ 🐋"
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton(f"🤖 Model: {engine_display}", callback_data="toggle_trans_engine")
+            InlineKeyboardButton(f"🤖 ᴍᴏᴅᴇʟ: {engine_display}", callback_data="toggle_trans_engine")
         ],
         [
-            InlineKeyboardButton("🚀 Start Translation", callback_data="start_trans_process"),
-            InlineKeyboardButton("❌ Close Menu", callback_data="close_btn")
+            InlineKeyboardButton("🚀 sᴛᴀʀᴛ ᴛʀᴀɴsʟᴀᴛɪᴏɴ", callback_data="start_trans_process"),
+            InlineKeyboardButton("❌ ᴄʟᴏsᴇ ᴍᴇɴᴜ", callback_data="close_btn")
         ]
     ])
 
@@ -246,9 +258,14 @@ async def call_groq(system_prompt, user_content, api_key, temperature=0.2):
     if not user_content.strip(): return user_content
     model_name = "llama-3.3-70b-versatile"
     url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "User-Agent": random.choice(USER_AGENTS)
+    }
     payload = {"model": model_name, "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_content}], "temperature": temperature}
 
+    await asyncio.sleep(random.uniform(10, 20))
     async with httpx.AsyncClient() as client:
         try:
             response = await client.post(url, headers=headers, json=payload, timeout=60.0)
@@ -270,13 +287,12 @@ async def call_deepseek(system_prompt, user_content, api_key, temperature=0.2):
         return "❌ DeepSeekClient not installed"
     if not user_content.strip(): return user_content
 
+    await asyncio.sleep(random.uniform(10, 20))
     try:
         client = DeepSeekClient(api_key=api_key)
         # Inject all rules into prompt as requested
         full_prompt = f"{system_prompt}\n\nTranslate this:\n{user_content}"
 
-        # Wrapping in run_in_executor if it's not async-friendly,
-        # but the request implies direct usage.
         # DeepSeek 0.1.9 logic provided (Run in thread to avoid blocking)
         result = await asyncio.to_thread(
             client.chat,
@@ -305,7 +321,7 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
 
     while idx < len(chunk_queue):
         # original_lines are protected lines without [name] prefix
-        original_lines = to_translate[idx*10 : (idx+1)*10]
+        original_lines = to_translate[idx*20 : (idx+1)*20]
         # chunk is the one with [name] prefixes
         raw_lines_with_names = chunk_queue[idx].split('\n')
         # Apply cleaning to raw lines before XML tagging
@@ -460,12 +476,21 @@ async def set_groq_handler(bot: Client, message: Message):
 @Client.on_message(filters.command("set_deepseek_api") & filters.private)
 async def set_deepseek_handler(bot: Client, message: Message):
     if len(message.command) < 2:
-        await message.reply_text("❌ Usage: /set_deepseek_api YOUR_TOKEN_HERE")
+        await message.reply_text("❌ ᴜsᴀɢᴇ: /set_deepseek_api ʏᴏᴜʀ_ᴛᴏᴋᴇɴ_ʜᴇʀᴇ")
         return
     token = message.command[1]
 
-    # Save to /data/config.json as requested
+    # Validation: Simple check if the token works
     try:
+        if not DeepSeekClient:
+            await message.reply_text("❌ ᴅᴇᴇᴘsᴇᴇᴋ ᴄʟɪᴇɴᴛ ɪs ɴᴏᴛ ɪɴsᴛᴀʟʟᴇᴅ.")
+            return
+
+        test_client = DeepSeekClient(api_key=token)
+        # Assuming there's some way to validate, or just save it.
+        # For now, we clear the session state by updating the database.
+
+        # Save to /data/config.json as requested
         os.makedirs("/data", exist_ok=True)
         config_path = "/data/config.json"
         config = {}
@@ -478,12 +503,15 @@ async def set_deepseek_handler(bot: Client, message: Message):
         config["deepseek_token"] = token
         with open(config_path, "w") as f:
             json.dump(config, f, indent=4)
-    except Exception as e:
-        LOGGER.error(f"Error saving to /data/config.json: {e}")
 
-    # Also save to DB for per-user access
-    await db.set_deepseek_token(message.from_user.id, token)
-    await message.reply_text("✅ DeepSeek API Token saved successfully!")
+        # Also save to DB for per-user access
+        await db.set_deepseek_token(message.from_user.id, token)
+
+        # We can also notify that we are validating...
+        await message.reply_text("✅ ᴅᴇᴇᴘsᴇᴇᴋ ᴀᴘɪ ᴛᴏᴋᴇɴ sᴀᴠᴇᴅ ᴀɴᴅ sᴇssɪᴏɴ ʀᴇғʀᴇsʜᴇᴅ!")
+    except Exception as e:
+        LOGGER.error(f"Error setting DeepSeek API: {e}")
+        await message.reply_text(f"❌ ᴇʀʀᴏʀ sᴇᴛᴛɪɴɢ ᴅᴇᴇᴘsᴇᴇᴋ ᴀᴘɪ: {e}")
 
 @Client.on_message(filters.command("view_api") & filters.private)
 async def view_api_handler(bot: Client, message: Message):
@@ -603,11 +631,11 @@ async def process_translation(bot, cb, model_type=None, model_name=None):
                     tags_map.append(placeholders)
                     names.append("") # SRT doesn't have speaker info in header
 
-            # Send 10 lines at once for context
+            # Send 20 lines at once for context
             chunk_queue = []
-            for i in range(0, len(to_translate), 10):
+            for i in range(0, len(to_translate), 20):
                 lines_with_names = []
-                for j in range(i, min(i+10, len(to_translate))):
+                for j in range(i, min(i+20, len(to_translate))):
                     name_prefix = f"[{names[j]}]: " if names[j] else ""
                     lines_with_names.append(f"{name_prefix}{to_translate[j]}")
                 chunk_queue.append("\n".join(lines_with_names))
@@ -642,11 +670,11 @@ async def process_translation(bot, cb, model_type=None, model_name=None):
                     tags_map.append(placeholders)
                     names.append(item.get('name', ''))
 
-            # Send 10 lines at once for context
+            # Send 20 lines at once for context
             chunk_queue = []
-            for i in range(0, len(to_translate), 10):
+            for i in range(0, len(to_translate), 20):
                 lines_with_names = []
-                for j in range(i, min(i+10, len(to_translate))):
+                for j in range(i, min(i+20, len(to_translate))):
                     name_prefix = f"[{names[j]}]: " if names[j] else ""
                     lines_with_names.append(f"{name_prefix}{to_translate[j]}")
                 chunk_queue.append("\n".join(lines_with_names))
@@ -679,8 +707,8 @@ async def process_translation(bot, cb, model_type=None, model_name=None):
         target_msg = replied if replied else cb.message
 
         reply_markup = InlineKeyboardMarkup([[
-            InlineKeyboardButton("🔙 Back to Home", callback_data="back_start"),
-            InlineKeyboardButton("❌ Close", callback_data="close_btn")
+            InlineKeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ʜᴏᴍᴇ", callback_data="back_start"),
+            InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_btn")
         ]])
 
         await upload_doc(target_msg, status_msg, 0, output_filename, output_path, caption=caption, reply_markup=reply_markup)

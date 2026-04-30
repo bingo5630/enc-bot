@@ -58,7 +58,7 @@ async def help_message(app, message):
 
     buttons = [
         [
-            InlineKeyboardButton("🔙 Back to Home", callback_data="back_start"),
+            InlineKeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ʜᴏᴍᴇ", callback_data="back_start"),
             InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="closeMeh")
         ]
     ]

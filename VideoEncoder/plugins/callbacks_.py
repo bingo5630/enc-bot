@@ -40,140 +40,17 @@ async def main_callback_handler(bot: Client, cb: CallbackQuery):
         elif data in ["close_btn", "closeMeh", "close_fonts", "close_translator", "close_meta"]:
             await cb.message.delete()
 
-        # 3. Metadata Start / Home
-        elif data in ["metadata_start", "OpenSettings"]:
-            from .metadata_plugin import update_metadata_msg
-            await update_metadata_msg(cb)
-
-        # 4. Metadata Toggles and Sub-menus
-        elif data in ["meta_on", "metadata_on"]:
-            from ..utils.database.access_db import db
-            from .metadata_plugin import update_metadata_msg
-            await db.set_metadata_on(user_id, True)
-            await db.set_metadata_w(user_id, True)
-            await update_metadata_msg(cb)
-
-        elif data in ["meta_off", "metadata_off"]:
-            from ..utils.database.access_db import db
-            from .metadata_plugin import update_metadata_msg
-            await db.set_metadata_on(user_id, False)
-            await db.set_metadata_w(user_id, False)
-            await update_metadata_msg(cb)
-
         elif data == "help_callback":
             from ..utils.common import HELP_TEXT, edit_msg
             from .start import START_PIC
             buttons = [
                 [
-                    InlineKeyboardButton("🔙 Back to Home", callback_data="back_start"),
+                    InlineKeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ʜᴏᴍᴇ", callback_data="back_start"),
                     InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="closeMeh")
                 ]
             ]
             await edit_msg(cb.message, media=InputMediaPhoto(START_PIC, caption=HELP_TEXT, has_spoiler=True), reply_markup=InlineKeyboardMarkup(buttons))
 
-        elif data in ["metadata_how_to", "meta_how_to"]:
-            from ..utils.common import edit_msg
-            how_to_text = "ᴍᴀɴᴀɢɪɴɢ ᴍᴇᴛᴀᴅᴀᴛᴀ ғᴏʀ ʏᴏᴜʀ ᴠɪᴅᴇᴏs ᴀɴᴅ ғɪʟᴇs\n\n" \
-                        "ᴠᴀʀɪᴏᴜꜱ ᴍᴇᴛᴀᴅᴀᴛᴀ:\n" \
-                        "- ᴛɪᴛʟᴇ: Descriptive title of the media.\n" \
-                        "- ᴀᴜᴅɪᴏ: Title or description of audio content.\n" \
-                        "- ꜱᴜʙᴛɪᴛʟᴇ: Title of subtitle content.\n" \
-                        "- ᴠɪᴅᴇᴏ: Title or description of video content.\n\n" \
-                        "ᴄᴏᴍᴍᴀɴᴅꜱ ᴛᴏ ᴛᴜʀɴ ᴏɴ ᴏғғ ᴍᴇᴛᴀᴅᴀᴛᴀ:\n" \
-                        "➜ /metadata: Turn on or off metadata.\n\n" \
-                        "ᴄᴏᴍᴍᴀɴᴅꜱ ᴛᴏ ꜱᴇᴛ ᴍᴇᴛᴀᴅᴀᴛᴀ:\n" \
-                        "➜ /settitle: Set a custom title of media.\n" \
-                        "➜ /setaudio: Set audio title.\n" \
-                        "➜ /setsubtitle: Set subtitle title.\n" \
-                        "➜ /setvideo: Set video title.\n\n" \
-                        "ᴇxᴀᴍᴘʟᴇ: /settitle Your Title Here\n\n" \
-                        "ᴜꜱᴇ ᴛʜᴇꜱᴇ ᴄᴏᴍᴍᴀɴᴅꜱ ᴛᴏ ᴇɴʀɪᴄʜ ʏᴏᴜʀ ᴍᴇᴅɪᴀ ᴡɪᴛʜ ᴀᴅᴅɪᴛɪᴏɴᴀʟ ᴍᴇᴛᴀᴅᴀᴛᴀ ɪɴꜰᴏʀᴍᴀᴛɪᴏɴ!"
-            buttons = [
-                [
-                    InlineKeyboardButton("🏠 ʜᴏᴍᴇ", callback_data="back_start"),
-                    InlineKeyboardButton("🔙 ʙᴀᴄᴋ", callback_data="meta_back")
-                ],
-                [
-                    InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="close_btn")
-                ]
-            ]
-            try:
-                await edit_msg(
-                    cb.message,
-                    media=InputMediaPhoto("https://graph.org/file/a232c9818402f81093feb-383081a21200f77ae8.jpg", caption=how_to_text, has_spoiler=True),
-                    reply_markup=InlineKeyboardMarkup(buttons)
-                )
-            except:
-                await edit_msg(cb.message, caption=how_to_text, reply_markup=InlineKeyboardMarkup(buttons))
-
-        elif data in ["metadata_back", "meta_back"]:
-            from .metadata_plugin import update_metadata_msg
-            await update_metadata_msg(cb)
-
-        # 5. Watermark Start / Home
-        elif data == "watermark_start":
-            from .watermark import get_watermark_menu, WATERMARK_PIC
-            from ..utils.common import edit_msg
-            text, reply_markup = await get_watermark_menu(user_id)
-            try:
-                await edit_msg(
-                    cb.message,
-                    media=InputMediaPhoto(WATERMARK_PIC, caption=text, has_spoiler=True),
-                    reply_markup=reply_markup
-                )
-            except:
-                await edit_msg(cb.message, caption=text, reply_markup=reply_markup)
-
-        # 6. Watermark Actions
-        elif data == "set_watermark":
-            from .watermark import watermark_sessions
-            watermark_sessions[user_id] = asyncio.get_event_loop().time()
-            await cb.message.reply_text("<b>ᴘʟᴇᴀsᴇ sᴇɴᴅ ʏᴏᴜʀ ᴡᴀᴛᴇʀᴍᴀʀᴋ ᴘʜᴏᴛᴏ ᴡɪᴛʜɪɴ 30 sᴇᴄᴏɴᴅs.</b>")
-
-        elif data == "del_watermark":
-            from .watermark import get_watermark_menu
-            from ..utils.common import edit_msg
-            from .. import ASSETS_DIR
-            path = os.path.join(ASSETS_DIR, f"watermark_{user_id}.png")
-            if os.path.exists(path):
-                os.remove(path)
-            text, reply_markup = await get_watermark_menu(user_id)
-            await edit_msg(cb.message, caption=text, reply_markup=reply_markup)
-
-        elif data == "how_watermark":
-            from .watermark import WATERMARK_PIC
-            from ..utils.common import edit_msg
-            how_to_text = "<b>\"ᴅᴇᴋʜᴏ ʙʜᴀɪ, ᴡᴀᴛᴇʀᴍᴀʀᴋ ʟᴀɢᴀɴᴀ ɪs ʟɪᴋᴇ ᴀᴘɴɪ ɢᴀᴀᴅɪ ᴘᴇ ɴᴀᴀᴍ ʟɪᴋʜᴡᴀɴᴀ! ʙᴀs sᴇᴛ ʙᴜᴛᴛᴏɴ ᴅᴀʙᴀᴏ, ᴘʜᴏᴛᴏ ʙʜᴇᴊᴏ, ᴀᴜʀ ʙᴏᴍ! ᴀʙ ᴄʜᴏʀ ʙʜɪ ᴅᴀʀᴇɴɢᴇ ᴛᴇʀɪ ᴠɪᴅᴇᴏ ᴄʜᴜʀᴀɴᴇ sᴇ. ʜᴇʜᴇʜᴇ...\"</b>"
-            buttons = [
-                [
-                    InlineKeyboardButton("🏠 ʜᴏᴍᴇ", callback_data="back_start"),
-                    InlineKeyboardButton("🔙 ʙᴀᴄᴋ", callback_data="back_watermark")
-                ],
-                [
-                    InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="close_btn")
-                ]
-            ]
-            try:
-                await edit_msg(
-                    cb.message,
-                    media=InputMediaPhoto(WATERMARK_PIC, caption=how_to_text, has_spoiler=True),
-                    reply_markup=InlineKeyboardMarkup(buttons)
-                )
-            except:
-                await edit_msg(cb.message, caption=how_to_text, reply_markup=InlineKeyboardMarkup(buttons))
-
-        elif data == "back_watermark":
-            from .watermark import get_watermark_menu, WATERMARK_PIC
-            from ..utils.common import edit_msg
-            text, reply_markup = await get_watermark_menu(user_id)
-            try:
-                await edit_msg(
-                    cb.message,
-                    media=InputMediaPhoto(WATERMARK_PIC, caption=text, has_spoiler=True),
-                    reply_markup=reply_markup
-                )
-            except:
-                await edit_msg(cb.message, caption=text, reply_markup=reply_markup)
 
         # 7. Font Setting
         elif data.startswith("set_font_"):
