@@ -151,8 +151,21 @@ translation_data = {}
 
 async def get_translate_buttons(user_id):
     engine = await db.get_translation_engine(user_id)
-    engine_display = "ɢʀᴏǫ 🚀" if engine == "groq" else "ᴅᴇᴇᴘsᴇᴇᴋ 🐋"
+    model = await db.get_translation_model(user_id)
+    if engine == "groq":
+        engine_display = "ɢʀᴏǫ 🚀"
+    elif engine == "deepseek":
+        engine_display = "ᴅᴇᴇᴘsᴇᴇᴋ 🐋"
+    else:
+        engine_display = f"ɢᴇᴍɪɴɪ {'⚡' if 'flash' in model else '🧠'}"
+
     return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("ɢᴇᴍɪɴɪ 1.5 ғʟᴀsʜ (ғᴀsᴛ & sᴛᴀʙʟᴇ) ⚡", callback_data="set_model_gemini-1.5-flash")
+        ],
+        [
+            InlineKeyboardButton("ɢᴇᴍɪɴɪ 1.5 ᴘʀᴏ (ʜɪɢʜ ǫᴜᴀʟɪᴛʏ) 🧠", callback_data="set_model_gemini-1.5-pro")
+        ],
         [
             InlineKeyboardButton(f"🤖 ᴍᴏᴅᴇʟ: {engine_display}", callback_data="toggle_trans_engine")
         ],
@@ -308,7 +321,46 @@ async def call_deepseek(system_prompt, user_content, api_key, temperature=0.2):
         except Exception as e:
             return f"❌ DeepSeek Error: {str(e)}"
 
-async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg, engine="groq", deepseek_token=None):
+async def call_gemini(system_prompt, user_content, api_key, model_name):
+    if not user_content.strip(): return user_content
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "system_instruction": {"parts": [{"text": system_prompt}]},
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": user_content}]
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0.2,
+            "topP": 0.8,
+            "topK": 40
+        }
+    }
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(url, headers=headers, json=payload, timeout=60.0)
+            if response.status_code == 200:
+                data = response.json()
+                if 'candidates' in data and len(data['candidates']) > 0:
+                    text = data['candidates'][0]['content']['parts'][0]['text'].strip()
+                    if text == user_content:
+                        return "RETRY_REQUIRED"
+                    return text
+                return "❌ Gemini Error: Empty response or safety filter block."
+            elif response.status_code == 429:
+                return "429"
+            elif response.status_code == 400:
+                return "API_KEY_INVALID"
+            else:
+                return f"❌ Gemini Error: {response.status_code} - {response.text}"
+        except Exception as e:
+            return f"❌ Gemini Error: {str(e)}"
+
+async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg, engine="groq", deepseek_token=None, gemini_api_key=None, gemini_model=None):
     translated_texts = []
     idx = 0
     trans_key_idx = 1 # Start rotation from Key 2 (index 1)
@@ -369,6 +421,40 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
                         translated_texts.append(clean_line)
                     success = True
                     await asyncio.sleep(random.uniform(10, 20))
+            elif engine == "gemini":
+                await edit_msg(status_msg, f"⏳ [𝐆𝐞𝐦𝐢𝐧𝐢] : Translating chunk {idx+1}/{len(chunk_queue)}...")
+                gemini_sys_prompt = "You are a professional translator. Translate the following text into [Target Language] while maintaining the original tone, context, and formatting. Do not add any explanations or extra text. Output ONLY translated lines wrapped in <t> and </t> tags. Ensure the output has the exact same number of lines as the input."
+                res = await call_gemini(gemini_sys_prompt.replace("[Target Language]", "Hinglish"), f"Analysis:\n{analysis_res}\n\nLines to Translate:\n{xml_chunk}", gemini_api_key, gemini_model)
+
+                if res == "429":
+                    await edit_msg(status_msg, f"⚠️ Gemini Rate Limited. Waiting 60s...")
+                    await asyncio.sleep(60)
+                    continue
+                elif res == "API_KEY_INVALID":
+                    await edit_msg(status_msg, "❌ Invalid Gemini API Key. Please update it using /set_gemini_api")
+                    return "❌ Invalid Gemini API Key.", []
+                elif res in ["RETRY_REQUIRED"] or res.startswith("❌"):
+                    await edit_msg(status_msg, f"⚠️ Gemini Error: {res}. Retrying in 10s...")
+                    await asyncio.sleep(10)
+                    continue
+                else:
+                    # Extraction and Verification
+                    res_lines = re.findall(r'<t>(.*?)</t>', res, re.DOTALL)
+                    if len(res_lines) != len(original_lines):
+                        # Try to parse as raw lines if XML tagging fails
+                        raw_res_lines = [l.strip() for l in res.split('\n') if l.strip()]
+                        if len(raw_res_lines) == len(original_lines):
+                             res_lines = raw_res_lines
+                        else:
+                            LOGGER.warning(f"Line count mismatch in Gemini chunk {idx+1}: Expected {len(original_lines)}, got {len(res_lines)} (XML) or {len(raw_res_lines)} (Raw). Retrying...")
+                            await asyncio.sleep(4)
+                            continue
+
+                    for trans_line in res_lines:
+                        clean_line = re.sub(r'^\[.*?\]:\s*', '', trans_line.strip()).strip()
+                        translated_texts.append(clean_line)
+                    success = True
+                    await asyncio.sleep(4) # 15 RPM Rate Limiting
             else:
                 # Groq Logic (Existing)
                 keys_tried = 0
@@ -493,6 +579,15 @@ async def set_deepseek_handler(bot: Client, message: Message):
     await db.set_deepseek_token(message.from_user.id, token)
     await message.reply_text("✅ DeepSeek API Token saved successfully!")
 
+@Client.on_message(filters.command("set_gemini_api") & filters.private)
+async def set_gemini_handler(bot: Client, message: Message):
+    if len(message.command) < 2:
+        await message.reply_text("❌ Usage: /set_gemini_api YOUR_KEY_HERE")
+        return
+    api_key = message.command[1]
+    await db.set_gemini_api_key(message.from_user.id, api_key)
+    await message.reply_text("✅ Gemini API Key saved successfully!")
+
 from ..utils.tasks import task_semaphore
 
 @Client.on_message(filters.command("view_api") & filters.private)
@@ -522,6 +617,8 @@ async def process_translation(bot, cb, model_type=None, model_name=None):
 
         engine = await db.get_translation_engine(user_id)
         deepseek_token = None
+        gemini_api_key = None
+        gemini_model = None
         api_pool = None
 
         if engine == "groq":
@@ -531,6 +628,17 @@ async def process_translation(bot, cb, model_type=None, model_name=None):
                 return
             if len(api_pool) < 5:
                 await cb.answer("❌ You need at least 5 Groq API Keys for Studio Flow!", show_alert=True)
+                return
+        elif engine == "gemini":
+            gemini_api_key = await db.get_gemini_api_key(user_id)
+            gemini_model = await db.get_translation_model(user_id)
+            if not gemini_api_key:
+                await cb.answer("❌ Gemini API Key not set! Use /set_gemini_api", show_alert=True)
+                return
+            # Gemini still needs Analyst (Groq Key 1)
+            api_pool = await db.get_groq_api_pool(user_id)
+            if not api_pool:
+                await cb.answer("❌ Gemini Engine needs at least 1 Groq Key for Analysis!", show_alert=True)
                 return
         else:
             deepseek_token = await db.get_deepseek_token(user_id)
@@ -623,7 +731,7 @@ async def process_translation(bot, cb, model_type=None, model_name=None):
                         lines_with_names.append(f"{name_prefix}{to_translate[j]}")
                     chunk_queue.append("\n".join(lines_with_names))
 
-                err, translated_texts = await translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg, engine=engine, deepseek_token=deepseek_token)
+                err, translated_texts = await translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg, engine=engine, deepseek_token=deepseek_token, gemini_api_key=gemini_api_key, gemini_model=gemini_model)
                 if err:
                     await edit_msg(status_msg, err)
                     return
@@ -662,7 +770,7 @@ async def process_translation(bot, cb, model_type=None, model_name=None):
                         lines_with_names.append(f"{name_prefix}{to_translate[j]}")
                     chunk_queue.append("\n".join(lines_with_names))
 
-                err, translated_texts = await translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg, engine=engine, deepseek_token=deepseek_token)
+                err, translated_texts = await translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg, engine=engine, deepseek_token=deepseek_token, gemini_api_key=gemini_api_key, gemini_model=gemini_model)
                 if err:
                     await edit_msg(status_msg, err)
                     return

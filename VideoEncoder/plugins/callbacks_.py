@@ -191,8 +191,23 @@ async def main_callback_handler(bot: Client, cb: CallbackQuery):
             from .translator import get_translate_buttons, TRANSLATE_TEXT
             from ..utils.common import edit_msg
             current_engine = await db.get_translation_engine(user_id)
-            new_engine = "deepseek" if current_engine == "groq" else "groq"
+            if current_engine == "groq":
+                new_engine = "deepseek"
+            elif current_engine == "deepseek":
+                new_engine = "gemini"
+            else:
+                new_engine = "groq"
             await db.set_translation_engine(user_id, new_engine)
+            reply_markup = await get_translate_buttons(user_id)
+            await edit_msg(cb.message, caption=TRANSLATE_TEXT, reply_markup=reply_markup)
+
+        elif data.startswith("set_model_gemini-1.5-"):
+            from ..utils.database.access_db import db
+            from .translator import get_translate_buttons, TRANSLATE_TEXT
+            from ..utils.common import edit_msg
+            model_name = data.replace("set_model_", "")
+            await db.set_translation_engine(user_id, "gemini")
+            await db.set_translation_model(user_id, model_name)
             reply_markup = await get_translate_buttons(user_id)
             await edit_msg(cb.message, caption=TRANSLATE_TEXT, reply_markup=reply_markup)
 
