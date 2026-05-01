@@ -76,14 +76,14 @@ class AudioSelect:
 
     async def _send_message(self):
         buttons = ButtonMaker()
-        text = f"<b>ᴄʜᴏᴏsᴇ ᴀᴜᴅɪᴏ sᴛʀᴇᴀᴍ ᴛᴏ sᴡᴀᴘ</b>\n\n<b>ᴀᴜᴅɪᴏ sᴛʀᴇᴀᴍs: {len(self.aud_streams)}</b>"
+        text = f"<b>CHOOSE AUDIO STREAM TO SWAP</b>\n\n<b>Audio Streams: {len(self.aud_streams)}</b>"
         for index, stream in self.aud_streams.items():
-            buttons.button_data(f"{stream['lang'] or 'ᴜɴᴅ'} | {stream['title'] or 'ɴᴏ ᴛɪᴛʟᴇ'}", f"audiosel none {index}")
+            buttons.button_data(f"{stream['lang'] or 'und'} | {stream['title'] or 'No Title'}", f"audiosel none {index}")
             buttons.button_data("▲", f"audiosel up {index}")
             buttons.button_data("⇅", f"audiosel swap {index}")
             buttons.button_data("▼", f"audiosel down {index}")
-        buttons.button_data('ᴅᴏɴᴇ', 'audiosel done', 'footer')
-        buttons.button_data('ᴄᴀɴᴄᴇʟ', 'audiosel cancel', 'footer')
+        buttons.button_data('Done', 'audiosel done', 'footer')
+        buttons.button_data('Cancel', 'audiosel cancel', 'footer')
 
         if not self._reply:
             self._reply = await self.message.reply(text, reply_markup=buttons.build_menu(4))
