@@ -134,17 +134,17 @@ DEEPSEEK_PROMPT = (
 )
 
 TRANSLATE_PIC = "https://graph.org/file/600586a9a49029c2e98f1-90c27ea7986142ea7a.jpg"
-TRANSLATE_TEXT = """<blockquote>✨ ᴅᴜᴀʟ-ᴇɴɢɪɴᴇ ᴛʀᴀɴsʟᴀᴛɪᴏɴ sʏsᴛᴇᴍ ✨
+TRANSLATE_TEXT = """<blockquote>✨ ᴛʀɪᴘʟᴇ-ᴇɴɢɪɴᴇ ᴛʀᴀɴsʟᴀᴛɪᴏɴ sʏsᴛᴇᴍ ✨
 ᴘʟᴇᴀsᴇ sᴇʟᴇᴄᴛ ᴀ ᴍᴏᴅᴇʟ ᴛᴏ sᴛᴀʀᴛ ʜɪɴɢʟɪsʜ ᴛʀᴀɴsʟᴀᴛɪᴏɴ.</blockquote>
 <blockquote expandable>ʜᴏᴡ ᴛᴏ ᴛʀᴀɴsʟᴀᴛᴇ - sᴛᴇᴘ ʙʏ sᴛᴇᴘ ɢᴜɪᴅᴇ:
-➼ sᴛᴇᴘ 1: ɢᴇᴛ ᴋᴇʏs | ɢʀᴏǫ ᴏʀ ᴅᴇᴇᴘsᴇᴇᴋ ᴛᴏᴋᴇɴs.
+➼ sᴛᴇᴘ 1: ɢᴇᴛ ᴋᴇʏs | ɢʀᴏǫ, ᴅᴇᴇᴘsᴇᴇᴋ ᴏʀ ɢᴇᴍɪɴɪ ᴋᴇʏs.
 ➼ sᴛᴇᴘ 2: ᴜᴘʟᴏᴀᴅ ʏᴏᴜʀ ғɪʟᴇ
 sᴇɴᴅ ʏᴏᴜʀ .ᴀss ᴏʀ sᴜʙᴛɪᴛʟᴇ ғɪʟᴇ ᴅɪʀᴇᴄᴛʟʏ ᴛᴏ ᴛʜᴇ ʙᴏᴛ.
 ➼ sᴛᴇᴘ 3: sᴇʟᴇᴄᴛ ᴛʜᴇ ᴇɴɢɪɴᴇ
-ᴄʜᴏᴏsᴇ ʙᴇᴛᴡᴇᴇɴ ɢʀᴏǫ 🚀 ᴏʀ ᴅᴇᴇᴘsᴇᴇᴋ 🐋 ғᴏʀ ᴘʀᴇᴍɪᴜᴍ sᴜʙs.
+ᴄʜᴏᴏsᴇ ʙᴇᴛᴡᴇᴇɴ ɢʀᴏǫ 🚀, ᴅᴇᴇᴘsᴇᴇᴋ 🐋 ᴏʀ ɢᴇᴍɪɴɪ ⚡ ғᴏʀ ᴘʀᴇᴍɪᴜᴍ sᴜʙs.
 ➼ sᴛᴇᴘ 4: ᴡᴀɪᴛ ғᴏʀ ᴘʀᴏᴄᴇssɪɴɢ
 ᴛʜᴇ ʙᴏᴛ ᴡɪʟʟ sᴘʟɪᴛ ʏᴏᴜʀ ғɪʟᴇ ɪɴᴛᴏ ᴍɪᴄʀᴏ-ᴄʜᴜɴᴋs ғᴏʀ ǫᴜᴀʟɪᴛʏ.</blockquote>
-ɴᴏᴛᴇ: ᴛʜᴇ ʙᴏᴛ ɴᴏᴡ sᴜᴘᴘᴏʀᴛs ᴅᴜᴀʟ-ᴇɴɢɪɴᴇ ᴀʀᴄʜɪᴛᴇᴄᴛᴜʀᴇ (ɢʀᴏǫ + ᴅᴇᴇᴘsᴇᴇᴋ)!"""
+ɴᴏᴛᴇ: ᴛʜᴇ ʙᴏᴛ ɴᴏᴡ sᴜᴘᴘᴏʀᴛs ᴛʀɪᴘʟᴇ-ᴇɴɢɪɴᴇ ᴀʀᴄʜɪᴛᴇᴄᴛᴜʀᴇ (ɢʀᴏǫ + ᴅᴇᴇᴘsᴇᴇᴋ + ɢᴇᴍɪɴɪ)!"""
 
 # Temporary storage for file metadata linked to message ID
 translation_data = {}
@@ -323,7 +323,8 @@ async def call_deepseek(system_prompt, user_content, api_key, temperature=0.2):
 
 async def call_gemini(system_prompt, user_content, api_key, model_name):
     if not user_content.strip(): return user_content
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+    model_name = model_name.replace("models/", "")
+    url = f"https://generativelanguage.googleapis.com/v1/models/{model_name}:generateContent?key={api_key}"
     headers = {"Content-Type": "application/json"}
     payload = {
         "system_instruction": {"parts": [{"text": system_prompt}]},
@@ -422,9 +423,10 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
                     success = True
                     await asyncio.sleep(random.uniform(10, 20))
             elif engine == "gemini":
+                await asyncio.sleep(4) # Mandatory 15 RPM Limit
                 await edit_msg(status_msg, f"⏳ [𝐆𝐞𝐦𝐢𝐧𝐢] : Translating chunk {idx+1}/{len(chunk_queue)}...")
-                gemini_sys_prompt = "You are a professional translator. Translate the following text into [Target Language] while maintaining the original tone, context, and formatting. Do not add any explanations or extra text. Output ONLY translated lines wrapped in <t> and </t> tags. Ensure the output has the exact same number of lines as the input."
-                res = await call_gemini(gemini_sys_prompt.replace("[Target Language]", "Hinglish"), f"Analysis:\n{analysis_res}\n\nLines to Translate:\n{xml_chunk}", gemini_api_key, gemini_model)
+                gemini_sys_prompt = "You are a professional translator. Translate the following text accurately into Hinglish. Maintain the original tone, context, and formatting. Do not add any explanations, notes, or extra text. Output ONLY translated lines wrapped in <t> and </t> tags. Ensure the output has the exact same number of lines as the input."
+                res = await call_gemini(gemini_sys_prompt, f"Analysis:\n{analysis_res}\n\nLines to Translate:\n{xml_chunk}", gemini_api_key, gemini_model)
 
                 if res == "429":
                     await edit_msg(status_msg, f"⚠️ Gemini Rate Limited. Waiting 60s...")
@@ -447,14 +449,12 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
                              res_lines = raw_res_lines
                         else:
                             LOGGER.warning(f"Line count mismatch in Gemini chunk {idx+1}: Expected {len(original_lines)}, got {len(res_lines)} (XML) or {len(raw_res_lines)} (Raw). Retrying...")
-                            await asyncio.sleep(4)
                             continue
 
                     for trans_line in res_lines:
                         clean_line = re.sub(r'^\[.*?\]:\s*', '', trans_line.strip()).strip()
                         translated_texts.append(clean_line)
                     success = True
-                    await asyncio.sleep(4) # 15 RPM Rate Limiting
             else:
                 # Groq Logic (Existing)
                 keys_tried = 0
@@ -633,7 +633,7 @@ async def process_translation(bot, cb, model_type=None, model_name=None):
             gemini_api_key = await db.get_gemini_api_key(user_id)
             gemini_model = await db.get_translation_model(user_id)
             if not gemini_api_key:
-                await cb.answer("❌ Gemini API Key not set! Use /set_gemini_api", show_alert=True)
+                await cb.answer("❌ Please set your personal Gemini API key first using /set_gemini_api <your_key>.", show_alert=True)
                 return
             # Gemini still needs Analyst (Groq Key 1)
             api_pool = await db.get_groq_api_pool(user_id)
