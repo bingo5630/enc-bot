@@ -51,9 +51,7 @@ class Database:
             user_font_size=0,
             groq_api_pool=[],
             translation_engine='groq',
-            translation_model='gemini-1.5-flash',
-            deepseek_token=None,
-            gemini_api_key=None
+            deepseek_token=None
         )
 
     async def add_user(self, id):
@@ -524,23 +522,3 @@ class Database:
     async def get_deepseek_token(self, id):
         user = await self._get_user(id)
         return user.get('deepseek_token', None)
-
-    async def set_gemini_api_key(self, id, key):
-        try:
-            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'gemini_api_key': key}}, upsert=True), timeout=5.0)
-        except Exception as e:
-            LOGGER.error(f"Error in set_gemini_api_key: {e}")
-
-    async def get_gemini_api_key(self, id):
-        user = await self._get_user(id)
-        return user.get('gemini_api_key', None)
-
-    async def set_translation_model(self, id, model):
-        try:
-            await asyncio.wait_for(self.col.update_one({'id': id}, {'$set': {'translation_model': model}}, upsert=True), timeout=5.0)
-        except Exception as e:
-            LOGGER.error(f"Error in set_translation_model: {e}")
-
-    async def get_translation_model(self, id):
-        user = await self._get_user(id)
-        return user.get('translation_model', 'gemini-1.5-flash')
