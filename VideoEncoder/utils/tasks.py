@@ -447,3 +447,6 @@ async def handle_tg_down(message, edit_msg, mode='no_reply'):
         progress_args=("Downloading...", edit_msg, c_time))
 
     return path
+
+# Dummy Semaphore to prevent ImportErrors in other plugins
+task_semaphore = asyncio.Semaphore(5)
