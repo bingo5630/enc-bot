@@ -262,7 +262,7 @@ def parse_ass(content):
 async def call_groq(system_prompt, user_content, api_key, temperature=0.2):
     if not user_content.strip(): return user_content
     model_name = "llama-3.3-70b-versatile"
-    url = "https://uibot.sn117020.workers.dev/v1/chat/completions"
+    url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -289,7 +289,7 @@ async def call_groq(system_prompt, user_content, api_key, temperature=0.2):
 async def call_deepseek(system_prompt, user_content, api_key, temperature=0.2):
     if not user_content.strip(): return user_content
     model_name = "deepseek-chat"
-    url = "https://uibot.sn117020.workers.dev/v1/chat/completions"
+    url = "https://api.deepseek.com/chat/completions"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -324,42 +324,47 @@ async def call_deepseek(system_prompt, user_content, api_key, temperature=0.2):
 async def call_gemini(system_prompt, user_content, api_key, model_name):
     if not user_content.strip(): return user_content
     model_name = model_name.replace("models/", "")
-    url = f"https://generativelanguage.googleapis.com/v1/models/{model_name}:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
     headers = {"Content-Type": "application/json"}
     payload = {
-        "system_instruction": {"parts": [{"text": system_prompt}]},
-        "contents": [
-            {
-                "role": "user",
-                "parts": [{"text": user_content}]
-            }
-        ],
+        "contents": [{
+            "parts": [{"text": f"{system_prompt}\n\n{user_content}"}]
+        }],
         "generationConfig": {
-            "temperature": 0.2,
-            "topP": 0.8,
-            "topK": 40
-        }
+            "temperature": 0.3
+        },
+        "safetySettings": [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+        ]
     }
 
     async with httpx.AsyncClient() as client:
-        try:
-            response = await client.post(url, headers=headers, json=payload, timeout=60.0)
-            if response.status_code == 200:
-                data = response.json()
-                if 'candidates' in data and len(data['candidates']) > 0:
-                    text = data['candidates'][0]['content']['parts'][0]['text'].strip()
-                    if text == user_content:
-                        return "RETRY_REQUIRED"
-                    return text
-                return "❌ Gemini Error: Empty response or safety filter block."
-            elif response.status_code == 429:
-                return "429"
-            elif response.status_code == 400:
-                return "API_KEY_INVALID"
-            else:
-                return f"❌ Gemini Error: {response.status_code} - {response.text}"
-        except Exception as e:
-            return f"❌ Gemini Error: {str(e)}"
+        for attempt in range(3):
+            try:
+                response = await client.post(url, headers=headers, json=payload, timeout=60.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    if 'candidates' in data and len(data['candidates']) > 0:
+                        text = data['candidates'][0]['content']['parts'][0]['text'].strip()
+                        if text == user_content:
+                            return "RETRY_REQUIRED"
+                        return text
+                    return "❌ Gemini Error: Empty response or safety filter block."
+                elif response.status_code == 429:
+                    return "429"
+                elif response.status_code == 400:
+                    return "API_KEY_INVALID"
+
+                if attempt < 2:
+                    await asyncio.sleep(1)
+            except Exception as e:
+                if attempt == 2:
+                    return f"❌ Gemini Error: {str(e)}"
+                await asyncio.sleep(1)
+        return "❌ Gemini Error: Max retries exceeded."
 
 async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg, engine="groq", deepseek_token=None, gemini_api_key=None, gemini_model=None):
     translated_texts = []
@@ -429,12 +434,12 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
                 res = await call_gemini(gemini_sys_prompt, f"Analysis:\n{analysis_res}\n\nLines to Translate:\n{xml_chunk}", gemini_api_key, gemini_model)
 
                 if res == "429":
-                    await edit_msg(status_msg, f"⚠️ Gemini Rate Limited. Waiting 60s...")
+                    await edit_msg(status_msg, "⚠️ Rate limit exceed ho gayi hai. Waiting 60s...")
                     await asyncio.sleep(60)
                     continue
                 elif res == "API_KEY_INVALID":
-                    await edit_msg(status_msg, "❌ Invalid Gemini API Key. Please update it using /set_gemini_api")
-                    return "❌ Invalid Gemini API Key.", []
+                    await edit_msg(status_msg, "❌ Aapki API Key invalid hai, please check karein. Update it using /setkey")
+                    return "❌ Aapki API Key invalid hai, please check karein.", []
                 elif res in ["RETRY_REQUIRED"] or res.startswith("❌"):
                     await edit_msg(status_msg, f"⚠️ Gemini Error: {res}. Retrying in 10s...")
                     await asyncio.sleep(10)
@@ -579,12 +584,19 @@ async def set_deepseek_handler(bot: Client, message: Message):
     await db.set_deepseek_token(message.from_user.id, token)
     await message.reply_text("✅ DeepSeek API Token saved successfully!")
 
-@Client.on_message(filters.command("set_gemini_api") & filters.private)
+@Client.on_message(filters.command(["set_gemini_api", "setkey"]) & filters.private)
 async def set_gemini_handler(bot: Client, message: Message):
     if len(message.command) < 2:
-        await message.reply_text("❌ Usage: /set_gemini_api YOUR_KEY_HERE")
+        await message.reply_text(f"❌ Usage: /{message.command[0]} YOUR_KEY_HERE")
         return
     api_key = message.command[1]
+
+    # Key Validation Check
+    validation_res = await call_gemini("Hi", "Test prompt for validation", api_key, "gemini-1.5-flash")
+    if validation_res == "API_KEY_INVALID":
+        await message.reply_text("❌ Key galat hai. Please check karein.")
+        return
+
     await db.set_gemini_api_key(message.from_user.id, api_key)
     await message.reply_text("✅ Gemini API Key saved successfully!")
 
