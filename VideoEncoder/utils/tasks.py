@@ -15,8 +15,6 @@ from requests.utils import unquote
 from .. import LOGGER, data, download_dir, encode_dir, video_mimetype
 from ..video_utils.audio_selector import AudioSelect
 
-task_semaphore = asyncio.Semaphore(4)
-
 async def handle_sub_extract(filepath, message, edit_msg):
     from .encoding import extract_subtitle
     from .uploads.telegram import upload_doc
@@ -225,52 +223,44 @@ async def on_task_complete():
 
 
 async def handle_tasks(message, mode, msg=None, custom_name=None):
-    async with task_semaphore:
-        try:
-            if msg:
-                edit_msg = msg
-                await edit_msg.edit("<b>💠 Downloading...</b>")
-            else:
-                edit_msg = await message.reply_text("<b>💠 Downloading...</b>")
+    try:
+        if msg:
+            edit_msg = msg
+            await edit_msg.edit("<b>💠 Downloading...</b>")
+        else:
+            edit_msg = await message.reply_text("<b>💠 Downloading...</b>")
 
-            if mode == 'tg':
-                await tg_task(message, edit_msg)
-            elif mode in ['480p', '720p', '1080p']:
-                await tg_task(message, edit_msg, quality=mode, custom_name=custom_name)
-            elif mode == 'url':
-                await url_task(message, edit_msg)
-            elif mode == 'af':
-                await af_task(message, edit_msg)
-            elif mode == 'sub_tg':
-                await sub_tg_task(message, edit_msg)
-            elif mode == 'sub_url':
-                await sub_url_task(message, edit_msg)
-            elif mode in ['encode', 'hard_sub', 'soft_code']:
-                await interactive_task(message, edit_msg, mode)
-            else:
-                await batch_task(message, edit_msg)
-        except IndexError:
-            return
-        except MessageIdInvalid:
-            try: await edit_msg.edit(text='Download Cancelled!')
-            except: pass
-        except FileNotFoundError:
-            LOGGER.error('[FileNotFoundError]: Maybe due to cancel, hmm')
-            import traceback
-            LOGGER.error(traceback.format_exc())
-        except Exception as e:
-            import traceback
-            LOGGER.error(traceback.format_exc())
-            await message.reply(text=f"Error! <code>{e}</code>")
-        finally:
-            await on_task_complete(message)
-
-async def on_task_complete(message=None):
-    if message and message in data:
-        data.remove(message)
-    if not data:
-        from .helper import delete_downloads
-        delete_downloads()
+        if mode == 'tg':
+            await tg_task(message, edit_msg)
+        elif mode in ['480p', '720p', '1080p']:
+            await tg_task(message, edit_msg, quality=mode, custom_name=custom_name)
+        elif mode == 'url':
+            await url_task(message, edit_msg)
+        elif mode == 'af':
+            await af_task(message, edit_msg)
+        elif mode == 'sub_tg':
+            await sub_tg_task(message, edit_msg)
+        elif mode == 'sub_url':
+            await sub_url_task(message, edit_msg)
+        elif mode in ['encode', 'hard_sub', 'soft_code']:
+            await interactive_task(message, edit_msg, mode)
+        else:
+            await batch_task(message, edit_msg)
+    except IndexError:
+        return
+    except MessageIdInvalid:
+        try: await edit_msg.edit(text='Download Cancelled!')
+        except: pass
+    except FileNotFoundError:
+        LOGGER.error('[FileNotFoundError]: Maybe due to cancel, hmm')
+        import traceback
+        LOGGER.error(traceback.format_exc())
+    except Exception as e:
+        import traceback
+        LOGGER.error(traceback.format_exc())
+        await message.reply(text=f"Error! <code>{e}</code>")
+    finally:
+        await on_task_complete()
 
 
 async def tg_task(message, edit_msg, quality=None, custom_name=None):
