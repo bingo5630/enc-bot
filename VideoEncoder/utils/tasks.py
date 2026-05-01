@@ -1,4 +1,3 @@
-
 import asyncio
 import html
 import os
@@ -50,13 +49,11 @@ async def handle_encode(filepath, message, edit_msg, audio_map=None, quality=Non
             if not subs:
                 await edit_msg.edit("Something went wrong while extracting the subtitles!")
                 return
-            # Move subs to expected location if it was from existing subs
             if subs != sub_path and os.path.exists(subs):
                 os.rename(subs, sub_path)
 
         new_file, error_log = await encode(filepath, message, edit_msg, audio_map=audio_map, quality=quality, custom_name=custom_name)
         if new_file:
-            # 1MB = 1048576 bytes
             if os.path.getsize(new_file) < 1048576:
                 LOGGER.error(f"Encoded file is too small ({os.path.getsize(new_file)} bytes). FFmpeg likely failed.")
                 error_file = f"ffmpeg_error_{edit_msg.id}.txt"
@@ -83,7 +80,6 @@ async def handle_encode(filepath, message, edit_msg, audio_map=None, quality=Non
                 os.remove(error_file)
         return link
     finally:
-        # Robust cleanup
         if new_file and os.path.exists(new_file):
             try: os.remove(new_file)
             except: pass
@@ -102,7 +98,6 @@ async def handle_interactive_encode(video_path, sub_path, message, edit_msg, mod
     video_path = os.path.abspath(video_path)
     sub_path = os.path.abspath(sub_path)
 
-    # Ensure sub_path is moved to encode_dir while preserving original filename
     sub_name = os.path.basename(sub_path)
     sub_dest = os.path.join(encode_dir, sub_name)
     if sub_path != sub_dest:
@@ -123,7 +118,6 @@ async def handle_interactive_encode(video_path, sub_path, message, edit_msg, mod
             new_file = None
 
         if new_file:
-            # 1MB = 1048576 bytes
             if os.path.getsize(new_file) < 1048576:
                 LOGGER.error(f"Processed file is too small ({os.path.getsize(new_file)} bytes). FFmpeg likely failed.")
                 error_file = f"ffmpeg_error_{edit_msg.id}.txt"
@@ -149,7 +143,6 @@ async def handle_interactive_encode(video_path, sub_path, message, edit_msg, mod
             if os.path.exists(error_file):
                 os.remove(error_file)
     finally:
-        # Cleanup
         if new_file and os.path.exists(new_file):
             try: os.remove(new_file)
             except: pass
@@ -170,7 +163,6 @@ async def on_task_complete():
         return
     message = data[0]
 
-    # Determine text content (message text or caption)
     text_content = message.text or message.caption
 
     if text_content:
@@ -198,23 +190,19 @@ async def on_task_complete():
         elif '/af' in command:
             await handle_tasks(message, 'af')
         elif '/sub_extract' in command:
-            # Detect whether it was a file or url based on presence of text/caption and file
             has_file = (message.reply_to_message and (message.reply_to_message.video or message.reply_to_message.document)) or \
                        (message.video or message.document)
             mode = 'sub_tg' if has_file else 'sub_url'
             await handle_tasks(message, mode)
         else:
-             # If has text but not a known command, check if it's a file
             if message.document or message.video:
                  if message.document and not message.document.mime_type in video_mimetype:
                     await on_task_complete()
                     return
                  await handle_tasks(message, 'tg')
             else:
-                 # Just text, maybe a link but without command? Or unhandled
                  pass
     else:
-        # Fallback for any other file message if somehow added
         if message.document:
             if not message.document.mime_type in video_mimetype:
                 await on_task_complete()
@@ -253,8 +241,6 @@ async def handle_tasks(message, mode, msg=None, custom_name=None):
         except: pass
     except FileNotFoundError:
         LOGGER.error('[FileNotFoundError]: Maybe due to cancel, hmm')
-        import traceback
-        LOGGER.error(traceback.format_exc())
     except Exception as e:
         import traceback
         LOGGER.error(traceback.format_exc())
@@ -288,14 +274,10 @@ async def sub_url_task(message, edit_msg):
 
 
 async def interactive_task(message, edit_msg, mode):
-    # message here is the video message which has subtitle_msg attached
     subtitle_msg = message.subtitle_msg
-
-    # Download subtitle
     await edit_msg.edit(text="Downloading Subtitle...")
     sub_path = await subtitle_msg.download(file_name=os.path.join(download_dir, ""))
 
-    # Download video
     await edit_msg.edit(text="Downloading Video...")
     video_path = await handle_tg_down(message, edit_msg)
 
@@ -314,23 +296,19 @@ async def af_task(message, edit_msg):
         await edit_msg.edit(text="Download failed or no file found.")
         return
 
-    # Probe for streams
     streams = get_media_streams(filepath)
     if not streams:
          await edit_msg.edit(text="Could not retrieve media streams.")
          return
 
     selector = AudioSelect(message._client, message)
-    await edit_msg.delete() # Delete the downloading message as AudioSelect will send its own interface
+    await edit_msg.delete() 
 
-    # AudioSelect expects streams list
     audio_map, _ = await selector.get_buttons(streams)
 
     if audio_map == -1:
-        # Cancelled or error
         return
 
-    # Proceed to encode with the new map
     edit_msg = await message.reply("Encoding with new audio arrangement...")
     await handle_encode(filepath, message, edit_msg, audio_map)
 
@@ -366,7 +344,6 @@ async def batch_task(message, edit_msg):
         return
     await edit_msg.edit(text='<b>📕 Encode Started!</b>')
     sentfiles = []
-    # Encode
     for dirpath, subdir, files_ in sorted(os.walk(path)):
         for i in sorted(files_):
             msg_ = await message.reply('Encoding')
@@ -419,7 +396,6 @@ async def handle_download_url(message, edit_msg, batch):
         n = Downloader()
         custom_file_name = n.name(file_id)
     else:
-        # Default filename from URL basename
         custom_file_name = unquote_plus(os.path.basename(url))
 
     if "|" in url and not batch:
@@ -428,8 +404,6 @@ async def handle_download_url(message, edit_msg, batch):
         if c_file_name:
             custom_file_name = c_file_name.strip()
     elif " " in url and not batch:
-        # Attempt to handle space-separated URL and filename
-        # This assumes the URL itself doesn't contain unencoded spaces, which is standard.
         parts = url.split()
         if len(parts) > 1:
             url = parts[0]
@@ -439,7 +413,6 @@ async def handle_download_url(message, edit_msg, batch):
     if direct:
         url = direct
 
-    # Ensure filename is safe/valid or fallback
     if not custom_file_name:
         custom_file_name = "downloaded_file"
 
@@ -453,11 +426,9 @@ async def handle_download_url(message, edit_msg, batch):
 
 
 async def handle_tg_down(message, edit_msg, mode='no_reply'):
-    from .helper import get_zip_folder, handle_extract
     from .display_progress import progress_for_pyrogram
     c_time = time.time()
 
-    # Determine what to download
     target_msg = message
     if message.reply_to_message and (message.reply_to_message.video or message.reply_to_message.document):
         target_msg = message.reply_to_message
@@ -466,7 +437,6 @@ async def handle_tg_down(message, edit_msg, mode='no_reply'):
     elif mode == 'reply' and message.reply_to_message:
         target_msg = message.reply_to_message
     else:
-        # If command was just /dl without reply and without attachment, and mode is not explicit reply
         if not (message.reply_to_message and (message.reply_to_message.video or message.reply_to_message.document)):
              return None
         target_msg = message.reply_to_message
