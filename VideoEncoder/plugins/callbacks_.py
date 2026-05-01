@@ -65,7 +65,7 @@ async def main_callback_handler(bot: Client, cb: CallbackQuery):
             from .start import START_PIC
             buttons = [
                 [
-                    InlineKeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ʜᴏᴍᴇ", callback_data="back_start"),
+                    InlineKeyboardButton("🔙 Back to Home", callback_data="back_start"),
                     InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="closeMeh")
                 ]
             ]
@@ -191,23 +191,8 @@ async def main_callback_handler(bot: Client, cb: CallbackQuery):
             from .translator import get_translate_buttons, TRANSLATE_TEXT
             from ..utils.common import edit_msg
             current_engine = await db.get_translation_engine(user_id)
-            if current_engine == "groq":
-                new_engine = "deepseek"
-            elif current_engine == "deepseek":
-                new_engine = "gemini"
-            else:
-                new_engine = "groq"
+            new_engine = "deepseek" if current_engine == "groq" else "groq"
             await db.set_translation_engine(user_id, new_engine)
-            reply_markup = await get_translate_buttons(user_id)
-            await edit_msg(cb.message, caption=TRANSLATE_TEXT, reply_markup=reply_markup)
-
-        elif data.startswith("set_model_gemini-1.5-"):
-            from ..utils.database.access_db import db
-            from .translator import get_translate_buttons, TRANSLATE_TEXT
-            from ..utils.common import edit_msg
-            model_name = data.replace("set_model_", "")
-            await db.set_translation_engine(user_id, "gemini")
-            await db.set_translation_model(user_id, model_name)
             reply_markup = await get_translate_buttons(user_id)
             await edit_msg(cb.message, caption=TRANSLATE_TEXT, reply_markup=reply_markup)
 
@@ -301,20 +286,20 @@ async def main_callback_handler(bot: Client, cb: CallbackQuery):
                 uptime = TimeFormatter(time() - botStartTime)
 
                 msg = (
-                    f'<b>sʏsᴛᴇᴍ sᴛᴀᴛᴜs</b>\n'
-                    f'<b>ᴄᴘᴜ:</b> {cpu}% | <b>ʀᴀᴍ:</b> {mem}%\n'
-                    f'<b>ғʀᴇᴇ:</b> {humanbytes(disk)}\n'
-                    f'<b>ᴜᴘ:</b> {upload_speed} | <b>ᴅʟ:</b> {download_speed}\n'
-                    f'<b>ᴜᴘᴛɪᴍᴇ:</b> {uptime}\n\n'
+                    f'<b>System Status</b>\n'
+                    f'<b>CPU:</b> {cpu}% | <b>RAM:</b> {mem}%\n'
+                    f'<b>FREE:</b> {humanbytes(disk)}\n'
+                    f'<b>UP:</b> {upload_speed} | <b>DL:</b> {download_speed}\n'
+                    f'<b>Uptime:</b> {uptime}\n\n'
                 )
 
                 if count:
-                    msg += f"<b>ᴀᴄᴛɪᴠᴇ ᴛᴀsᴋs:</b> {count}\n"
+                    msg += f"<b>Active Tasks:</b> {count}\n"
                     for i, task_msg in enumerate(active_data):
                          info = get_task_info(task_msg)
                          msg += f"{i+1}. {info}\n"
                 else:
-                    msg += "ɴᴏ ᴀᴄᴛɪᴠᴇ ᴅᴏᴡɴʟᴏᴀᴅs!\n"
+                    msg += "No Active Downloads!\n"
 
                 buttons = InlineKeyboardMarkup([[InlineKeyboardButton("ʀᴇғʀᴇsʜ", callback_data="status ref")]])
                 try:

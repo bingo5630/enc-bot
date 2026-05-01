@@ -21,7 +21,7 @@ async def get_metadata_menu(user_id):
             InlineKeyboardButton(off_text, callback_data="meta_off")
         ],
         [
-            InlineKeyboardButton("ᴄʟᴏsᴇ ✖️", callback_data="close_meta")
+            InlineKeyboardButton("CLOSE ✖️", callback_data="close_meta")
         ]
     ]
     return METADATA_HELP_TEXT, InlineKeyboardMarkup(buttons)

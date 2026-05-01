@@ -25,8 +25,10 @@ async def encode_video(app, message):
            return
 
     data.append(message)
-    asyncio.create_task(handle_tasks(message, 'tg'))
-    await message.reply(f"📔 Added to queue. Position: {len(data)}")
+    if len(data) == 1:
+        await handle_tasks(message, 'tg')
+    else:
+        await message.reply("📔 Waiting for queue...")
     await asyncio.sleep(1)
 
 
@@ -53,8 +55,11 @@ async def quality_encode(app, message):
         if len(parts) > 1:
             custom_name = os.path.basename(parts[1].strip())
 
-    edit_msg = await message.reply_text(f"Processing... Position: {len(data)}")
-    asyncio.create_task(handle_tasks(message, cmd, msg=edit_msg, custom_name=custom_name))
+    if len(data) == 1:
+        edit_msg = await message.reply_text("Processing...")
+        await handle_tasks(message, cmd, msg=edit_msg, custom_name=custom_name)
+    else:
+        await message.reply(f"📔 Waiting for queue for {cmd}...")
     await asyncio.sleep(1)
 
 
@@ -78,9 +83,11 @@ async def sub_extract_command(app, message):
         return
 
     data.append(message)
-    mode = 'sub_tg' if has_file else 'sub_url'
-    asyncio.create_task(handle_tasks(message, mode))
-    await message.reply(f"📔 Added to queue. Position: {len(data)}")
+    if len(data) == 1:
+        mode = 'sub_tg' if has_file else 'sub_url'
+        await handle_tasks(message, mode)
+    else:
+        await message.reply("📔 Waiting for queue...")
     await asyncio.sleep(1)
 
 @Client.on_message(filters.command('af'))
@@ -97,8 +104,10 @@ async def audio_features(app, message):
            return
 
     data.append(message)
-    asyncio.create_task(handle_tasks(message, 'af'))
-    await message.reply(f"📔 Added to queue. Position: {len(data)}")
+    if len(data) == 1:
+        await handle_tasks(message, 'af')
+    else:
+        await message.reply("📔 Waiting for queue...")
     await asyncio.sleep(1)
 
 @Client.on_message(filters.command('ddl'))
@@ -107,12 +116,15 @@ async def url_encode(app, message):
     if not c:
         return
     await AddUserToDatabase(app, message)
+    data.append(message)
     if len(message.text.split()) == 1:
         await message.reply_text("Usage: /ddl [url] | [filename]")
+        data.remove(data[0])
         return
-    data.append(message)
-    asyncio.create_task(handle_tasks(message, 'url'))
-    await message.reply(f"📔 Added to queue. Position: {len(data)}")
+    if len(data) == 1:
+        await handle_tasks(message, 'url')
+    else:
+        await message.reply("📔 Waiting for queue...")
     await asyncio.sleep(1)
 
 
@@ -122,10 +134,13 @@ async def batch_encode(app, message):
     if not c:
         return
     await AddUserToDatabase(app, message)
+    data.append(message)
     if len(message.text.split()) == 1:
         await message.reply_text("Usage: /batch [url]")
+        data.remove(data[0])
         return
-    data.append(message)
-    asyncio.create_task(handle_tasks(message, 'batch'))
-    await message.reply(f"📔 Added to queue. Position: {len(data)}")
+    if len(data) == 1:
+        await handle_tasks(message, 'batch')
+    else:
+        await message.reply("📔 Waiting for queue...")
     await asyncio.sleep(1)

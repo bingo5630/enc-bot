@@ -4,7 +4,6 @@ import asyncio
 import re
 import httpx
 import json
-import random
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from .. import LOGGER, download_dir
@@ -12,13 +11,10 @@ from ..utils.uploads.telegram import upload_doc
 from ..utils.database.access_db import db
 from ..utils.encoding import extract_subtitle, get_width_height
 
-USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/118.0",
-]
+try:
+    from deepseek import DeepSeekClient
+except ImportError:
+    DeepSeekClient = None
 
 ANALYZER_PROMPT = (
     "Analyze the raw English subtitle lines and context. "
@@ -134,44 +130,31 @@ DEEPSEEK_PROMPT = (
 )
 
 TRANSLATE_PIC = "https://graph.org/file/600586a9a49029c2e98f1-90c27ea7986142ea7a.jpg"
-TRANSLATE_TEXT = """<blockquote>✨ ᴛʀɪᴘʟᴇ-ᴇɴɢɪɴᴇ ᴛʀᴀɴsʟᴀᴛɪᴏɴ sʏsᴛᴇᴍ ✨
+TRANSLATE_TEXT = """<blockquote>✨ ᴅᴜᴀʟ-ᴇɴɢɪɴᴇ ᴛʀᴀɴsʟᴀᴛɪᴏɴ sʏsᴛᴇᴍ ✨
 ᴘʟᴇᴀsᴇ sᴇʟᴇᴄᴛ ᴀ ᴍᴏᴅᴇʟ ᴛᴏ sᴛᴀʀᴛ ʜɪɴɢʟɪsʜ ᴛʀᴀɴsʟᴀᴛɪᴏɴ.</blockquote>
 <blockquote expandable>ʜᴏᴡ ᴛᴏ ᴛʀᴀɴsʟᴀᴛᴇ - sᴛᴇᴘ ʙʏ sᴛᴇᴘ ɢᴜɪᴅᴇ:
-➼ sᴛᴇᴘ 1: ɢᴇᴛ ᴋᴇʏs | ɢʀᴏǫ, ᴅᴇᴇᴘsᴇᴇᴋ ᴏʀ ɢᴇᴍɪɴɪ ᴋᴇʏs.
+➼ sᴛᴇᴘ 1: ɢᴇᴛ ᴋᴇʏs | ɢʀᴏǫ ᴏʀ ᴅᴇᴇᴘsᴇᴇᴋ ᴛᴏᴋᴇɴs.
 ➼ sᴛᴇᴘ 2: ᴜᴘʟᴏᴀᴅ ʏᴏᴜʀ ғɪʟᴇ
 sᴇɴᴅ ʏᴏᴜʀ .ᴀss ᴏʀ sᴜʙᴛɪᴛʟᴇ ғɪʟᴇ ᴅɪʀᴇᴄᴛʟʏ ᴛᴏ ᴛʜᴇ ʙᴏᴛ.
 ➼ sᴛᴇᴘ 3: sᴇʟᴇᴄᴛ ᴛʜᴇ ᴇɴɢɪɴᴇ
-ᴄʜᴏᴏsᴇ ʙᴇᴛᴡᴇᴇɴ ɢʀᴏǫ 🚀, ᴅᴇᴇᴘsᴇᴇᴋ 🐋 ᴏʀ ɢᴇᴍɪɴɪ ⚡ ғᴏʀ ᴘʀᴇᴍɪᴜᴍ sᴜʙs.
+ᴄʜᴏᴏsᴇ ʙᴇᴛᴡᴇᴇɴ ɢʀᴏǫ 🚀 ᴏʀ ᴅᴇᴇᴘsᴇᴇᴋ 🐋 ғᴏʀ ᴘʀᴇᴍɪᴜᴍ sᴜʙs.
 ➼ sᴛᴇᴘ 4: ᴡᴀɪᴛ ғᴏʀ ᴘʀᴏᴄᴇssɪɴɢ
 ᴛʜᴇ ʙᴏᴛ ᴡɪʟʟ sᴘʟɪᴛ ʏᴏᴜʀ ғɪʟᴇ ɪɴᴛᴏ ᴍɪᴄʀᴏ-ᴄʜᴜɴᴋs ғᴏʀ ǫᴜᴀʟɪᴛʏ.</blockquote>
-ɴᴏᴛᴇ: ᴛʜᴇ ʙᴏᴛ ɴᴏᴡ sᴜᴘᴘᴏʀᴛs ᴛʀɪᴘʟᴇ-ᴇɴɢɪɴᴇ ᴀʀᴄʜɪᴛᴇᴄᴛᴜʀᴇ (ɢʀᴏǫ + ᴅᴇᴇᴘsᴇᴇᴋ + ɢᴇᴍɪɴɪ)!"""
+ɴᴏᴛᴇ: ᴛʜᴇ ʙᴏᴛ ɴᴏᴡ sᴜᴘᴘᴏʀᴛs ᴅᴜᴀʟ-ᴇɴɢɪɴᴇ ᴀʀᴄʜɪᴛᴇᴄᴛᴜʀᴇ (ɢʀᴏǫ + ᴅᴇᴇᴘsᴇᴇᴋ)!"""
 
 # Temporary storage for file metadata linked to message ID
 translation_data = {}
 
 async def get_translate_buttons(user_id):
     engine = await db.get_translation_engine(user_id)
-    model = await db.get_translation_model(user_id)
-    if engine == "groq":
-        engine_display = "ɢʀᴏǫ 🚀"
-    elif engine == "deepseek":
-        engine_display = "ᴅᴇᴇᴘsᴇᴇᴋ 🐋"
-    else:
-        engine_display = f"ɢᴇᴍɪɴɪ {'⚡' if 'flash' in model else '🧠'}"
-
+    engine_display = "Grok 𝕏" if engine == "groq" else "DeepSeek 🐋"
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("ɢᴇᴍɪɴɪ 1.5 ғʟᴀsʜ (ғᴀsᴛ & sᴛᴀʙʟᴇ) ⚡", callback_data="set_model_gemini-1.5-flash")
+            InlineKeyboardButton(f"🤖 Model: {engine_display}", callback_data="toggle_trans_engine")
         ],
         [
-            InlineKeyboardButton("ɢᴇᴍɪɴɪ 1.5 ᴘʀᴏ (ʜɪɢʜ ǫᴜᴀʟɪᴛʏ) 🧠", callback_data="set_model_gemini-1.5-pro")
-        ],
-        [
-            InlineKeyboardButton(f"🤖 ᴍᴏᴅᴇʟ: {engine_display}", callback_data="toggle_trans_engine")
-        ],
-        [
-            InlineKeyboardButton("🚀 sᴛᴀʀᴛ ᴛʀᴀɴsʟᴀᴛɪᴏɴ", callback_data="start_trans_process"),
-            InlineKeyboardButton("❌ ᴄʟᴏsᴇ ᴍᴇɴᴜ", callback_data="close_btn")
+            InlineKeyboardButton("🚀 Start Translation", callback_data="start_trans_process"),
+            InlineKeyboardButton("❌ Close Menu", callback_data="close_btn")
         ]
     ])
 
@@ -263,11 +246,7 @@ async def call_groq(system_prompt, user_content, api_key, temperature=0.2):
     if not user_content.strip(): return user_content
     model_name = "llama-3.3-70b-versatile"
     url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-        "User-Agent": random.choice(USER_AGENTS)
-    }
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     payload = {"model": model_name, "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_content}], "temperature": temperature}
 
     async with httpx.AsyncClient() as client:
@@ -287,93 +266,46 @@ async def call_groq(system_prompt, user_content, api_key, temperature=0.2):
             return f"❌ Groq Error: {str(e)}"
 
 async def call_deepseek(system_prompt, user_content, api_key, temperature=0.2):
+    if not DeepSeekClient:
+        return "❌ DeepSeekClient not installed"
     if not user_content.strip(): return user_content
-    model_name = "deepseek-chat"
-    url = "https://api.deepseek.com/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-        "User-Agent": random.choice(USER_AGENTS)
-    }
-    payload = {
-        "model": model_name,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_content}
-        ],
-        "temperature": temperature
-    }
 
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.post(url, headers=headers, json=payload, timeout=120.0)
-            if response.status_code == 200:
-                data = response.json()
-                translation = data['choices'][0]['message']['content'].strip()
-                translation = re.sub(r'<think>.*?</think>', '', translation, flags=re.DOTALL).strip()
-                if translation.strip() == user_content.strip():
-                    return "RETRY_REQUIRED"
-                return translation
-            elif response.status_code == 429:
-                return "429"
-            else:
-                return f"❌ DeepSeek Error: {response.status_code} - {response.text}"
-        except Exception as e:
-            return f"❌ DeepSeek Error: {str(e)}"
+    try:
+        client = DeepSeekClient(api_key=api_key)
+        # Inject all rules into prompt as requested
+        full_prompt = f"{system_prompt}\n\nTranslate this:\n{user_content}"
 
-async def call_gemini(system_prompt, user_content, api_key, model_name):
-    if not user_content.strip(): return user_content
-    model_name = model_name.replace("models/", "")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-    headers = {"Content-Type": "application/json"}
-    payload = {
-        "contents": [{
-            "parts": [{"text": f"{system_prompt}\n\n{user_content}"}]
-        }],
-        "generationConfig": {
-            "temperature": 0.3
-        },
-        "safetySettings": [
-            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
-        ]
-    }
+        # Wrapping in run_in_executor if it's not async-friendly,
+        # but the request implies direct usage.
+        # DeepSeek 0.1.9 logic provided (Run in thread to avoid blocking)
+        result = await asyncio.to_thread(
+            client.chat,
+            prompt=full_prompt,
+            model="default",
+            thinking=True
+        )
+        translation = result.response
+        # Strip DeepSeek thinking tags
+        translation = re.sub(r'<think>.*?</think>', '', translation, flags=re.DOTALL).strip()
 
-    async with httpx.AsyncClient() as client:
-        for attempt in range(3):
-            try:
-                response = await client.post(url, headers=headers, json=payload, timeout=60.0)
-                if response.status_code == 200:
-                    data = response.json()
-                    if 'candidates' in data and len(data['candidates']) > 0:
-                        text = data['candidates'][0]['content']['parts'][0]['text'].strip()
-                        if text == user_content:
-                            return "RETRY_REQUIRED"
-                        return text
-                    return "❌ Gemini Error: Empty response or safety filter block."
-                elif response.status_code == 429:
-                    return "429"
-                elif response.status_code == 400:
-                    return "API_KEY_INVALID"
+        if translation.strip() == user_content.strip():
+            return "RETRY_REQUIRED"
+        return translation
+    except Exception as e:
+        # Check for rate limit specifically if possible, otherwise generic 120s handling in loop
+        error_msg = str(e)
+        if "rate" in error_msg.lower() or "limit" in error_msg.lower():
+             return "429"
+        return f"❌ DeepSeek Error: {error_msg}"
 
-                if attempt < 2:
-                    await asyncio.sleep(1)
-            except Exception as e:
-                if attempt == 2:
-                    return f"❌ Gemini Error: {str(e)}"
-                await asyncio.sleep(1)
-        return "❌ Gemini Error: Max retries exceeded."
-
-async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg, engine="groq", deepseek_token=None, gemini_api_key=None, gemini_model=None):
+async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg, engine="groq", deepseek_token=None):
     translated_texts = []
     idx = 0
     trans_key_idx = 1 # Start rotation from Key 2 (index 1)
 
     while idx < len(chunk_queue):
         # original_lines are protected lines without [name] prefix
-        original_lines = to_translate[idx*20 : (idx+1)*20]
+        original_lines = to_translate[idx*10 : (idx+1)*10]
         # chunk is the one with [name] prefixes
         raw_lines_with_names = chunk_queue[idx].split('\n')
         # Apply cleaning to raw lines before XML tagging
@@ -426,40 +358,6 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
                         clean_line = re.sub(r'^\[.*?\]:\s*', '', trans_line.strip()).strip()
                         translated_texts.append(clean_line)
                     success = True
-                    await asyncio.sleep(random.uniform(10, 20))
-            elif engine == "gemini":
-                await asyncio.sleep(4) # Mandatory 15 RPM Limit
-                await edit_msg(status_msg, f"⏳ [𝐆𝐞𝐦𝐢𝐧𝐢] : Translating chunk {idx+1}/{len(chunk_queue)}...")
-                gemini_sys_prompt = "You are a professional translator. Translate the following text accurately into Hinglish. Maintain the original tone, context, and formatting. Do not add any explanations, notes, or extra text. Output ONLY translated lines wrapped in <t> and </t> tags. Ensure the output has the exact same number of lines as the input."
-                res = await call_gemini(gemini_sys_prompt, f"Analysis:\n{analysis_res}\n\nLines to Translate:\n{xml_chunk}", gemini_api_key, gemini_model)
-
-                if res == "429":
-                    await edit_msg(status_msg, "⚠️ Rate limit exceed ho gayi hai. Waiting 60s...")
-                    await asyncio.sleep(60)
-                    continue
-                elif res == "API_KEY_INVALID":
-                    await edit_msg(status_msg, "❌ Aapki API Key invalid hai, please check karein. Update it using /setkey")
-                    return "❌ Aapki API Key invalid hai, please check karein.", []
-                elif res in ["RETRY_REQUIRED"] or res.startswith("❌"):
-                    await edit_msg(status_msg, f"⚠️ Gemini Error: {res}. Retrying in 10s...")
-                    await asyncio.sleep(10)
-                    continue
-                else:
-                    # Extraction and Verification
-                    res_lines = re.findall(r'<t>(.*?)</t>', res, re.DOTALL)
-                    if len(res_lines) != len(original_lines):
-                        # Try to parse as raw lines if XML tagging fails
-                        raw_res_lines = [l.strip() for l in res.split('\n') if l.strip()]
-                        if len(raw_res_lines) == len(original_lines):
-                             res_lines = raw_res_lines
-                        else:
-                            LOGGER.warning(f"Line count mismatch in Gemini chunk {idx+1}: Expected {len(original_lines)}, got {len(res_lines)} (XML) or {len(raw_res_lines)} (Raw). Retrying...")
-                            continue
-
-                    for trans_line in res_lines:
-                        clean_line = re.sub(r'^\[.*?\]:\s*', '', trans_line.strip()).strip()
-                        translated_texts.append(clean_line)
-                    success = True
             else:
                 # Groq Logic (Existing)
                 keys_tried = 0
@@ -484,8 +382,11 @@ async def translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_
                             continue
 
                         # Success
-                        await edit_msg(status_msg, f"✅ Chunk {idx+1} translated. Taking jitter...")
-                        await asyncio.sleep(random.uniform(10, 20))
+                        if trans_key_idx == 4: # Key 5
+                            await edit_msg(status_msg, f"✅ Chunk {idx+1} translated. Taking 10s pause...")
+                            await asyncio.sleep(10)
+                        else:
+                            await asyncio.sleep(2)
 
                         for trans_line in res_lines:
                             # Clean up any remaining speaker prefix that AI might have included inside <t>
@@ -584,24 +485,6 @@ async def set_deepseek_handler(bot: Client, message: Message):
     await db.set_deepseek_token(message.from_user.id, token)
     await message.reply_text("✅ DeepSeek API Token saved successfully!")
 
-@Client.on_message(filters.command(["set_gemini_api", "setkey"]) & filters.private)
-async def set_gemini_handler(bot: Client, message: Message):
-    if len(message.command) < 2:
-        await message.reply_text(f"❌ Usage: /{message.command[0]} YOUR_KEY_HERE")
-        return
-    api_key = message.command[1]
-
-    # Key Validation Check
-    validation_res = await call_gemini("Hi", "Test prompt for validation", api_key, "gemini-1.5-flash")
-    if validation_res == "API_KEY_INVALID":
-        await message.reply_text("❌ Key galat hai. Please check karein.")
-        return
-
-    await db.set_gemini_api_key(message.from_user.id, api_key)
-    await message.reply_text("✅ Gemini API Key saved successfully!")
-
-from ..utils.tasks import task_semaphore
-
 @Client.on_message(filters.command("view_api") & filters.private)
 async def view_api_handler(bot: Client, message: Message):
     api_pool = await db.get_groq_api_pool(message.from_user.id)
@@ -623,202 +506,188 @@ async def clear_api_handler(bot: Client, message: Message):
 
 
 async def process_translation(bot, cb, model_type=None, model_name=None):
-    async with task_semaphore:
-        # This will be called from callbacks_.py
-        user_id = cb.from_user.id
+    # This will be called from callbacks_.py
+    user_id = cb.from_user.id
 
-        engine = await db.get_translation_engine(user_id)
-        deepseek_token = None
-        gemini_api_key = None
-        gemini_model = None
-        api_pool = None
+    engine = await db.get_translation_engine(user_id)
+    deepseek_token = None
+    api_pool = None
 
-        if engine == "groq":
-            api_pool = await db.get_groq_api_pool(user_id)
-            if not api_pool:
-                await cb.answer("❌ Groq API Pool is Empty!", show_alert=True)
-                return
-            if len(api_pool) < 5:
-                await cb.answer("❌ You need at least 5 Groq API Keys for Studio Flow!", show_alert=True)
-                return
-        elif engine == "gemini":
-            gemini_api_key = await db.get_gemini_api_key(user_id)
-            gemini_model = await db.get_translation_model(user_id)
-            if not gemini_api_key:
-                await cb.answer("❌ Please set your personal Gemini API key first using /set_gemini_api <your_key>.", show_alert=True)
-                return
-            # Gemini still needs Analyst (Groq Key 1)
-            api_pool = await db.get_groq_api_pool(user_id)
-            if not api_pool:
-                await cb.answer("❌ Gemini Engine needs at least 1 Groq Key for Analysis!", show_alert=True)
-                return
-        else:
-            deepseek_token = await db.get_deepseek_token(user_id)
-            if not deepseek_token:
-                await cb.answer("❌ DeepSeek API Token not set! Use /set_deepseek_api", show_alert=True)
-                return
-            # DeepSeek still needs Analyst (Groq Key 1)
-            api_pool = await db.get_groq_api_pool(user_id)
-            if not api_pool:
-                await cb.answer("❌ DeepSeek Engine needs at least 1 Groq Key for Analysis!", show_alert=True)
-                return
+    if engine == "groq":
+        api_pool = await db.get_groq_api_pool(user_id)
+        if not api_pool:
+            await cb.answer("❌ Groq API Pool is Empty!", show_alert=True)
+            return
+        if len(api_pool) < 5:
+            await cb.answer("❌ You need at least 5 Groq API Keys for Studio Flow!", show_alert=True)
+            return
+    else:
+        deepseek_token = await db.get_deepseek_token(user_id)
+        if not deepseek_token:
+            await cb.answer("❌ DeepSeek API Token not set! Use /set_deepseek_api", show_alert=True)
+            return
+        # DeepSeek still needs Analyst (Groq Key 1)
+        api_pool = await db.get_groq_api_pool(user_id)
+        if not api_pool:
+            await cb.answer("❌ DeepSeek Engine needs at least 1 Groq Key for Analysis!", show_alert=True)
+            return
 
-        unique_key = f"{cb.message.chat.id}_{cb.message.id}"
-        file_data = translation_data.get(unique_key)
-        replied = None
+    unique_key = f"{cb.message.chat.id}_{cb.message.id}"
+    file_data = translation_data.get(unique_key)
+    replied = None
 
-        if file_data:
-            file_id = file_data['file_id']
-            file_name = file_data['file_name']
-            try:
-                replied = await bot.get_messages(file_data['chat_id'], file_data['message_id'])
-            except Exception as e:
-                LOGGER.error(f"Error fetching message from translation_data: {e}")
-                replied = None
-        else:
-            # 2. Fallback to reply-chain logic
-            cmd_msg = cb.message.reply_to_message
-            if cmd_msg and cmd_msg.reply_to_message:
-                replied = cmd_msg.reply_to_message
-                if replied.document and replied.document.file_name and replied.document.file_name.lower().endswith((".ass", ".srt")):
-                    file_id = replied.document.file_id
-                    file_name = replied.document.file_name
-                else:
-                    await cb.answer("❌ Please reply to a valid .ass or .srt file.", show_alert=True)
-                    return
-            else:
-                await cb.answer("❌ Original file not found. Please try /translate again.", show_alert=True)
-                return
-
-        await cb.message.delete()
-        status_msg = await bot.send_message(user_id, "⏳ [𝐒𝐭𝐮𝐝𝐢𝐨 𝐅𝐥𝐨𝐰] : 𝐈𝐧𝐢𝐭𝐢𝐚𝐥𝐢𝐳𝐢𝐧𝐠 𝐀𝐫𝐜𝐡𝐢𝐭𝐞𝐜𝐭𝐮𝐫𝐞...")
-
-        file_path = await bot.download_media(
-            message=file_id,
-            file_name=os.path.join(download_dir, file_name)
-        )
-
-        if file_data and file_data.get('is_video'):
-            await edit_msg(status_msg, "⏳ [𝐒𝐭𝐮𝐝𝐢𝐨 𝐅𝐥𝐨𝐰] : Extracting subtitles from video...")
-            extracted = await extract_subtitle(file_path)
-            if not os.path.exists(extracted):
-                await edit_msg(status_msg, f"❌ Subtitle extraction failed: {extracted}")
-                if os.path.exists(file_path): os.remove(file_path)
-                return
-            video_path = file_path # Keep track of video to get resolution later
-            file_path = extracted
-            file_name = os.path.basename(file_path)
-        else:
-            video_path = None
-
-        # Clean up storage
-        if unique_key in translation_data:
-            del translation_data[unique_key]
-
+    if file_data:
+        file_id = file_data['file_id']
+        file_name = file_data['file_name']
         try:
-            with open(file_path, "r", encoding="utf-8-sig", errors="ignore") as f:
-                content = f.read()
-
-            is_srt = file_path.lower().endswith(".srt")
-            translated_content = ""
-
-            if is_srt:
-                parsed_blocks = parse_srt(content)
-                to_translate = []
-                tags_map = []
-                names = []
-                for b in parsed_blocks:
-                    if 'text' in b:
-                        protected, placeholders = protect_tags(b['text'].replace('\n', '\\N'), is_ass=False)
-                        to_translate.append(protected)
-                        tags_map.append(placeholders)
-                        names.append("") # SRT doesn't have speaker info in header
-
-                # Send 20 lines at once for context
-                chunk_queue = []
-                for i in range(0, len(to_translate), 20):
-                    lines_with_names = []
-                    for j in range(i, min(i+20, len(to_translate))):
-                        name_prefix = f"[{names[j]}]: " if names[j] else ""
-                        lines_with_names.append(f"{name_prefix}{to_translate[j]}")
-                    chunk_queue.append("\n".join(lines_with_names))
-
-                err, translated_texts = await translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg, engine=engine, deepseek_token=deepseek_token, gemini_api_key=gemini_api_key, gemini_model=gemini_model)
-                if err:
-                    await edit_msg(status_msg, err)
-                    return
-
-                final_srt = []
-                trans_idx = 0
-                for i, b in enumerate(parsed_blocks):
-                    if 'text' in b:
-                        if trans_idx < len(translated_texts):
-                            translated_text = restore_tags(translated_texts[trans_idx], tags_map[trans_idx])
-                            translated_text = translated_text.replace('\\N', '\n').replace('\\n', '\n')
-                            final_srt.append(f"{b['index']}\n{b['timestamp']}\n{translated_text}")
-                            trans_idx += 1
-                        else: final_srt.append(f"{b['index']}\n{b['timestamp']}\n{b['text']}")
-                    else: final_srt.append(b['raw'])
-                translated_content = "\n\n".join(final_srt)
-            else:
-                header, events, playresx, playresy = parse_ass(content)
-
-                to_translate = []
-                tags_map = []
-                names = []
-                for item in events:
-                    if 'text' in item:
-                        protected, placeholders = protect_tags(item['text'], is_ass=True)
-                        to_translate.append(protected)
-                        tags_map.append(placeholders)
-                        names.append(item.get('name', ''))
-
-                # Send 20 lines at once for context
-                chunk_queue = []
-                for i in range(0, len(to_translate), 20):
-                    lines_with_names = []
-                    for j in range(i, min(i+20, len(to_translate))):
-                        name_prefix = f"[{names[j]}]: " if names[j] else ""
-                        lines_with_names.append(f"{name_prefix}{to_translate[j]}")
-                    chunk_queue.append("\n".join(lines_with_names))
-
-                err, translated_texts = await translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg, engine=engine, deepseek_token=deepseek_token, gemini_api_key=gemini_api_key, gemini_model=gemini_model)
-                if err:
-                    await edit_msg(status_msg, err)
-                    return
-
-                final_events = []
-                trans_idx = 0
-                for i, item in enumerate(events):
-                    if 'text' in item:
-                        if trans_idx < len(translated_texts):
-                            # Restore tags in the translated text
-                            restored = restore_tags(translated_texts[trans_idx], tags_map[trans_idx])
-                            # Recombine with original prefix
-                            final_events.append(item['prefix'] + restored)
-                            trans_idx += 1
-                        else: final_events.append(item['prefix'] + item['text'])
-                    else: final_events.append(item['raw'])
-                translated_content = "\n".join(header) + "\n" + "\n".join(final_events)
-            output_filename = os.path.splitext(file_name)[0] + "_Hinglish" + os.path.splitext(file_name)[1]
-            output_path = os.path.join(download_dir, output_filename)
-            with open(output_path, "w", encoding="utf-8") as f:
-                f.write(translated_content)
-
-            caption = f"✅ Translated by AI (Hinglish)\nFile: <code>{output_filename}</code>"
-            # If replied is still None (fallback failed), use cb.message as a last resort to send the file
-            target_msg = replied if replied else cb.message
-
-            reply_markup = InlineKeyboardMarkup([[
-                InlineKeyboardButton("🔙 ʙᴀᴄᴋ ᴛᴏ ʜᴏᴍᴇ", callback_data="back_start"),
-                InlineKeyboardButton("❌ ᴄʟᴏsᴇ", callback_data="close_btn")
-            ]])
-
-            await upload_doc(target_msg, status_msg, 0, output_filename, output_path, caption=caption, reply_markup=reply_markup)
+            replied = await bot.get_messages(file_data['chat_id'], file_data['message_id'])
         except Exception as e:
-            LOGGER.error(f"Translation Error: {e}")
-            await edit_msg(status_msg, f"❌ Error: {e}")
-        finally:
+            LOGGER.error(f"Error fetching message from translation_data: {e}")
+            replied = None
+    else:
+        # 2. Fallback to reply-chain logic
+        cmd_msg = cb.message.reply_to_message
+        if cmd_msg and cmd_msg.reply_to_message:
+            replied = cmd_msg.reply_to_message
+            if replied.document and replied.document.file_name and replied.document.file_name.lower().endswith((".ass", ".srt")):
+                file_id = replied.document.file_id
+                file_name = replied.document.file_name
+            else:
+                await cb.answer("❌ Please reply to a valid .ass or .srt file.", show_alert=True)
+                return
+        else:
+            await cb.answer("❌ Original file not found. Please try /translate again.", show_alert=True)
+            return
+
+    await cb.message.delete()
+    status_msg = await bot.send_message(user_id, "⏳ [𝐒𝐭𝐮𝐝𝐢𝐨 𝐅𝐥𝐨𝐰] : 𝐈𝐧𝐢𝐭𝐢𝐚𝐥𝐢𝐳𝐢𝐧𝐠 𝐀𝐫𝐜𝐡𝐢𝐭𝐞𝐜𝐭𝐮𝐫𝐞...")
+
+    file_path = await bot.download_media(
+        message=file_id,
+        file_name=os.path.join(download_dir, file_name)
+    )
+
+    if file_data and file_data.get('is_video'):
+        await edit_msg(status_msg, "⏳ [𝐒𝐭𝐮𝐝𝐢𝐨 𝐅𝐥𝐨𝐰] : Extracting subtitles from video...")
+        extracted = await extract_subtitle(file_path)
+        if not os.path.exists(extracted):
+            await edit_msg(status_msg, f"❌ Subtitle extraction failed: {extracted}")
             if os.path.exists(file_path): os.remove(file_path)
-            if video_path and os.path.exists(video_path): os.remove(video_path)
-            if 'output_path' in locals() and os.path.exists(output_path): os.remove(output_path)
+            return
+        video_path = file_path # Keep track of video to get resolution later
+        file_path = extracted
+        file_name = os.path.basename(file_path)
+    else:
+        video_path = None
+
+    # Clean up storage
+    if unique_key in translation_data:
+        del translation_data[unique_key]
+
+    try:
+        with open(file_path, "r", encoding="utf-8-sig", errors="ignore") as f:
+            content = f.read()
+
+        is_srt = file_path.lower().endswith(".srt")
+        translated_content = ""
+
+        if is_srt:
+            parsed_blocks = parse_srt(content)
+            to_translate = []
+            tags_map = []
+            names = []
+            for b in parsed_blocks:
+                if 'text' in b:
+                    protected, placeholders = protect_tags(b['text'].replace('\n', '\\N'), is_ass=False)
+                    to_translate.append(protected)
+                    tags_map.append(placeholders)
+                    names.append("") # SRT doesn't have speaker info in header
+
+            # Send 10 lines at once for context
+            chunk_queue = []
+            for i in range(0, len(to_translate), 10):
+                lines_with_names = []
+                for j in range(i, min(i+10, len(to_translate))):
+                    name_prefix = f"[{names[j]}]: " if names[j] else ""
+                    lines_with_names.append(f"{name_prefix}{to_translate[j]}")
+                chunk_queue.append("\n".join(lines_with_names))
+
+            err, translated_texts = await translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg, engine=engine, deepseek_token=deepseek_token)
+            if err:
+                await edit_msg(status_msg, err)
+                return
+
+            final_srt = []
+            trans_idx = 0
+            for i, b in enumerate(parsed_blocks):
+                if 'text' in b:
+                    if trans_idx < len(translated_texts):
+                        translated_text = restore_tags(translated_texts[trans_idx], tags_map[trans_idx])
+                        translated_text = translated_text.replace('\\N', '\n').replace('\\n', '\n')
+                        final_srt.append(f"{b['index']}\n{b['timestamp']}\n{translated_text}")
+                        trans_idx += 1
+                    else: final_srt.append(f"{b['index']}\n{b['timestamp']}\n{b['text']}")
+                else: final_srt.append(b['raw'])
+            translated_content = "\n\n".join(final_srt)
+        else:
+            header, events, playresx, playresy = parse_ass(content)
+
+            to_translate = []
+            tags_map = []
+            names = []
+            for item in events:
+                if 'text' in item:
+                    protected, placeholders = protect_tags(item['text'], is_ass=True)
+                    to_translate.append(protected)
+                    tags_map.append(placeholders)
+                    names.append(item.get('name', ''))
+
+            # Send 10 lines at once for context
+            chunk_queue = []
+            for i in range(0, len(to_translate), 10):
+                lines_with_names = []
+                for j in range(i, min(i+10, len(to_translate))):
+                    name_prefix = f"[{names[j]}]: " if names[j] else ""
+                    lines_with_names.append(f"{name_prefix}{to_translate[j]}")
+                chunk_queue.append("\n".join(lines_with_names))
+
+            err, translated_texts = await translate_subtitle_chunks(chunk_queue, to_translate, api_pool, status_msg, engine=engine, deepseek_token=deepseek_token)
+            if err:
+                await edit_msg(status_msg, err)
+                return
+
+            final_events = []
+            trans_idx = 0
+            for i, item in enumerate(events):
+                if 'text' in item:
+                    if trans_idx < len(translated_texts):
+                        # Restore tags in the translated text
+                        restored = restore_tags(translated_texts[trans_idx], tags_map[trans_idx])
+                        # Recombine with original prefix
+                        final_events.append(item['prefix'] + restored)
+                        trans_idx += 1
+                    else: final_events.append(item['prefix'] + item['text'])
+                else: final_events.append(item['raw'])
+            translated_content = "\n".join(header) + "\n" + "\n".join(final_events)
+        output_filename = os.path.splitext(file_name)[0] + "_Hinglish" + os.path.splitext(file_name)[1]
+        output_path = os.path.join(download_dir, output_filename)
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(translated_content)
+
+        caption = f"✅ Translated by AI (Hinglish)\nFile: <code>{output_filename}</code>"
+        # If replied is still None (fallback failed), use cb.message as a last resort to send the file
+        target_msg = replied if replied else cb.message
+
+        reply_markup = InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔙 Back to Home", callback_data="back_start"),
+            InlineKeyboardButton("❌ Close", callback_data="close_btn")
+        ]])
+
+        await upload_doc(target_msg, status_msg, 0, output_filename, output_path, caption=caption, reply_markup=reply_markup)
+    except Exception as e:
+        LOGGER.error(f"Translation Error: {e}")
+        await edit_msg(status_msg, f"❌ Error: {e}")
+    finally:
+        if os.path.exists(file_path): os.remove(file_path)
+        if video_path and os.path.exists(video_path): os.remove(video_path)
+        if 'output_path' in locals() and os.path.exists(output_path): os.remove(output_path)
